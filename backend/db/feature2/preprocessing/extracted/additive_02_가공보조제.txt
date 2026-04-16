@@ -1,0 +1,467 @@
+No. 품목명
+α-갈락토시다아제
+1
+(α-Galactosidase)
+과산화수소
+2
+(Hydrogen Peroxide)
+과산화초산
+3
+(Peroxyacetic Acid)
+국
+4
+규산마그네슘
+5
+(Magnesium Silicate)
+규산칼슘
+6
+(Calcium Silicate)
+규조토
+7
+(Diatomaceous Earth)
+β-글루카나아제
+8
+(β-Glucanase)
+α-글루코시다아제
+9
+(α-Glucosidase)
+글루코아밀라아제
+10
+(Glucoamylase)
+글루코오스산화효소
+11
+(Glucose Oxidase)
+글루코오스이성화효소
+12
+(Glucose Isomerase)
+글루타미나아제
+13
+(Glutaminase)
+니켈
+14
+(Nickel)
+덱스트라나아제
+15
+(Dextranase)
+5'-디아미나아제
+16
+(5'-Deaminase)
+라우린산
+17
+(Lauric Acid)
+락타아제
+18
+(Lactase)
+리소짐
+19
+(Lysozyme)
+리파아제
+20
+(Lipase)
+말토게닉아밀라아제
+21
+(Maltogenic Amylase)
+말토트리오히드로라아제
+22
+(Maltotriohydrolase)
+메타규산나트륨
+23
+(Sodium Metasilicate)
+메톡사이드나트륨
+24
+(Sodium Methoxide)
+메틸알콜
+25
+(Methyl Alcohol)
+미리스트산
+26
+(Myristic Acid)
+No.	품목명
+1	α-갈락토시다아제
+(α-Galactosidase)
+2	과산화수소
+(Hydrogen Peroxide)
+3	과산화초산
+(Peroxyacetic Acid)
+4	국
+5	규산마그네슘
+(Magnesium Silicate)
+6	규산칼슘
+(Calcium Silicate)
+7	규조토
+(Diatomaceous Earth)
+8	β-글루카나아제
+(β-Glucanase)
+9	α-글루코시다아제
+(α-Glucosidase)
+10	글루코아밀라아제
+(Glucoamylase)
+11	글루코오스산화효소
+(Glucose Oxidase)
+12	글루코오스이성화효소
+(Glucose Isomerase)
+13	글루타미나아제
+(Glutaminase)
+14	니켈
+(Nickel)
+15	덱스트라나아제
+(Dextranase)
+16	5'-디아미나아제
+(5'-Deaminase)
+17	라우린산
+(Lauric Acid)
+18	락타아제
+(Lactase)
+19	리소짐
+(Lysozyme)
+20	리파아제
+(Lipase)
+21	말토게닉아밀라아제
+(Maltogenic Amylase)
+22	말토트리오히드로라아제
+(Maltotriohydrolase)
+23	메타규산나트륨
+(Sodium Metasilicate)
+24	메톡사이드나트륨
+(Sodium Methoxide)
+25	메틸알콜
+(Methyl Alcohol)
+26	미리스트산
+(Myristic Acid)
+백도토
+27
+(Kaolin)
+β-글루코시다아제
+28
+(β-Glucosidase)
+벤토나이트
+29
+(Bentonite)
+부탄
+30
+(Butane)
+분지글리코실트랜스퍼라아제
+31
+(Branching Glycosyltransferase)
+산성백토
+32
+(Acid Clay)
+산소
+33
+(Oxygen)
+셀룰라아제
+34
+(Cellulase)
+수산
+35
+(Oxalic Acid)
+수산화나트륨
+36
+(Sodium Hydroxide)
+수산화나트륨액
+37
+(Sodium Hydroxide Solution)
+수소
+38
+(Hydrogen)
+스테아린산
+39
+(Stearic Acid; Octadecanoic Acid)
+α-아밀라아제
+40
+(α-Amylase)
+β-아밀라아제
+41
+(β-Amylase)
+α-아세토락테이트디카복실라아제
+42
+(α-Acetolactate decarboxylase)
+아세톤
+43
+(Acetone)
+아스파라지나아제
+44
+(Asparaginase)
+암모니아
+45
+(Ammonia)
+엑소말토테트라히드로라아제
+46
+(Exo-maltotetrahydrolase)
+염산
+47
+(Hydrochloric Acid)
+오존수
+48
+(Ozone Water)
+올레인산
+49
+(Oleic Acid)
+우레아제
+50
+(Urease)
+우유응고효소
+51
+(Milk Clotting Enzyme)
+유동파라핀
+52
+(Liquid Paraffin)
+27	백도토
+(Kaolin)
+28	β-글루코시다아제
+(β-Glucosidase)
+29	벤토나이트
+(Bentonite)
+30	부탄
+(Butane)
+31	분지글리코실트랜스퍼라아제
+(Branching Glycosyltransferase)
+32	산성백토
+(Acid Clay)
+33	산소
+(Oxygen)
+34	셀룰라아제
+(Cellulase)
+35	수산
+(Oxalic Acid)
+36	수산화나트륨
+(Sodium Hydroxide)
+37	수산화나트륨액
+(Sodium Hydroxide Solution)
+38	수소
+(Hydrogen)
+39	스테아린산
+(Stearic Acid; Octadecanoic Acid)
+40	α-아밀라아제
+(α-Amylase)
+41	β-아밀라아제
+(β-Amylase)
+42	α-아세토락테이트디카복실라아제
+(α-Acetolactate decarboxylase)
+43	아세톤
+(Acetone)
+44	아스파라지나아제
+(Asparaginase)
+45	암모니아
+(Ammonia)
+46	엑소말토테트라히드로라아제
+(Exo-maltotetrahydrolase)
+47	염산
+(Hydrochloric Acid)
+48	오존수
+(Ozone Water)
+49	올레인산
+(Oleic Acid)
+50	우레아제
+(Urease)
+51	우유응고효소
+(Milk Clotting Enzyme)
+52	유동파라핀
+(Liquid Paraffin)
+이산화규소
+53
+(Silicon Dioxide)
+이산화염소(수)
+54
+(Chlorine Dioxide)
+이소프로필알콜
+55
+(Isopropyl Alcohol)
+이온교환수지
+56
+(Ion Exchange Resin)
+인베르타아제
+57
+(Invertase)
+자몽종자추출물
+58
+(Grapefruit Seed Extract)
+자일라나아제
+59
+(Xylanase)
+60 종국
+지베렐린산
+61
+(Gibberellic Acid)
+질소
+62
+(Nitrogen)
+차아염소산나트륨
+63
+(Sodium Hypochlorite)
+차아염소산수
+64
+(Hypochlorous Acid Water)
+차아염소산칼슘
+65
+(Calcium Hypochlorite)
+청관제
+66
+(Boiler Water Additives)
+초산에틸
+67
+(Ethyl Acetate)
+카탈라아제
+68
+(Catalase)
+카프릭산
+69
+(Capric Acid)
+카프릴산
+70
+(Caprylic Acid)
+키토사나아제
+71
+(Chitosanase)
+탄나아제
+72
+(Tannase)
+탤크
+73
+(Talc)
+트랜스글루코시다아제
+74
+(Transglucosidase)
+트랜스글루타미나아제
+75
+(Transglutaminase)
+트립신
+76
+(Trypsin)
+판크레아틴
+77
+(Pancreatin)
+팔미트산
+78
+(Palmitic Acid)
+53	이산화규소
+(Silicon Dioxide)
+54	이산화염소(수)
+(Chlorine Dioxide)
+55	이소프로필알콜
+(Isopropyl Alcohol)
+56	이온교환수지
+(Ion Exchange Resin)
+57	인베르타아제
+(Invertase)
+58	자몽종자추출물
+(Grapefruit Seed Extract)
+59	자일라나아제
+(Xylanase)
+60	종국
+61	지베렐린산
+(Gibberellic Acid)
+62	질소
+(Nitrogen)
+63	차아염소산나트륨
+(Sodium Hypochlorite)
+64	차아염소산수
+(Hypochlorous Acid Water)
+65	차아염소산칼슘
+(Calcium Hypochlorite)
+66	청관제
+(Boiler Water Additives)
+67	초산에틸
+(Ethyl Acetate)
+68	카탈라아제
+(Catalase)
+69	카프릭산
+(Capric Acid)
+70	카프릴산
+(Caprylic Acid)
+71	키토사나아제
+(Chitosanase)
+72	탄나아제
+(Tannase)
+73	탤크
+(Talc)
+74	트랜스글루코시다아제
+(Transglucosidase)
+75	트랜스글루타미나아제
+(Transglutaminase)
+76	트립신
+(Trypsin)
+77	판크레아틴
+(Pancreatin)
+78	팔미트산
+(Palmitic Acid)
+퍼라이트
+79
+(Perlite)
+펙티나아제
+80
+(Pectinase)
+펩신
+81
+(Pepsin)
+포스포디에스테라아제
+82
+(Phosphodiesterase)
+포스포리파아제
+83
+(Phospholipase)
+폴리비닐폴리피로리돈
+84
+(Polyvinyl Polypyrrolidone)
+풀루라나아제
+85
+(Pullulanase)
+프로테아제
+86
+(Protease)
+피마자유
+87
+(Castor oil)
+헤미셀룰라아제
+88
+(Hemicellulase)
+헥산
+89
+(Hexane)
+활성탄
+90
+(Active Carbon)
+황산
+91
+(Sulfuric Acid)
+황산동
+92
+(Cupric Sulfate)
+황산아연
+93
+(Zinc Sulfate)
+흡착수지
+94
+(Adsorbent resin)
+79	퍼라이트
+(Perlite)
+80	펙티나아제
+(Pectinase)
+81	펩신
+(Pepsin)
+82	포스포디에스테라아제
+(Phosphodiesterase)
+83	포스포리파아제
+(Phospholipase)
+84	폴리비닐폴리피로리돈
+(Polyvinyl Polypyrrolidone)
+85	풀루라나아제
+(Pullulanase)
+86	프로테아제
+(Protease)
+87	피마자유
+(Castor oil)
+88	헤미셀룰라아제
+(Hemicellulase)
+89	헥산
+(Hexane)
+90	활성탄
+(Active Carbon)
+91	황산
+(Sulfuric Acid)
+92	황산동
+(Cupric Sulfate)
+93	황산아연
+(Zinc Sulfate)
+94	흡착수지
+(Adsorbent resin)

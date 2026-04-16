@@ -1,0 +1,815 @@
+No. 품목명
+5'-구아닐산이나트륨
+1
+(Disodium 5'-Guanylate)
+구연산망간
+2
+(Manganese Citrate)
+구연산삼나트륨
+3
+(Trisodium Citrate)
+구연산제일철나트륨
+4
+(Sodium ferrous citrate)
+구연산철
+5
+(Ferric Citrate)
+구연산철암모늄
+6
+(Ferric Ammonium Citrate)
+구연산칼륨
+7
+(Potassium Citrate)
+구연산칼슘
+8
+(Calcium Citrate)
+글루콘산나트륨
+9
+(Sodium Gluconate)
+글루콘산동
+10
+(Copper Gluconate)
+글루콘산마그네슘
+11
+(Magnesium Gluconate)
+글루콘산망간
+12
+(Manganese Gluconate)
+글루콘산아연
+13
+(Zinc Gluconate)
+글루콘산철
+14
+(Ferrous Gluconate)
+글루콘산칼륨
+15
+(Potassium Gluconate)
+글루콘산칼슘
+16
+(Calcium Gluconate)
+L-글루타민
+17
+(L-Glutamine)
+L-글루탐산
+18
+(L-Glutamic Acid)
+글리세로인산칼륨
+19
+(Potassium Glycerophosphate)
+글리세로인산칼슘
+20
+(Calcium Glycerophosphate)
+L-글리신
+21
+(L-Glycine)
+니코틴산
+22
+(Nicotinic Acid)
+니코틴산아미드
+23
+(Nicotinamide)
+디벤조일티아민
+24
+(Dibenzoyl Thiamine)
+디벤조일티아민염산염
+25
+(Dibenzoyl Thiamine Hydrochloride)
+L-라이신
+26
+(L-Lysine)
+No.	품목명
+1	5'-구아닐산이나트륨
+(Disodium 5'-Guanylate)
+2	구연산망간
+(Manganese Citrate)
+3	구연산삼나트륨
+(Trisodium Citrate)
+4	구연산제일철나트륨
+(Sodium ferrous citrate)
+5	구연산철
+(Ferric Citrate)
+6	구연산철암모늄
+(Ferric Ammonium Citrate)
+7	구연산칼륨
+(Potassium Citrate)
+8	구연산칼슘
+(Calcium Citrate)
+9	글루콘산나트륨
+(Sodium Gluconate)
+10	글루콘산동
+(Copper Gluconate)
+11	글루콘산마그네슘
+(Magnesium Gluconate)
+12	글루콘산망간
+(Manganese Gluconate)
+13	글루콘산아연
+(Zinc Gluconate)
+14	글루콘산철
+(Ferrous Gluconate)
+15	글루콘산칼륨
+(Potassium Gluconate)
+16	글루콘산칼슘
+(Calcium Gluconate)
+17	L-글루타민
+(L-Glutamine)
+18	L-글루탐산
+(L-Glutamic Acid)
+19	글리세로인산칼륨
+(Potassium Glycerophosphate)
+20	글리세로인산칼슘
+(Calcium Glycerophosphate)
+21	L-글리신
+(L-Glycine)
+22	니코틴산
+(Nicotinic Acid)
+23	니코틴산아미드
+(Nicotinamide)
+24	디벤조일티아민
+(Dibenzoyl Thiamine)
+25	디벤조일티아민염산염
+(Dibenzoyl Thiamine Hydrochloride)
+26	L-라이신
+(L-Lysine)
+L-라이신염산염
+27
+(L-Lysine Monohydrochloride)
+락토페린농축물
+28
+(Lactoferrin Concentrates)
+L-로이신
+29
+(L-Leucine)
+5'-리보뉴클레오티드이나트륨
+30
+(Disodium 5'-Ribonucleotide)
+5'-리보뉴클레오티드칼슘
+31
+(Calcium 5'-Ribonucleotide)
+DL-메티오닌
+32
+(DL-Methionine)
+L-메티오닌
+33
+(L-Methionine)
+메틸테트라히드로엽산글루코사민
+34
+((6S)-5-Methyltetrahydrofolic Acid, Glucosamine Salt)
+몰리브덴산나트륨
+35
+(Sodium Molybdate)
+몰리브덴산암모늄
+36
+(Ammonium Molybdate)
+뮤신
+37
+(Mucin)
+L-발린
+38
+(L-Valine)
+분말비타민A
+39
+(Dry Formed Vitamin A)
+불화나트륨
+40
+(Sodium Fluoride)
+비오틴
+41
+(Biotin)
+비타민B
+42 12
+(Cyanocobalamin)
+비타민B 나프탈린-1,5-디설폰산염
+43 1
+(Thiamine Naphthalene-1,5-Disulfonate)
+비타민B 라우릴황산염
+44 1
+(Thiamine Dilaurylsulfate)
+비타민B 로단산염
+45 1
+(Thiamine Thiocyanate)
+비타민B 염산염
+46 1
+(Thiamine Hydrochloride)
+비타민B 질산염
+47 1
+(Thiamine Mononitrate)
+비타민B
+48 2
+(Riboflavin)
+비타민B 인산에스테르나트륨
+49 2
+(Riboflavin 5'-Phosphate Sodium)
+비타민B 염산염
+50 6
+(Pyridoxine Hydrochloride)
+비타민C
+51
+(L-Ascorbic Acid)
+비타민D
+52 2
+(Calciferol)
+27	L-라이신염산염
+(L-Lysine Monohydrochloride)
+28	락토페린농축물
+(Lactoferrin Concentrates)
+29	L-로이신
+(L-Leucine)
+30	5'-리보뉴클레오티드이나트륨
+(Disodium 5'-Ribonucleotide)
+31	5'-리보뉴클레오티드칼슘
+(Calcium 5'-Ribonucleotide)
+32	DL-메티오닌
+(DL-Methionine)
+33	L-메티오닌
+(L-Methionine)
+34	메틸테트라히드로엽산글루코사민
+((6S)-5-Methyltetrahydrofolic Acid, Glucosamine Salt)
+35	몰리브덴산나트륨
+(Sodium Molybdate)
+36	몰리브덴산암모늄
+(Ammonium Molybdate)
+37	뮤신
+(Mucin)
+38	L-발린
+(L-Valine)
+39	분말비타민A
+(Dry Formed Vitamin A)
+40	불화나트륨
+(Sodium Fluoride)
+41	비오틴
+(Biotin)
+42	비타민B
+12
+(Cyanocobalamin)
+43	비타민B 나프탈린-1,5-디설폰산염
+1
+(Thiamine Naphthalene-1,5-Disulfonate)
+44	비타민B 라우릴황산염
+1
+(Thiamine Dilaurylsulfate)
+45	비타민B 로단산염
+1
+(Thiamine Thiocyanate)
+46	비타민B 염산염
+1
+(Thiamine Hydrochloride)
+47	비타민B 질산염
+1
+(Thiamine Mononitrate)
+48	비타민B
+2
+(Riboflavin)
+49	비타민B 인산에스테르나트륨
+2
+(Riboflavin 5'-Phosphate Sodium)
+50	비타민B 염산염
+6
+(Pyridoxine Hydrochloride)
+51	비타민C
+(L-Ascorbic Acid)
+52	비타민D
+2
+(Calciferol)
+비타민D
+53 3
+(Cholecalciferol)
+비타민E
+54
+(dl-α-Tocopherol)
+비타민K
+55 1
+(Phylloquinone)
+비타민K
+56 2
+(Menaquinone-7)
+산화마그네슘
+57
+(Magnesium Oxide)
+산화아연
+58
+(Zinc Oxide)
+산화칼슘
+59
+(Calcium Oxide)
+L-세린
+60
+(L-Serine)
+셀렌산나트륨
+61
+(Sodium Selenate)
+수산화마그네슘
+62
+(Magnesium Hydroxide)
+수산화칼슘
+63
+(Calcium Hydroxide)
+스테아린산마그네슘
+64
+(Magnesium Stearate)
+스테아린산칼슘
+65
+(Calcium Stearate)
+L-시스테인염산염
+66
+(L-Cysteine Monohydrochloride)
+L-시스틴
+67
+(L-Cystine)
+5'-시티딜산
+68
+(5'-Cytidylic Acid)
+5'-시티딜산이나트륨
+69
+(Disodium 5'-Cytidylate)
+5'-아데닐산
+70
+(5'-Adenylic Acid)
+L-아르지닌
+71
+(L-Arginine)
+아셀렌산나트륨
+72
+(Sodium Selenite)
+L-아스코브산나트륨
+73
+(Sodium L-Ascorbate)
+L-아스코브산칼슘
+74
+(Calcium L-Ascorbate)
+L-아스코빌스테아레이트
+75
+(L-Ascorbyl Stearate)
+L-아스코빌팔미테이트
+76
+(L-Ascorbyl Palmitate)
+L-아스파라진
+77
+(L-Asparagine)
+L-아스파트산
+78
+(L-Aspartic Acid)
+53	비타민D
+3
+(Cholecalciferol)
+54	비타민E
+(dl-α-Tocopherol)
+55	비타민K
+1
+(Phylloquinone)
+56	비타민K
+2
+(Menaquinone-7)
+57	산화마그네슘
+(Magnesium Oxide)
+58	산화아연
+(Zinc Oxide)
+59	산화칼슘
+(Calcium Oxide)
+60	L-세린
+(L-Serine)
+61	셀렌산나트륨
+(Sodium Selenate)
+62	수산화마그네슘
+(Magnesium Hydroxide)
+63	수산화칼슘
+(Calcium Hydroxide)
+64	스테아린산마그네슘
+(Magnesium Stearate)
+65	스테아린산칼슘
+(Calcium Stearate)
+66	L-시스테인염산염
+(L-Cysteine Monohydrochloride)
+67	L-시스틴
+(L-Cystine)
+68	5'-시티딜산
+(5'-Cytidylic Acid)
+69	5'-시티딜산이나트륨
+(Disodium 5'-Cytidylate)
+70	5'-아데닐산
+(5'-Adenylic Acid)
+71	L-아르지닌
+(L-Arginine)
+72	아셀렌산나트륨
+(Sodium Selenite)
+73	L-아스코브산나트륨
+(Sodium L-Ascorbate)
+74	L-아스코브산칼슘
+(Calcium L-Ascorbate)
+75	L-아스코빌스테아레이트
+(L-Ascorbyl Stearate)
+76	L-아스코빌팔미테이트
+(L-Ascorbyl Palmitate)
+77	L-아스파라진
+(L-Asparagine)
+78	L-아스파트산
+(L-Aspartic Acid)
+DL-알라닌
+79
+(DL-Alanine)
+L-알라닌
+80
+(L-Alanine)
+염화마그네슘
+81
+(Magnesium Chloride)
+염화망간
+82
+(Manganese Chloride)
+염화제이철
+83
+(Ferric Chloride)
+염화칼륨
+84
+(Potassium Chloride)
+염화칼슘
+85
+(Calcium Chloride)
+염화콜린
+86
+(Choline Chloride)
+염화크롬
+87
+(Chromic Chloride)
+엽산
+88
+(Folic Acid)
+요오드산칼륨
+89
+(Potassium Iodate)
+요오드칼륨
+90
+(Potassium Iodide)
+용성비타민P
+91
+(Methyl Hesperidin)
+5'-우리딜산이나트륨
+92
+(Disodium 5'-Uridylate)
+유성비타민A지방산에스테르
+93
+(Vitamin A in Oil)
+이노시톨
+94
+(Inositol)
+5'-이노신산이나트륨
+95
+(Disodium 5'-Inosinate)
+이리단백
+96
+(Milt Protein)
+L-이소로이신
+97
+(L-Isoleucine)
+인산
+98
+(Phosphoric Acid)
+인산철
+99
+(Ferric Phosphate)
+전해철
+100
+(Iron, Electrolytic)
+젖산나트륨
+101
+(Sodium Lactate)
+L-젖산마그네슘
+102
+(Magnesium L-Lactate)
+젖산철
+103
+(Ferrous Lactate)
+젖산칼륨
+104
+(Potassium Lactate)
+79	DL-알라닌
+(DL-Alanine)
+80	L-알라닌
+(L-Alanine)
+81	염화마그네슘
+(Magnesium Chloride)
+82	염화망간
+(Manganese Chloride)
+83	염화제이철
+(Ferric Chloride)
+84	염화칼륨
+(Potassium Chloride)
+85	염화칼슘
+(Calcium Chloride)
+86	염화콜린
+(Choline Chloride)
+87	염화크롬
+(Chromic Chloride)
+88	엽산
+(Folic Acid)
+89	요오드산칼륨
+(Potassium Iodate)
+90	요오드칼륨
+(Potassium Iodide)
+91	용성비타민P
+(Methyl Hesperidin)
+92	5'-우리딜산이나트륨
+(Disodium 5'-Uridylate)
+93	유성비타민A지방산에스테르
+(Vitamin A in Oil)
+94	이노시톨
+(Inositol)
+95	5'-이노신산이나트륨
+(Disodium 5'-Inosinate)
+96	이리단백
+(Milt Protein)
+97	L-이소로이신
+(L-Isoleucine)
+98	인산
+(Phosphoric Acid)
+99	인산철
+(Ferric Phosphate)
+100	전해철
+(Iron, Electrolytic)
+101	젖산나트륨
+(Sodium Lactate)
+102	L-젖산마그네슘
+(Magnesium L-Lactate)
+103	젖산철
+(Ferrous Lactate)
+104	젖산칼륨
+(Potassium Lactate)
+젖산칼슘
+105
+(Calcium Lactate)
+제삼인산나트륨
+106
+(Sodium Phosphate, Tribasic)
+제삼인산마그네슘
+107
+(Magnesium Phosphate, Tribasic)
+제삼인산칼륨
+108
+(Potassium Phosphate, Tribasic)
+제삼인산칼슘
+109
+(Calcium Phosphate, Tribasic)
+제이인산나트륨
+110
+(Sodium Phosphate, Dibasic)
+제이인산마그네슘
+111
+(Magnesium Phosphate, Dibasic)
+제이인산칼륨
+112
+(Potassium Phosphate, Dibasic)
+제이인산칼슘
+113
+(Calcium Phosphate, Dibasic)
+제일인산나트륨
+114
+(Sodium Phosphate, Monobasic)
+제일인산칼륨
+115
+(Potassium Phosphate, Monobasic)
+제일인산칼슘
+116
+(Calcium Phosphate, Monobasic)
+L-주석산나트륨
+117
+(Sodium L-Tartrate)
+주석산수소콜린
+118
+(Choline Bitartrate)
+카로틴
+119
+(Carotene)
+β-카로틴
+120
+(β-Carotene)
+L-카르니틴
+121
+(L-Carnitine)
+타우린
+122
+(Taurine)
+탄산나트륨
+123
+(Sodium Carbonate)
+탄산마그네슘
+124
+(Magnesium Carbonate)
+탄산수소나트륨
+125
+(Sodium Bicarbonate)
+탄산수소칼륨
+126
+(Potassium Bicarbonate)
+탄산칼륨(무수)
+127
+(Potassium Carbonate, Anhydrous)
+탄산칼슘
+128
+(Calcium Carbonate)
+테아닌
+129
+(L-Theanine)
+d-α-토코페롤
+130
+(d-α-Tocopherol Concentrate)
+105	젖산칼슘
+(Calcium Lactate)
+106	제삼인산나트륨
+(Sodium Phosphate, Tribasic)
+107	제삼인산마그네슘
+(Magnesium Phosphate, Tribasic)
+108	제삼인산칼륨
+(Potassium Phosphate, Tribasic)
+109	제삼인산칼슘
+(Calcium Phosphate, Tribasic)
+110	제이인산나트륨
+(Sodium Phosphate, Dibasic)
+111	제이인산마그네슘
+(Magnesium Phosphate, Dibasic)
+112	제이인산칼륨
+(Potassium Phosphate, Dibasic)
+113	제이인산칼슘
+(Calcium Phosphate, Dibasic)
+114	제일인산나트륨
+(Sodium Phosphate, Monobasic)
+115	제일인산칼륨
+(Potassium Phosphate, Monobasic)
+116	제일인산칼슘
+(Calcium Phosphate, Monobasic)
+117	L-주석산나트륨
+(Sodium L-Tartrate)
+118	주석산수소콜린
+(Choline Bitartrate)
+119	카로틴
+(Carotene)
+120	β-카로틴
+(β-Carotene)
+121	L-카르니틴
+(L-Carnitine)
+122	타우린
+(Taurine)
+123	탄산나트륨
+(Sodium Carbonate)
+124	탄산마그네슘
+(Magnesium Carbonate)
+125	탄산수소나트륨
+(Sodium Bicarbonate)
+126	탄산수소칼륨
+(Potassium Bicarbonate)
+127	탄산칼륨(무수)
+(Potassium Carbonate, Anhydrous)
+128	탄산칼슘
+(Calcium Carbonate)
+129	테아닌
+(L-Theanine)
+130	d-α-토코페롤
+(d-α-Tocopherol Concentrate)
+d-토코페롤(혼합형)
+131
+(d-Tocopherol Concentrate, Mixed)
+d-α-토코페릴아세테이트
+132
+(d-α-Tocopheryl Acetate)
+dl-α-토코페릴아세테이트
+133
+(dl-α-Tocopheryl Acetate)
+d-α-토코페릴호박산
+134
+(ｄ-α-Tocopheryl Acid Succinate)
+DL-트레오닌
+135
+(DL-Threonine)
+L-트레오닌
+136
+(L-Threonine)
+DL-트립토판
+137
+(DL-Tryptophan)
+L-트립토판
+138
+(L-Tryptophan)
+L-티로신
+139
+(L-Tyrosine)
+판토텐산나트륨
+140
+(Sodium Pantothenate)
+판토텐산칼슘
+141
+(Calcium Pantothenate)
+DL-페닐알라닌
+142
+(DL-Phenylalanine)
+L-페닐알라닌
+143
+(L-Phenylalanine)
+푸마르산제일철
+144
+(Ferrous Fumarate)
+L-프롤린
+145
+(L-Proline)
+피로인산제이철
+146
+(Ferric Pyrophosphate)
+피로인산철나트륨
+147
+(Sodium Ferric Pyrophosphate)
+헤스페리딘
+148
+(Hesperidin)
+헴철
+149
+(Heme Iron)
+환원철
+150
+(Iron, Reduced)
+황산나트륨
+151
+(Sodium Sulfate)
+황산동
+152
+(Cupric Sulfate)
+황산마그네슘
+153
+(Magnesium Sulfate)
+황산망간
+154
+(Manganese Sulfate)
+황산아연
+155
+(Zinc Sulfate)
+황산제일철
+156
+(Ferrous Sulfate)
+131	d-토코페롤(혼합형)
+(d-Tocopherol Concentrate, Mixed)
+132	d-α-토코페릴아세테이트
+(d-α-Tocopheryl Acetate)
+133	dl-α-토코페릴아세테이트
+(dl-α-Tocopheryl Acetate)
+134	d-α-토코페릴호박산
+(ｄ-α-Tocopheryl Acid Succinate)
+135	DL-트레오닌
+(DL-Threonine)
+136	L-트레오닌
+(L-Threonine)
+137	DL-트립토판
+(DL-Tryptophan)
+138	L-트립토판
+(L-Tryptophan)
+139	L-티로신
+(L-Tyrosine)
+140	판토텐산나트륨
+(Sodium Pantothenate)
+141	판토텐산칼슘
+(Calcium Pantothenate)
+142	DL-페닐알라닌
+(DL-Phenylalanine)
+143	L-페닐알라닌
+(L-Phenylalanine)
+144	푸마르산제일철
+(Ferrous Fumarate)
+145	L-프롤린
+(L-Proline)
+146	피로인산제이철
+(Ferric Pyrophosphate)
+147	피로인산철나트륨
+(Sodium Ferric Pyrophosphate)
+148	헤스페리딘
+(Hesperidin)
+149	헴철
+(Heme Iron)
+150	환원철
+(Iron, Reduced)
+151	황산나트륨
+(Sodium Sulfate)
+152	황산동
+(Cupric Sulfate)
+153	황산마그네슘
+(Magnesium Sulfate)
+154	황산망간
+(Manganese Sulfate)
+155	황산아연
+(Zinc Sulfate)
+156	황산제일철
+(Ferrous Sulfate)
+황산칼슘
+157
+(Calcium Sulfate)
+효소처리헤스페리딘
+158
+(Enzymatically Modified Hesperidine)
+L-히스티딘
+159
+(L-Histidine)
+L-히스티딘염산염
+160
+(L-Histidine Monohydrochloride)
+157	황산칼슘
+(Calcium Sulfate)
+158	효소처리헤스페리딘
+(Enzymatically Modified Hesperidine)
+159	L-히스티딘
+(L-Histidine)
+160	L-히스티딘염산염
+(L-Histidine Monohydrochloride)

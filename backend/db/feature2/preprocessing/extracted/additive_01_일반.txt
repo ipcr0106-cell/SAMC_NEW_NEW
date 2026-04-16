@@ -1,0 +1,2367 @@
+No. 품목명
+가교카복시메틸셀룰로스나트륨
+1
+(Cross-Linked Sodium Carboxymethyl Cellulose)
+가티검
+2
+(Gum Ghatti)
+감색소
+3
+(Persimmon Color)
+감초추출물
+4
+(Licorice Extract)
+개미산
+5
+(Formic Acid)
+개미산게라닐
+6
+(Geranyl Formate)
+개미산시트로넬릴
+7
+(Citronellyl Formate)
+개미산이소아밀
+8
+(Isoamyl Formate)
+검레진
+9
+(Masticatory Substances)
+게라니올
+10
+(Geraniol)
+결정셀룰로스
+11
+(Cellulose, Microcrystalline)
+계피산
+12
+(Cinnamic Acid)
+계피산메틸
+13
+(Methyl Cinnamate)
+계피산에틸
+14
+(Ethyl Cinnamate)
+계피알데히드
+15
+(Cinnamaldehyde)
+계피알콜
+16
+(Cinnamyl Alcohol)
+고량색소
+17
+(Kaoliang Color)
+과산화벤조일(희석)
+18
+(Diluted Benzoyl Peroxide)
+과황산암모늄
+19
+(Ammonium Persulfate)
+구아검
+20
+(Guar Gum)
+5'-구아닐산
+21
+(5'-Guanylic acid)
+5'-구아닐산이나트륨
+22
+(Disodium 5'-Guanylate)
+5'-구아닐산칼륨
+23
+(Dipotassium 5'-Guanylate)
+5'-구아닐산칼슘
+24
+(Calcium 5'-Guanylate)
+구연산
+25
+(Citric Acid)
+구연산삼나트륨
+26
+(Trisodium Citrate)
+구연산이수소칼륨
+27
+(Potassium Dihydrogen Citrate)
+구연산일나트륨
+28
+(Monosodium Citrate )
+구연산칼륨
+29
+(Potassium Citrate)
+구연산칼슘
+30
+(Calcium Citrate)
+규산마그네슘
+31
+(Magnesium Silicate)
+No.	품목명
+1	가교카복시메틸셀룰로스나트륨
+(Cross-Linked Sodium Carboxymethyl Cellulose)
+2	가티검
+(Gum Ghatti)
+3	감색소
+(Persimmon Color)
+4	감초추출물
+(Licorice Extract)
+5	개미산
+(Formic Acid)
+6	개미산게라닐
+(Geranyl Formate)
+7	개미산시트로넬릴
+(Citronellyl Formate)
+8	개미산이소아밀
+(Isoamyl Formate)
+9	검레진
+(Masticatory Substances)
+10	게라니올
+(Geraniol)
+11	결정셀룰로스
+(Cellulose, Microcrystalline)
+12	계피산
+(Cinnamic Acid)
+13	계피산메틸
+(Methyl Cinnamate)
+14	계피산에틸
+(Ethyl Cinnamate)
+15	계피알데히드
+(Cinnamaldehyde)
+16	계피알콜
+(Cinnamyl Alcohol)
+17	고량색소
+(Kaoliang Color)
+18	과산화벤조일(희석)
+(Diluted Benzoyl Peroxide)
+19	과황산암모늄
+(Ammonium Persulfate)
+20	구아검
+(Guar Gum)
+21	5'-구아닐산
+(5'-Guanylic acid)
+22	5'-구아닐산이나트륨
+(Disodium 5'-Guanylate)
+23	5'-구아닐산칼륨
+(Dipotassium 5'-Guanylate)
+24	5'-구아닐산칼슘
+(Calcium 5'-Guanylate)
+25	구연산
+(Citric Acid)
+26	구연산삼나트륨
+(Trisodium Citrate)
+27	구연산이수소칼륨
+(Potassium Dihydrogen Citrate)
+28	구연산일나트륨
+(Monosodium Citrate )
+29	구연산칼륨
+(Potassium Citrate)
+30	구연산칼슘
+(Calcium Citrate)
+31	규산마그네슘
+(Magnesium Silicate)
+규산칼슘
+32
+(Calcium Silicate)
+규소수지
+33
+(Silicone Resin)
+글루코노-δ-락톤
+34
+(Glucono-δ-Lactone)
+글루코만난
+35
+(Glucomannan)
+글루코사민
+36
+(Glucosamine)
+글루콘산
+37
+(Gluconic Acid)
+글루콘산나트륨
+38
+(Sodium Gluconate)
+글루콘산마그네슘
+39
+(Magnesium Gluconate)
+글루콘산철
+40
+(Ferrous Gluconate)
+글루콘산칼륨
+41
+(Potassium Gluconate)
+글루콘산칼슘
+42
+(Calcium Gluconate)
+L-글루탐산
+43
+(L-Glutamic Acid)
+L-글루탐산나트륨
+44
+(Monosodium L-Glutamate)
+글루탐산마그네슘
+45
+(Magnesium di-L-Glutamate)
+L-글루탐산암모늄
+46
+(Monoammonium L-Glutamate)
+L-글루탐산칼륨
+47
+(Monopotassium L-Glutamate
+글루탐산칼슘
+48
+(Monocalcium di-L-Glutamate)
+글리세린
+49
+(Glycerin)
+글리세린디아세틸주석산지방산에스테르
+50
+(Diacetyltartaric Acid and Fatty Acid Esters of Glycerol)
+글리세린지방산에스테르
+51
+(Glycerin Esters of Fatty Acids)
+글리신
+52
+(Glycine)
+글리실리진산이나트륨
+53
+(Disodium Glycyrrhizinate)
+금박
+54
+(Gold Leaf)
+김색소
+55
+(Laver Color)
+나린진
+56
+(Naringin)
+나타마이신
+57
+(Natamycin)
+낙산
+58
+(Butyric Acid)
+낙산부틸
+59
+(Butyl Butyrate)
+낙산에틸
+60
+(Ethyl Butyrate)
+낙산이소아밀
+61
+(Isoamyl Butyrate)
+네오탐
+62
+(Neotame)
+γ-노나락톤
+63
+(γ-Nonalactone )
+32	규산칼슘
+(Calcium Silicate)
+33	규소수지
+(Silicone Resin)
+34	글루코노-δ-락톤
+(Glucono-δ-Lactone)
+35	글루코만난
+(Glucomannan)
+36	글루코사민
+(Glucosamine)
+37	글루콘산
+(Gluconic Acid)
+38	글루콘산나트륨
+(Sodium Gluconate)
+39	글루콘산마그네슘
+(Magnesium Gluconate)
+40	글루콘산철
+(Ferrous Gluconate)
+41	글루콘산칼륨
+(Potassium Gluconate)
+42	글루콘산칼슘
+(Calcium Gluconate)
+43	L-글루탐산
+(L-Glutamic Acid)
+44	L-글루탐산나트륨
+(Monosodium L-Glutamate)
+45	글루탐산마그네슘
+(Magnesium di-L-Glutamate)
+46	L-글루탐산암모늄
+(Monoammonium L-Glutamate)
+47	L-글루탐산칼륨
+(Monopotassium L-Glutamate
+48	글루탐산칼슘
+(Monocalcium di-L-Glutamate)
+49	글리세린
+(Glycerin)
+50	글리세린디아세틸주석산지방산에스테르
+(Diacetyltartaric Acid and Fatty Acid Esters of Glycerol)
+51	글리세린지방산에스테르
+(Glycerin Esters of Fatty Acids)
+52	글리신
+(Glycine)
+53	글리실리진산이나트륨
+(Disodium Glycyrrhizinate)
+54	금박
+(Gold Leaf)
+55	김색소
+(Laver Color)
+56	나린진
+(Naringin)
+57	나타마이신
+(Natamycin)
+58	낙산
+(Butyric Acid)
+59	낙산부틸
+(Butyl Butyrate)
+60	낙산에틸
+(Ethyl Butyrate)
+61	낙산이소아밀
+(Isoamyl Butyrate)
+62	네오탐
+(Neotame)
+63	γ-노나락톤
+(γ-Nonalactone )
+니신
+64
+(Nisin)
+담마검
+65
+(Dammar Gum)
+데칸산에틸
+66
+(Ethyl Decanoate)
+데칸알
+67
+(Decanal)
+데칸올
+68
+(Decanol)
+데히드로초산나트륨
+69
+(Sodium Dehydroacetate)
+덱스트란
+70
+(Dextran)
+동클로로필
+71
+(Copper Chlorophyll)
+동클로로필린나트륨
+72
+(Sodium Copper Chlorophyllin)
+동클로로필린칼륨
+73
+(Potassium Copper Chlorophyllin)
+디부틸히드록시톨루엔
+74
+(Butylated Hydroxy Toluene)
+라우린산
+75
+(Lauric Acid)
+라우릴황산나트륨
+76
+(Sodium Lauryl Sulfate)
+락색소
+77
+(Lac Color)
+락티톨
+78
+(Lactitol)
+레시틴
+79
+(Lecithin)
+로진
+80
+(Rosin)
+로커스트콩검
+81
+(Locust Bean Gum)
+루틴
+82
+(Rutin)
+리나롤
+83
+(Linalool)
+5'-리보뉴클레오티드이나트륨
+84
+(Disodium 5'-Ribonucleotide)
+5'-리보뉴클레오티드칼슘
+85
+(Calcium 5'-Ribonucleotide)
+D-리보오스
+86
+(D-Ribose)
+마리골드색소
+87
+(Tagetes Extract)
+만니톨
+88
+(D-Mannitol)
+말톨
+89
+(Maltol)
+D-말티톨
+90
+(D-Maltitol; Hydrogenated Maltose)
+말티톨시럽
+91 말티톨액('26.1.1. 시행)
+(Maltitol Syrup)
+메타인산나트륨
+92
+(Sodium Metaphosphate)
+메타인산칼륨
+93
+(Potassium Metaphosphate)
+메타중아황산나트륨
+94
+(Sodium Metabisulfite)
+메타중아황산칼륨
+95
+(Potassium Metabisulfite)
+64	니신
+(Nisin)
+65	담마검
+(Dammar Gum)
+66	데칸산에틸
+(Ethyl Decanoate)
+67	데칸알
+(Decanal)
+68	데칸올
+(Decanol)
+69	데히드로초산나트륨
+(Sodium Dehydroacetate)
+70	덱스트란
+(Dextran)
+71	동클로로필
+(Copper Chlorophyll)
+72	동클로로필린나트륨
+(Sodium Copper Chlorophyllin)
+73	동클로로필린칼륨
+(Potassium Copper Chlorophyllin)
+74	디부틸히드록시톨루엔
+(Butylated Hydroxy Toluene)
+75	라우린산
+(Lauric Acid)
+76	라우릴황산나트륨
+(Sodium Lauryl Sulfate)
+77	락색소
+(Lac Color)
+78	락티톨
+(Lactitol)
+79	레시틴
+(Lecithin)
+80	로진
+(Rosin)
+81	로커스트콩검
+(Locust Bean Gum)
+82	루틴
+(Rutin)
+83	리나롤
+(Linalool)
+84	5'-리보뉴클레오티드이나트륨
+(Disodium 5'-Ribonucleotide)
+85	5'-리보뉴클레오티드칼슘
+(Calcium 5'-Ribonucleotide)
+86	D-리보오스
+(D-Ribose)
+87	마리골드색소
+(Tagetes Extract)
+88	만니톨
+(D-Mannitol)
+89	말톨
+(Maltol)
+90	D-말티톨
+(D-Maltitol; Hydrogenated Maltose)
+91	말티톨시럽
+(Maltitol Syrup)
+92	메타인산나트륨
+(Sodium Metaphosphate)
+93	메타인산칼륨
+(Potassium Metaphosphate)
+94	메타중아황산나트륨
+(Sodium Metabisulfite)
+95	메타중아황산칼륨
+(Potassium Metabisulfite)
+메틸β-나프틸케톤
+96
+(Methyl β-Naphthyl Ketone)
+메틸셀룰로스
+97
+(Methyl Cellulose)
+N-메틸안트라닐산메틸
+98
+(Methyl N-Methylanthranilate)
+메틸에틸셀룰로스
+99
+(Methyl ethyl cellulose)
+dl-멘톨
+100
+(dl-Menthol)
+l-멘톨
+101
+(l-Menthol)
+몰식자산
+102
+(Gallic Acid)
+몰식자산프로필
+103
+(Propyl Gallate)
+몰포린지방산염
+104
+(Morpholine Salts of Fatty Acids)
+무궁화색소
+105
+(Hibiscus Color)
+무수아황산
+106
+(Sulfur Dioxide)
+미리스트산
+107
+(Myristic Acid)
+미세섬유상셀룰로스
+108
+(Microfibrillated Cellulose)
+밀납
+109
+(Beeswax)
+바닐린
+110
+(Vanillin)
+베리류색소
+111
+(Berries Color)
+베타인
+112
+(Betaine)
+벤즈알데히드
+113
+(Benzaldehyde)
+벤질알콜
+114
+(Benzyl Alcohol)
+변성전분
+115
+(Food Starch Modified)
+변성호프추출물
+116
+(Modified Hop Extract)
+봉선화추출물
+117
+(Garden Balsam Extract)
+부틸히드록시아니솔
+118
+(Butylated Hydroxy Anisole)
+분말셀룰로스
+119
+(Cellulose, Powdered)
+비타민B2
+120
+(Riboflavin)
+비타민C
+121
+(L-Ascorbic Acid)
+비타민E
+122
+(dl-α-Tocopherol)
+비트레드
+123
+(Beet Red)
+빙초산
+124
+(Glacial Acetic Acid)
+DL-사과산
+125
+(DL-Malic Acid)
+DL-사과산나트륨
+126
+(Sodium DL-Malate)
+사일리움씨드검
+127
+(Psyllium Seed Gum)
+96	메틸β-나프틸케톤
+(Methyl β-Naphthyl Ketone)
+97	메틸셀룰로스
+(Methyl Cellulose)
+98	N-메틸안트라닐산메틸
+(Methyl N-Methylanthranilate)
+99	메틸에틸셀룰로스
+(Methyl ethyl cellulose)
+100	dl-멘톨
+(dl-Menthol)
+101	l-멘톨
+(l-Menthol)
+102	몰식자산
+(Gallic Acid)
+103	몰식자산프로필
+(Propyl Gallate)
+104	몰포린지방산염
+(Morpholine Salts of Fatty Acids)
+105	무궁화색소
+(Hibiscus Color)
+106	무수아황산
+(Sulfur Dioxide)
+107	미리스트산
+(Myristic Acid)
+108	미세섬유상셀룰로스
+(Microfibrillated Cellulose)
+109	밀납
+(Beeswax)
+110	바닐린
+(Vanillin)
+111	베리류색소
+(Berries Color)
+112	베타인
+(Betaine)
+113	벤즈알데히드
+(Benzaldehyde)
+114	벤질알콜
+(Benzyl Alcohol)
+115	변성전분
+(Food Starch Modified)
+116	변성호프추출물
+(Modified Hop Extract)
+117	봉선화추출물
+(Garden Balsam Extract)
+118	부틸히드록시아니솔
+(Butylated Hydroxy Anisole)
+119	분말셀룰로스
+(Cellulose, Powdered)
+120	비타민B2
+(Riboflavin)
+121	비타민C
+(L-Ascorbic Acid)
+122	비타민E
+(dl-α-Tocopherol)
+123	비트레드
+(Beet Red)
+124	빙초산
+(Glacial Acetic Acid)
+125	DL-사과산
+(DL-Malic Acid)
+126	DL-사과산나트륨
+(Sodium DL-Malate)
+127	사일리움씨드검
+(Psyllium Seed Gum)
+사카린나트륨
+128
+(Sodium Saccharin)
+사프란색소
+129
+(Saffron Color)
+산성아황산나트륨
+130
+(Sodium Bisulfite)
+산성알루미늄인산나트륨
+131
+(Sodium Aluminium Phosphate, Acidic)
+산성피로인산나트륨
+132
+(Disodium Dihydrogen Pyrophosphate)
+산성피로인산칼슘
+133
+(Calcium Dihydrogen Pyrophosphate)
+산소
+134
+(Oxygen)
+산화마그네슘
+135
+(Magnesium Oxide)
+산화철
+136
+(Iron Oxides)
+산화칼슘
+137
+(Calcium Oxide)
+살리실산메틸
+138
+(Methyl Salicylate)
+석유왁스
+139
+(Petroleum Wax)
+세스퀴탄산나트륨
+140
+(Sodium Sesquicarbonate)
+소르비탄지방산에스테르
+141
+(Sorbitan Esters of Fatty Acids)
+소브산
+142
+(Sorbic Acid)
+소브산칼륨
+143
+(Potassium Sorbate)
+소브산칼슘
+144
+(Calcium Sorbate)
+D-소비톨
+145
+(D-Sorbitol)
+D-소비톨액
+146
+(D-Sorbitol Syrup)
+수산화나트륨
+147
+(Sodium Hydroxide)
+수산화나트륨액
+148
+(Sodium Hydroxide Solution)
+수산화마그네슘
+149
+(Magnesium Hydroxide)
+수산화암모늄
+150
+(Ammonium Hydroxide)
+수산화칼륨
+151
+(Potassium Hydroxide)
+수산화칼슘
+152
+(Calcium Hydroxide)
+수소
+153
+(Hydrogen)
+수용성안나토
+154
+(Annatto, Water-Soluble)
+수크랄로스
+155
+(Sucralose)
+쉘락
+156
+(Shellac)
+스모크향
+157
+(Smoke Flavours)
+스테비올배당체
+158
+(Steviol Glycoside)
+스테아린산마그네슘
+159
+(Magnesium Stearate)
+128	사카린나트륨
+(Sodium Saccharin)
+129	사프란색소
+(Saffron Color)
+130	산성아황산나트륨
+(Sodium Bisulfite)
+131	산성알루미늄인산나트륨
+(Sodium Aluminium Phosphate, Acidic)
+132	산성피로인산나트륨
+(Disodium Dihydrogen Pyrophosphate)
+133	산성피로인산칼슘
+(Calcium Dihydrogen Pyrophosphate)
+134	산소
+(Oxygen)
+135	산화마그네슘
+(Magnesium Oxide)
+136	산화철
+(Iron Oxides)
+137	산화칼슘
+(Calcium Oxide)
+138	살리실산메틸
+(Methyl Salicylate)
+139	석유왁스
+(Petroleum Wax)
+140	세스퀴탄산나트륨
+(Sodium Sesquicarbonate)
+141	소르비탄지방산에스테르
+(Sorbitan Esters of Fatty Acids)
+142	소브산
+(Sorbic Acid)
+143	소브산칼륨
+(Potassium Sorbate)
+144	소브산칼슘
+(Calcium Sorbate)
+145	D-소비톨
+(D-Sorbitol)
+146	D-소비톨액
+(D-Sorbitol Syrup)
+147	수산화나트륨
+(Sodium Hydroxide)
+148	수산화나트륨액
+(Sodium Hydroxide Solution)
+149	수산화마그네슘
+(Magnesium Hydroxide)
+150	수산화암모늄
+(Ammonium Hydroxide)
+151	수산화칼륨
+(Potassium Hydroxide)
+152	수산화칼슘
+(Calcium Hydroxide)
+153	수소
+(Hydrogen)
+154	수용성안나토
+(Annatto, Water-Soluble)
+155	수크랄로스
+(Sucralose)
+156	쉘락
+(Shellac)
+157	스모크향
+(Smoke Flavours)
+158	스테비올배당체
+(Steviol Glycoside)
+159	스테아린산마그네슘
+(Magnesium Stearate)
+스테아린산칼슘
+160
+(Calcium Stearate)
+스테아릴젖산나트륨
+161
+(Sodium Stearoyl Lactylate)
+스테아릴젖산칼슘
+162
+(Calcium Stearoyl Lactylate)
+스피룰리나색소
+163
+(Spirulina Color)
+L-시스테인염산염
+164
+(L-Cysteine Monohydrochloride)
+시아너트색소
+165
+(Shea Nut Color)
+시클로덱스트린
+166
+(Cyclodextrin)
+시클로덱스트린시럽
+167 시클로덱스트린액('26.1.1. 시행)
+(Cyclodextrin Syrup)
+시클로헥산프로피온산알릴
+168
+(Allyl Cyclohexane propionate)
+시트랄
+169
+(Citral)
+시트로넬랄
+170
+(Citronellal)
+시트로넬롤
+171
+(Citronellol)
+식용색소녹색제3호
+172
+(Food Green No.3)
+식용색소녹색제3호 알루미늄레이크
+173
+(Food Green No.3 Aluminium Lake)
+식용색소적색제2호
+174
+(Food Red No.2)
+식용색소적색제2호 알루미늄레이크
+175
+(Food Red No.2 Aluminium Lake)
+식용색소적색제3호
+176
+(Food Red No.3)
+식용색소적색제40호
+177
+(Food Red No.40 Allura Red)
+식용색소적색제40호 알루미늄레이크
+178
+(Food Red No.40 Aluminium Lake)
+식용색소적색제102호
+179
+(Food Red No.102)
+식용색소청색제1호
+180
+(Food Blue No.1)
+식용색소청색제1호 알루미늄레이크
+181
+(Food Blue No.1 Aluminium Lake)
+식용색소청색제2호
+182
+(Food Blue No.2)
+식용색소청색제2호 알루미늄레이크
+183
+(Food Blue No.2 Aluminium Lake)
+식용색소황색제4호
+184
+(Food Yellow No.4)
+식용색소황색제4호 알루미늄레이크
+185
+(Food Yellow No.4 Aluminium Lake)
+식용색소황색제5호
+186
+(Food Yellow No.5)
+식용색소황색제5호 알루미늄레이크
+187
+(Food Yellow No.5 Aluminium Lake)
+실리코알루민산나트륨
+188
+(Sodium Silicoaluminate)
+심황색소
+189
+(Curcumin)
+쌀겨왁스
+190
+(Rice Bran Wax)
+아니스알데히드
+191
+(Anisaldehyde)
+160	스테아린산칼슘
+(Calcium Stearate)
+161	스테아릴젖산나트륨
+(Sodium Stearoyl Lactylate)
+162	스테아릴젖산칼슘
+(Calcium Stearoyl Lactylate)
+163	스피룰리나색소
+(Spirulina Color)
+164	L-시스테인염산염
+(L-Cysteine Monohydrochloride)
+165	시아너트색소
+(Shea Nut Color)
+166	시클로덱스트린
+(Cyclodextrin)
+167	시클로덱스트린시럽
+(Cyclodextrin Syrup)
+168	시클로헥산프로피온산알릴
+(Allyl Cyclohexane propionate)
+169	시트랄
+(Citral)
+170	시트로넬랄
+(Citronellal)
+171	시트로넬롤
+(Citronellol)
+172	식용색소녹색제3호
+(Food Green No.3)
+173	식용색소녹색제3호 알루미늄레이크
+(Food Green No.3 Aluminium Lake)
+174	식용색소적색제2호
+(Food Red No.2)
+175	식용색소적색제2호 알루미늄레이크
+(Food Red No.2 Aluminium Lake)
+176	식용색소적색제3호
+(Food Red No.3)
+177	식용색소적색제40호
+(Food Red No.40 Allura Red)
+178	식용색소적색제40호 알루미늄레이크
+(Food Red No.40 Aluminium Lake)
+179	식용색소적색제102호
+(Food Red No.102)
+180	식용색소청색제1호
+(Food Blue No.1)
+181	식용색소청색제1호 알루미늄레이크
+(Food Blue No.1 Aluminium Lake)
+182	식용색소청색제2호
+(Food Blue No.2)
+183	식용색소청색제2호 알루미늄레이크
+(Food Blue No.2 Aluminium Lake)
+184	식용색소황색제4호
+(Food Yellow No.4)
+185	식용색소황색제4호 알루미늄레이크
+(Food Yellow No.4 Aluminium Lake)
+186	식용색소황색제5호
+(Food Yellow No.5)
+187	식용색소황색제5호 알루미늄레이크
+(Food Yellow No.5 Aluminium Lake)
+188	실리코알루민산나트륨
+(Sodium Silicoaluminate)
+189	심황색소
+(Curcumin)
+190	쌀겨왁스
+(Rice Bran Wax)
+191	아니스알데히드
+(Anisaldehyde)
+아디프산
+192
+(Adipic Acid)
+아라비노갈락탄
+193
+(Arabinogalactan)
+아라비아검
+194
+(Arabic Gum)
+아미드펙틴
+195
+(Amidated Pectin)
+α-아밀신남알데히드
+196
+(α-Amylcinnamaldehyde)
+아산화질소
+197
+(Nitrous Oxide)
+아세설팜칼륨
+198
+(Acesulfame Potassium)
+아세토초산에틸
+199
+(Ethyl Acetoacetate)
+아세토페논
+200
+(Acetophenone)
+L-아스코브산나트륨
+201
+(Sodium L-Ascorbate)
+L-아스코브산칼슘
+202
+(Calcium L-Ascorbate)
+L-아스코빌스테아레이트
+203
+(L-Ascorbyl Stearate)
+L-아스코빌팔미테이트
+204
+(L-Ascorbyl Palmitate)
+아스파탐
+205
+(Aspartame)
+아조디카르본아미드
+206
+(Azodicarbonamide)
+아질산나트륨
+207
+(Sodium Nitrite)
+β-아포-8'-카로티날
+208
+(β-Apo-8'-Carotenal)
+아황산나트륨
+209
+(Sodium Sulfite)
+안나토색소
+210
+(Annatto Extract)
+안식향산
+211
+(Benzoic Acid)
+안식향산나트륨
+212
+(Sodium Benzoate)
+안식향산칼륨
+213
+(Potassium Benzoate)
+안식향산칼슘
+214
+(Calcium Benzoate)
+안트라닐산메틸
+215
+(Methyl Anthranilate)
+알긴산
+216
+(Alginic Acid)
+알긴산나트륨
+217
+(Sodium Alginate)
+알긴산암모늄
+218
+(Ammonium Alginate)
+알긴산칼륨
+219
+(Potassium Alginate)
+알긴산칼슘
+220
+(Calcium Alginate)
+알긴산프로필렌글리콜
+221
+(Propylene Glycol Alginate)
+DL-알라닌
+222
+(DL-Alanine)
+알팔파추출색소
+223
+(Alfalfa Extract)
+192	아디프산
+(Adipic Acid)
+193	아라비노갈락탄
+(Arabinogalactan)
+194	아라비아검
+(Arabic Gum)
+195	아미드펙틴
+(Amidated Pectin)
+196	α-아밀신남알데히드
+(α-Amylcinnamaldehyde)
+197	아산화질소
+(Nitrous Oxide)
+198	아세설팜칼륨
+(Acesulfame Potassium)
+199	아세토초산에틸
+(Ethyl Acetoacetate)
+200	아세토페논
+(Acetophenone)
+201	L-아스코브산나트륨
+(Sodium L-Ascorbate)
+202	L-아스코브산칼슘
+(Calcium L-Ascorbate)
+203	L-아스코빌스테아레이트
+(L-Ascorbyl Stearate)
+204	L-아스코빌팔미테이트
+(L-Ascorbyl Palmitate)
+205	아스파탐
+(Aspartame)
+206	아조디카르본아미드
+(Azodicarbonamide)
+207	아질산나트륨
+(Sodium Nitrite)
+208	β-아포-8'-카로티날
+(β-Apo-8'-Carotenal)
+209	아황산나트륨
+(Sodium Sulfite)
+210	안나토색소
+(Annatto Extract)
+211	안식향산
+(Benzoic Acid)
+212	안식향산나트륨
+(Sodium Benzoate)
+213	안식향산칼륨
+(Potassium Benzoate)
+214	안식향산칼슘
+(Calcium Benzoate)
+215	안트라닐산메틸
+(Methyl Anthranilate)
+216	알긴산
+(Alginic Acid)
+217	알긴산나트륨
+(Sodium Alginate)
+218	알긴산암모늄
+(Ammonium Alginate)
+219	알긴산칼륨
+(Potassium Alginate)
+220	알긴산칼슘
+(Calcium Alginate)
+221	알긴산프로필렌글리콜
+(Propylene Glycol Alginate)
+222	DL-알라닌
+(DL-Alanine)
+223	알팔파추출색소
+(Alfalfa Extract)
+암모늄포스파타이드
+224
+(Ammonium Phosphatides)
+암모니아
+225
+(Ammonia)
+양파색소
+226
+(Onion Color)
+에리스리톨
+227
+(Erythritol)
+에리토브산
+228
+(Erythorbic Acid)
+에리토브산나트륨
+229
+(Sodium Erythorbate)
+에스테르검
+230
+(Ester Gum)
+에틸바닐린
+231
+(Ethyl Vanillin)
+에틸셀룰로스
+232
+(Ethyl Cellulose)
+염기성알루미늄인산나트륨
+233
+(Sodium Aluminium Phosphate, Basic)
+염소
+234
+(Chlorine)
+염화마그네슘
+235
+(Magnesium Chloride)
+염화암모늄
+236
+(Ammonium Chloride)
+염화칼륨
+237
+(Potassium Chloride)
+염화칼슘
+238
+(Calcium Chloride)
+γ-오리자놀
+239
+(γ-Oryzanol)
+오징어먹물색소
+240
+(Sepia Color)
+옥시스테아린
+241
+(Oxystearin)
+옥탄산에틸
+242
+(Ethyl Octanoate)
+옥틸알데히드
+243
+(Octyl Aldehyde)
+올레인산
+244
+(Oleic Acid)
+올레인산나트륨
+245
+(Sodium Oleate)
+요오드산칼륨
+246
+(Potassium Iodate)
+요오드칼륨
+247
+(Potassium Iodide)
+γ-운데카락톤
+248
+(γ-Undecalactone)
+유게놀
+249
+(Eugenol)
+유동파라핀
+250
+(Liquid Paraffin)
+유카추출물
+251
+(Yucca Extract)
+유칼리프톨
+252
+(Eucalyptol)
+5'-이노신산
+253
+(5'-Inosinic acid)
+5'-이노신산이나트륨
+254
+(Disodium 5'-Inosinate)
+5'-이노신산칼륨
+255
+(Dipotassium 5'-Inosinate)
+224	암모늄포스파타이드
+(Ammonium Phosphatides)
+225	암모니아
+(Ammonia)
+226	양파색소
+(Onion Color)
+227	에리스리톨
+(Erythritol)
+228	에리토브산
+(Erythorbic Acid)
+229	에리토브산나트륨
+(Sodium Erythorbate)
+230	에스테르검
+(Ester Gum)
+231	에틸바닐린
+(Ethyl Vanillin)
+232	에틸셀룰로스
+(Ethyl Cellulose)
+233	염기성알루미늄인산나트륨
+(Sodium Aluminium Phosphate, Basic)
+234	염소
+(Chlorine)
+235	염화마그네슘
+(Magnesium Chloride)
+236	염화암모늄
+(Ammonium Chloride)
+237	염화칼륨
+(Potassium Chloride)
+238	염화칼슘
+(Calcium Chloride)
+239	γ-오리자놀
+(γ-Oryzanol)
+240	오징어먹물색소
+(Sepia Color)
+241	옥시스테아린
+(Oxystearin)
+242	옥탄산에틸
+(Ethyl Octanoate)
+243	옥틸알데히드
+(Octyl Aldehyde)
+244	올레인산
+(Oleic Acid)
+245	올레인산나트륨
+(Sodium Oleate)
+246	요오드산칼륨
+(Potassium Iodate)
+247	요오드칼륨
+(Potassium Iodide)
+248	γ-운데카락톤
+(γ-Undecalactone)
+249	유게놀
+(Eugenol)
+250	유동파라핀
+(Liquid Paraffin)
+251	유카추출물
+(Yucca Extract)
+252	유칼리프톨
+(Eucalyptol)
+253	5'-이노신산
+(5'-Inosinic acid)
+254	5'-이노신산이나트륨
+(Disodium 5'-Inosinate)
+255	5'-이노신산칼륨
+(Dipotassium 5'-Inosinate)
+5'-이노신산칼슘
+256
+(Calcium 5'-Inosinate)
+이.디.티.에이.이나트륨
+257
+(Disodium Ethylenediaminetetraacetate)
+이.디.티.에이.칼슘이나트륨
+258
+(Calcium Disodium Ethylenediaminetetraacetate)
+이산화규소
+259
+(Silicon Dioxide)
+이산화염소(수)
+260
+(Chlorine Dioxide)
+이산화탄소
+261
+(Carbon Dioxide)
+이산화티타늄
+262
+(Titanium Dioxide)
+이소길초산에틸
+263
+(Ethyl Isovalerate)
+이소길초산이소아밀
+264
+(Isoamyl Isovalerate)
+이소말트
+265
+(Isomalt)
+이소유게놀
+266
+(Isoeugenol)
+이소티오시안산알릴
+267
+(Allyl Isothiocyanate)
+이소프로필알콜
+268
+(Isopropyl Alcohol)
+α-이오논
+269
+(α-Ionone)
+β-이오논
+270
+(β-Ionone)
+이초산나트륨
+271
+(Sodium Diacetate)
+이타콘산
+272
+(Itaconic Acid)
+인산
+273
+(Phosphoric Acid)
+자단향색소
+274
+(Sandalwood Red)
+자당지방산에스테르
+275
+(Sucrose Esters of Fatty Acids)
+자몽종자추출물
+276
+(Grapefruit Seed Extract)
+D-자일로오스
+277
+(D-Xylose)
+자일리톨
+278
+(Xylitol)
+자주색고구마색소
+279
+(Purple Sweet Potato Color)
+자주색옥수수색소
+280
+(Maize Morado Color; Purple Corn Color)
+자주색참마색소
+281
+(Purple Yam Color)
+잔탄검
+282
+(Xanthan Gum)
+적무색소
+283
+(Red Radish Color)
+적양배추색소
+284
+(Red Cabbage Color)
+젖산
+285
+(Lactic Acid)
+젖산나트륨
+286
+(Sodium Lactate)
+L-젖산마그네슘
+287
+(Magnesium L-Lactate)
+256	5'-이노신산칼슘
+(Calcium 5'-Inosinate)
+257	이.디.티.에이.이나트륨
+(Disodium Ethylenediaminetetraacetate)
+258	이.디.티.에이.칼슘이나트륨
+(Calcium Disodium Ethylenediaminetetraacetate)
+259	이산화규소
+(Silicon Dioxide)
+260	이산화염소(수)
+(Chlorine Dioxide)
+261	이산화탄소
+(Carbon Dioxide)
+262	이산화티타늄
+(Titanium Dioxide)
+263	이소길초산에틸
+(Ethyl Isovalerate)
+264	이소길초산이소아밀
+(Isoamyl Isovalerate)
+265	이소말트
+(Isomalt)
+266	이소유게놀
+(Isoeugenol)
+267	이소티오시안산알릴
+(Allyl Isothiocyanate)
+268	이소프로필알콜
+(Isopropyl Alcohol)
+269	α-이오논
+(α-Ionone)
+270	β-이오논
+(β-Ionone)
+271	이초산나트륨
+(Sodium Diacetate)
+272	이타콘산
+(Itaconic Acid)
+273	인산
+(Phosphoric Acid)
+274	자단향색소
+(Sandalwood Red)
+275	자당지방산에스테르
+(Sucrose Esters of Fatty Acids)
+276	자몽종자추출물
+(Grapefruit Seed Extract)
+277	D-자일로오스
+(D-Xylose)
+278	자일리톨
+(Xylitol)
+279	자주색고구마색소
+(Purple Sweet Potato Color)
+280	자주색옥수수색소
+(Maize Morado Color; Purple Corn Color)
+281	자주색참마색소
+(Purple Yam Color)
+282	잔탄검
+(Xanthan Gum)
+283	적무색소
+(Red Radish Color)
+284	적양배추색소
+(Red Cabbage Color)
+285	젖산
+(Lactic Acid)
+286	젖산나트륨
+(Sodium Lactate)
+287	L-젖산마그네슘
+(Magnesium L-Lactate)
+젖산철
+288
+(Ferrous Lactate)
+젖산칼륨
+289
+(Potassium Lactate)
+젖산칼슘
+290
+(Calcium Lactate)
+제삼인산나트륨
+291
+(Sodium Phosphate, Tribasic)
+제삼인산마그네슘
+292
+(Magnesium Phosphate, Tribasic)
+제삼인산칼륨
+293
+(Potassium Phosphate, Tribasic)
+제삼인산칼슘
+294
+(Calcium Phosphate, Tribasic)
+제이인산나트륨
+295
+(Sodium Phosphate, Dibasic)
+제이인산마그네슘
+296
+(Magnesium Phosphate, Dibasic)
+제이인산암모늄
+297
+(Ammonium Phosphate, Dibasic)
+제이인산칼륨
+298
+(Potassium Phosphate, Dibasic)
+제이인산칼슘
+299
+(Calcium Phosphate, Dibasic)
+제일인산나트륨
+300
+(Sodium Phosphate, Monobasic)
+제일인산암모늄
+301
+(Ammonium Phosphate, Monobasic)
+제일인산칼륨
+302
+(Potassium Phosphate, Monobasic)
+제일인산칼슘
+303
+(Calcium Phosphate, Monobasic)
+젤라틴
+304
+(Gelatin)
+젤란검
+305
+(Gellan Gum)
+조제해수염화마그네슘
+306
+(Crude Magnesium Chloride(Sea Water))
+DL-주석산
+307
+(DL-Tartaric Acid)
+L-주석산
+308
+(L-Tartaric Acid)
+DL-주석산나트륨
+309
+(Disodium DL-Tartrate)
+L-주석산나트륨
+310
+(Disodium L-Tartrate)
+DL-주석산수소칼륨
+311
+(Potassium DL-Bitartrate)
+L-주석산수소칼륨
+312
+(Potassium L-Bitartrate)
+주석산칼륨나트륨
+313
+(Potassium Sodium L-Tartrate)
+진주빛색소
+314
+(Potassium Aluminium Silicate-Based Pearlescent Pigments)
+질산나트륨
+315
+(Sodium Nitrate)
+질산칼륨
+316
+(Potassium Nitrate)
+질소
+317
+(Nitrogen)
+차아황산나트륨
+318
+(Sodium Hydrosulfite)
+차즈기색소
+319
+(Perilla Color)
+288	젖산철
+(Ferrous Lactate)
+289	젖산칼륨
+(Potassium Lactate)
+290	젖산칼슘
+(Calcium Lactate)
+291	제삼인산나트륨
+(Sodium Phosphate, Tribasic)
+292	제삼인산마그네슘
+(Magnesium Phosphate, Tribasic)
+293	제삼인산칼륨
+(Potassium Phosphate, Tribasic)
+294	제삼인산칼슘
+(Calcium Phosphate, Tribasic)
+295	제이인산나트륨
+(Sodium Phosphate, Dibasic)
+296	제이인산마그네슘
+(Magnesium Phosphate, Dibasic)
+297	제이인산암모늄
+(Ammonium Phosphate, Dibasic)
+298	제이인산칼륨
+(Potassium Phosphate, Dibasic)
+299	제이인산칼슘
+(Calcium Phosphate, Dibasic)
+300	제일인산나트륨
+(Sodium Phosphate, Monobasic)
+301	제일인산암모늄
+(Ammonium Phosphate, Monobasic)
+302	제일인산칼륨
+(Potassium Phosphate, Monobasic)
+303	제일인산칼슘
+(Calcium Phosphate, Monobasic)
+304	젤라틴
+(Gelatin)
+305	젤란검
+(Gellan Gum)
+306	조제해수염화마그네슘
+(Crude Magnesium Chloride(Sea Water))
+307	DL-주석산
+(DL-Tartaric Acid)
+308	L-주석산
+(L-Tartaric Acid)
+309	DL-주석산나트륨
+(Disodium DL-Tartrate)
+310	L-주석산나트륨
+(Disodium L-Tartrate)
+311	DL-주석산수소칼륨
+(Potassium DL-Bitartrate)
+312	L-주석산수소칼륨
+(Potassium L-Bitartrate)
+313	주석산칼륨나트륨
+(Potassium Sodium L-Tartrate)
+314	진주빛색소
+(Potassium Aluminium Silicate-Based Pearlescent Pigments)
+315	질산나트륨
+(Sodium Nitrate)
+316	질산칼륨
+(Potassium Nitrate)
+317	질소
+(Nitrogen)
+318	차아황산나트륨
+(Sodium Hydrosulfite)
+319	차즈기색소
+(Perilla Color)
+차추출물
+320
+(Tea Extract)
+차카테킨
+321
+(Tea Catechin)
+참깨유불검화물
+322
+(Sesame Seed Oil Unsaponified Matter)
+철클로로필린나트륨
+323
+(Sodium Iron Chlorophyllin)
+초산
+324
+(Acetic Acid)
+초산게라닐
+325
+(Geranyl Acetate)
+초산나트륨
+326
+(Sodium Acetate)
+초산리나릴
+327
+(Linalyl Acetate)
+초산벤질
+328
+(Benzyl Acetate)
+초산부틸
+329
+(Butyl Acetate)
+초산비닐수지
+330
+(Polyvinyl Acetate)
+초산시트로넬릴
+331
+(Citronellyl Acetate)
+초산신나밀
+332
+(Cinnamyl Acetate)
+초산에틸
+333
+(Ethyl Acetate)
+초산이소아밀
+334
+(Isoamyl Acetate)
+초산칼륨
+335
+(Potassium acetate)
+초산칼슘
+336
+(Calcium Acetate)
+초산페닐에틸
+337
+(Phenylethyl Acetate)
+치자적색소
+338
+(Gardenia Red)
+치자청색소
+339
+(Gardenia Blue)
+치자황색소
+340
+(Gardenia Yellow)
+카나우바왁스
+341
+(Carnauba Wax)
+카라기난
+342
+(Carrageenan)
+카라멜색소I
+343
+(Caramel I)
+카라멜색소II
+344
+(Caramel II)
+카라멜색소III
+345
+(Caramel III)
+카라멜색소IV
+346
+(Caramel IV)
+카라야검
+347
+(Karaya Gum)
+카로틴
+348
+(Carotene)
+β-카로틴
+349
+(β-Carotene)
+카민
+350
+(Carmine)
+카복시메틸셀룰로스나트륨
+351
+(Sodium Carboxymethyl Cellulose)
+320	차추출물
+(Tea Extract)
+321	차카테킨
+(Tea Catechin)
+322	참깨유불검화물
+(Sesame Seed Oil Unsaponified Matter)
+323	철클로로필린나트륨
+(Sodium Iron Chlorophyllin)
+324	초산
+(Acetic Acid)
+325	초산게라닐
+(Geranyl Acetate)
+326	초산나트륨
+(Sodium Acetate)
+327	초산리나릴
+(Linalyl Acetate)
+328	초산벤질
+(Benzyl Acetate)
+329	초산부틸
+(Butyl Acetate)
+330	초산비닐수지
+(Polyvinyl Acetate)
+331	초산시트로넬릴
+(Citronellyl Acetate)
+332	초산신나밀
+(Cinnamyl Acetate)
+333	초산에틸
+(Ethyl Acetate)
+334	초산이소아밀
+(Isoamyl Acetate)
+335	초산칼륨
+(Potassium acetate)
+336	초산칼슘
+(Calcium Acetate)
+337	초산페닐에틸
+(Phenylethyl Acetate)
+338	치자적색소
+(Gardenia Red)
+339	치자청색소
+(Gardenia Blue)
+340	치자황색소
+(Gardenia Yellow)
+341	카나우바왁스
+(Carnauba Wax)
+342	카라기난
+(Carrageenan)
+343	카라멜색소I
+(Caramel I)
+344	카라멜색소II
+(Caramel II)
+345	카라멜색소III
+(Caramel III)
+346	카라멜색소IV
+(Caramel IV)
+347	카라야검
+(Karaya Gum)
+348	카로틴
+(Carotene)
+349	β-카로틴
+(β-Carotene)
+350	카민
+(Carmine)
+351	카복시메틸셀룰로스나트륨
+(Sodium Carboxymethyl Cellulose)
+카복시메틸셀룰로스칼슘
+352
+(Calcium Carboxymethyl Cellulose)
+카복시메틸스타치나트륨
+353
+(Sodium Carboxymethyl Starch)
+카제인
+354
+(Casein)
+카제인나트륨
+355
+(Sodium Caseinate)
+카제인칼륨
+356
+(Potassium Caseinate)
+카제인칼슘
+357
+(Calcium Caseinate)
+카카오색소
+358
+(Cacao Color)
+카페인
+359
+(Caffeine)
+카프론산알릴
+360
+(Allyl Caproate)
+칸델릴라왁스
+361
+(Candelilla Wax)
+커드란
+362
+(Curdlan)
+케르세틴
+363
+(Quercetin)
+코치닐추출색소
+364
+(Cochineal Extract)
+퀼라야추출물
+365
+(Quillaia Extract)
+클로로필
+366
+(Chlorophyll)
+키토산
+367
+(Chitosan)
+키틴
+368
+(Chitin)
+타라검
+369
+(Tara Gum)
+타마린드검
+370
+(Tamarind Gum)
+타마린드색소
+371
+(Tamarind Color)
+탄닌산
+372
+(Tannic Acid)
+탄산나트륨
+373
+(Sodium Carbonate)
+탄산마그네슘
+374
+(Magnesium Carbonate)
+탄산수소나트륨
+375
+(Sodium Bicarbonate)
+탄산수소암모늄
+376
+(Ammonium Bicarbonate)
+탄산수소칼륨
+377
+(Potassium Bicarbonate
+탄산암모늄
+378
+(Ammonium Carbonate)
+탄산칼륨(무수)
+379
+(Potassium Carbonate, Anhydrous)
+탄산칼슘
+380
+(Calcium Carbonate)
+탤크
+381
+(Talc)
+터셔리부틸히드로퀴논
+382
+(tert-Butylhydroquinone)
+토마토색소
+383
+(Tomato Color)
+352	카복시메틸셀룰로스칼슘
+(Calcium Carboxymethyl Cellulose)
+353	카복시메틸스타치나트륨
+(Sodium Carboxymethyl Starch)
+354	카제인
+(Casein)
+355	카제인나트륨
+(Sodium Caseinate)
+356	카제인칼륨
+(Potassium Caseinate)
+357	카제인칼슘
+(Calcium Caseinate)
+358	카카오색소
+(Cacao Color)
+359	카페인
+(Caffeine)
+360	카프론산알릴
+(Allyl Caproate)
+361	칸델릴라왁스
+(Candelilla Wax)
+362	커드란
+(Curdlan)
+363	케르세틴
+(Quercetin)
+364	코치닐추출색소
+(Cochineal Extract)
+365	퀼라야추출물
+(Quillaia Extract)
+366	클로로필
+(Chlorophyll)
+367	키토산
+(Chitosan)
+368	키틴
+(Chitin)
+369	타라검
+(Tara Gum)
+370	타마린드검
+(Tamarind Gum)
+371	타마린드색소
+(Tamarind Color)
+372	탄닌산
+(Tannic Acid)
+373	탄산나트륨
+(Sodium Carbonate)
+374	탄산마그네슘
+(Magnesium Carbonate)
+375	탄산수소나트륨
+(Sodium Bicarbonate)
+376	탄산수소암모늄
+(Ammonium Bicarbonate)
+377	탄산수소칼륨
+(Potassium Bicarbonate
+378	탄산암모늄
+(Ammonium Carbonate)
+379	탄산칼륨(무수)
+(Potassium Carbonate, Anhydrous)
+380	탄산칼슘
+(Calcium Carbonate)
+381	탤크
+(Talc)
+382	터셔리부틸히드로퀴논
+(tert-Butylhydroquinone)
+383	토마토색소
+(Tomato Color)
+토마틴
+384
+(Thaumatin)
+d-α-토코페롤
+385
+(d-α-Tocopherol Concentrate)
+d-토코페롤(혼합형)
+386
+(d-Tocopherol Concentrate, Mixed)
+d-α-토코페릴아세테이트
+387
+(d-α-Tocopheryl Acetate)
+dl-α-토코페릴아세테이트
+388
+(dl-α-Tocopheryl Acetate)
+d-α-토코페릴호박산
+389
+(ｄ-α-Tocopheryl Acid Succinate)
+트라가칸스검
+390
+(Tragacanth Gum)
+트리아세틴
+391
+(Triacetin)
+파라메틸아세토페논
+392
+(p-Methyl Acetophenone)
+파라옥시안식향산메틸
+393
+(Methyl p-Hydroxybenzoate)
+파라옥시안식향산에틸
+394
+(Ethyl p-Hydroxybenzoate)
+파프리카추출색소
+395
+(Oleoresin Paprika)
+파피아색소
+396
+(Phaffia Color)
+팔미트산
+397
+(Palmitic Acid)
+퍼셀레란
+398
+(Furcelleran)
+페닐초산에틸
+399
+(Ethyl Phenylacetate)
+페닐초산이소부틸
+400
+(Isobutyl Phenylacetate)
+페로시안화나트륨
+401
+(Sodium Ferrocyanide
+페로시안화칼륨
+402
+(Potassium Ferrocyanide)
+페로시안화칼슘
+403
+(Calcium Ferrocyanide)
+페룰린산
+404
+(Ferulic Acid)
+펙틴
+405
+(Pectin)
+포도과즙색소
+406
+(Grape Juice Color
+포도과피색소
+407
+(Grape Skin Extract)
+포도종자추출물
+408
+(Grape Seed Extract)
+폴리감마글루탐산
+409
+(Poly-γ-glutamic acid)
+폴리글리세린지방산에스테르
+410
+(Polyglycerol Esters of Fatty Acids)
+폴리글리세린축합리시놀레인산에스테르
+411
+(Polyglycerol Esters of Interesterified Ricinoleic Acid)
+폴리글리시톨시럽
+412 폴리글리시톨액('26.1.1. 시행)
+(Polyglycitol Syrup)
+폴리덱스트로스
+413
+(Polydextrose)
+ε-폴리리신
+414
+(ε-Polylysine)
+폴리부텐
+415
+(Polybutene)
+384	토마틴
+(Thaumatin)
+385	d-α-토코페롤
+(d-α-Tocopherol Concentrate)
+386	d-토코페롤(혼합형)
+(d-Tocopherol Concentrate, Mixed)
+387	d-α-토코페릴아세테이트
+(d-α-Tocopheryl Acetate)
+388	dl-α-토코페릴아세테이트
+(dl-α-Tocopheryl Acetate)
+389	d-α-토코페릴호박산
+(ｄ-α-Tocopheryl Acid Succinate)
+390	트라가칸스검
+(Tragacanth Gum)
+391	트리아세틴
+(Triacetin)
+392	파라메틸아세토페논
+(p-Methyl Acetophenone)
+393	파라옥시안식향산메틸
+(Methyl p-Hydroxybenzoate)
+394	파라옥시안식향산에틸
+(Ethyl p-Hydroxybenzoate)
+395	파프리카추출색소
+(Oleoresin Paprika)
+396	파피아색소
+(Phaffia Color)
+397	팔미트산
+(Palmitic Acid)
+398	퍼셀레란
+(Furcelleran)
+399	페닐초산에틸
+(Ethyl Phenylacetate)
+400	페닐초산이소부틸
+(Isobutyl Phenylacetate)
+401	페로시안화나트륨
+(Sodium Ferrocyanide
+402	페로시안화칼륨
+(Potassium Ferrocyanide)
+403	페로시안화칼슘
+(Calcium Ferrocyanide)
+404	페룰린산
+(Ferulic Acid)
+405	펙틴
+(Pectin)
+406	포도과즙색소
+(Grape Juice Color
+407	포도과피색소
+(Grape Skin Extract)
+408	포도종자추출물
+(Grape Seed Extract)
+409	폴리감마글루탐산
+(Poly-γ-glutamic acid)
+410	폴리글리세린지방산에스테르
+(Polyglycerol Esters of Fatty Acids)
+411	폴리글리세린축합리시놀레인산에스테르
+(Polyglycerol Esters of Interesterified Ricinoleic Acid)
+412	폴리글리시톨시럽
+(Polyglycitol Syrup)
+413	폴리덱스트로스
+(Polydextrose)
+414	ε-폴리리신
+(ε-Polylysine)
+415	폴리부텐
+(Polybutene)
+폴리비닐알콜
+416
+(Polyvinyl Alcohol)
+폴리비닐피로리돈
+417
+(Polyvinyl Polypyrrolidone)
+폴리소르베이트20
+418
+(Polysorbate 20)
+폴리소르베이트60
+419
+(Polysorbate 60)
+폴리소르베이트65
+420
+(Polysorbate 65)
+폴리소르베이트80
+421
+(Polysorbate 80)
+폴리아크릴산나트륨
+422
+(Sodium Polyacrylate)
+폴리에틸렌글리콜
+423
+(Polyethylene Glycol)
+폴리이소부틸렌
+424
+(Polyisobutylene)
+폴리인산나트륨
+425
+(Sodium Polyphosphate)
+폴리인산칼륨
+426
+(Potassium Polyphosphate)
+푸마르산
+427
+(Fumaric Acid)
+푸마르산일나트륨
+428
+(Monosodium Fumarate)
+풀루란
+429
+(Pullulan)
+프로피온산
+430
+(Propionic Acid)
+프로피온산나트륨
+431
+(Sodium Propionate)
+프로피온산벤질
+432
+(Benzyl Propionate)
+프로피온산에틸
+433
+(Ethyl Propionate)
+프로피온산이소아밀
+434
+(Isoamyl Propionate)
+프로피온산칼슘
+435
+(Calcium Propionate)
+프로필렌글리콜
+436
+(Propylene Glycol)
+프로필렌글리콜지방산에스테르
+437
+(Propylene Glycol Esters of Fatty Acids)
+프탈산히드록시프로필메틸셀룰로스
+438
+(Hydroxypropylmethyl Cellulose Phthalate)
+피로인산나트륨
+439
+(Sodium Pyrophosphate)
+피로인산칼륨
+440
+(Potassium Pyrophosphate)
+피마자유
+441
+(Castor oil)
+피칸너트색소
+442
+(Pecan Nut Color)
+피틴산
+443
+(Phytic Acid)
+피페로날
+444
+(Piperonal)
+향료
+445
+(Flavoring Substances)
+향신료올레오레진류
+446
+(Spice Oleoresins)
+헥사논산에틸
+447
+(Ethyl Hexanoate)
+416	폴리비닐알콜
+(Polyvinyl Alcohol)
+417	폴리비닐피로리돈
+(Polyvinyl Polypyrrolidone)
+418	폴리소르베이트20
+(Polysorbate 20)
+419	폴리소르베이트60
+(Polysorbate 60)
+420	폴리소르베이트65
+(Polysorbate 65)
+421	폴리소르베이트80
+(Polysorbate 80)
+422	폴리아크릴산나트륨
+(Sodium Polyacrylate)
+423	폴리에틸렌글리콜
+(Polyethylene Glycol)
+424	폴리이소부틸렌
+(Polyisobutylene)
+425	폴리인산나트륨
+(Sodium Polyphosphate)
+426	폴리인산칼륨
+(Potassium Polyphosphate)
+427	푸마르산
+(Fumaric Acid)
+428	푸마르산일나트륨
+(Monosodium Fumarate)
+429	풀루란
+(Pullulan)
+430	프로피온산
+(Propionic Acid)
+431	프로피온산나트륨
+(Sodium Propionate)
+432	프로피온산벤질
+(Benzyl Propionate)
+433	프로피온산에틸
+(Ethyl Propionate)
+434	프로피온산이소아밀
+(Isoamyl Propionate)
+435	프로피온산칼슘
+(Calcium Propionate)
+436	프로필렌글리콜
+(Propylene Glycol)
+437	프로필렌글리콜지방산에스테르
+(Propylene Glycol Esters of Fatty Acids)
+438	프탈산히드록시프로필메틸셀룰로스
+(Hydroxypropylmethyl Cellulose Phthalate)
+439	피로인산나트륨
+(Sodium Pyrophosphate)
+440	피로인산칼륨
+(Potassium Pyrophosphate)
+441	피마자유
+(Castor oil)
+442	피칸너트색소
+(Pecan Nut Color)
+443	피틴산
+(Phytic Acid)
+444	피페로날
+(Piperonal)
+445	향료
+(Flavoring Substances)
+446	향신료올레오레진류
+(Spice Oleoresins)
+447	헥사논산에틸
+(Ethyl Hexanoate)
+헵타논산에틸
+448
+(Ethyl Heptanoate)
+호박산
+449
+(Succinic Acid)
+호박산이나트륨
+450
+(Disodium Succinate)
+홍국색소
+451
+(Monascus Color)
+홍국황색소
+452
+(Monascus Yellow)
+홍화적색소
+453
+(Carthamus Red)
+홍화황색소
+454
+(Carthamus Yellow)
+황산나트륨
+455
+(Sodium Sulfate)
+황산마그네슘
+456
+(Magnesium Sulfate)
+황산알루미늄암모늄
+457
+(Aluminium Ammonium Sulfate)
+황산알루미늄칼륨
+458
+(Aluminium Potassium Sulfate)
+황산암모늄
+459
+(Ammonium Sulfate)
+황산칼륨
+460
+(Potassium Sulfate)
+황산칼슘
+461
+(Calcium Sulfate)
+효모
+462
+(Yeast)
+효모추출물
+463
+(Yeast Extract)
+효소분해레시틴
+464
+(Enzymatically Decomposed Lecithin)
+효소분해사과추출물
+465
+(Enzymatically Decomposed Apple Extract)
+효소처리루틴
+466
+(Enzymatically Modified Rutin)
+효소처리스테비아
+467
+(Enzymatically Modified Stevia)
+흑당근추출색소
+468
+(Black Carrot Extract)
+히드록시시트로넬랄
+469
+(Hydroxycitronellal)
+히드록시시트로넬랄디메틸아세탈
+470
+(Hydroxycitronellal Dimethylacetal)
+히드록시프로필메틸셀룰로스
+471
+(Hydroxypropylmethyl Cellulose)
+히드록시프로필셀룰로스
+472
+(Hydroxypropyl Cellulose)
+히알루론산
+473
+(Hyaluronic Acid)
+448	헵타논산에틸
+(Ethyl Heptanoate)
+449	호박산
+(Succinic Acid)
+450	호박산이나트륨
+(Disodium Succinate)
+451	홍국색소
+(Monascus Color)
+452	홍국황색소
+(Monascus Yellow)
+453	홍화적색소
+(Carthamus Red)
+454	홍화황색소
+(Carthamus Yellow)
+455	황산나트륨
+(Sodium Sulfate)
+456	황산마그네슘
+(Magnesium Sulfate)
+457	황산알루미늄암모늄
+(Aluminium Ammonium Sulfate)
+458	황산알루미늄칼륨
+(Aluminium Potassium Sulfate)
+459	황산암모늄
+(Ammonium Sulfate)
+460	황산칼륨
+(Potassium Sulfate)
+461	황산칼슘
+(Calcium Sulfate)
+462	효모
+(Yeast)
+463	효모추출물
+(Yeast Extract)
+464	효소분해레시틴
+(Enzymatically Decomposed Lecithin)
+465	효소분해사과추출물
+(Enzymatically Decomposed Apple Extract)
+466	효소처리루틴
+(Enzymatically Modified Rutin)
+467	효소처리스테비아
+(Enzymatically Modified Stevia)
+468	흑당근추출색소
+(Black Carrot Extract)
+469	히드록시시트로넬랄
+(Hydroxycitronellal)
+470	히드록시시트로넬랄디메틸아세탈
+(Hydroxycitronellal Dimethylacetal)
+471	히드록시프로필메틸셀룰로스
+(Hydroxypropylmethyl Cellulose)
+472	히드록시프로필셀룰로스
+(Hydroxypropyl Cellulose)
+473	히알루론산
+(Hyaluronic Acid)

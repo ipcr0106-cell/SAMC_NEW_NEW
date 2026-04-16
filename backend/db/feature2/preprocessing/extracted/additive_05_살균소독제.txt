@@ -1,0 +1,68 @@
+No. 품목명
+과산화수소제제
+1
+(Hydrogen Peroxide Preparations)
+과산화초산제제
+2
+(Peroxyacetic Acid Preparations)
+구연산제제
+3
+(Citric Acid Preparations)
+에탄올제제
+4
+(Ethanol Preparations)
+염화-N-데실-N,N-디메틸-1-데칸아미늄제제
+5
+(N-Decyl-N,N-dimethyl-1-decanaminium chloride Preparations)
+염화알킬(C -C )벤질디메틸암모늄제제
+6 12 18
+(n-Alkyl(C12-C18)benzyldimethylammonium chloride Preparations)
+요오드제제
+7
+(Iodine Preparations)
+이산화염소제제
+8
+(Chlorine Dioxide Preparations)
+이염화이소시아뉼산나트륨제제
+9
+(Sodium Dichloroisocyanurate Preparations)
+젖산제제
+10
+(Lactic Acid Preparations)
+차아염소산나트륨제제
+11
+(Sodium Hypochlorite Preparations)
+차아염소산수
+12
+(Hypochlorous Acid Water)
+폴리(헥사메틸렌비구아니드)하이드로클로라이드제제
+13
+(Poly(hexamethylenebiguanide)hydrochloride Preparations)
+No.	품목명
+1	과산화수소제제
+(Hydrogen Peroxide Preparations)
+2	과산화초산제제
+(Peroxyacetic Acid Preparations)
+3	구연산제제
+(Citric Acid Preparations)
+4	에탄올제제
+(Ethanol Preparations)
+5	염화-N-데실-N,N-디메틸-1-데칸아미늄제제
+(N-Decyl-N,N-dimethyl-1-decanaminium chloride Preparations)
+6	염화알킬(C -C )벤질디메틸암모늄제제
+12 18
+(n-Alkyl(C12-C18)benzyldimethylammonium chloride Preparations)
+7	요오드제제
+(Iodine Preparations)
+8	이산화염소제제
+(Chlorine Dioxide Preparations)
+9	이염화이소시아뉼산나트륨제제
+(Sodium Dichloroisocyanurate Preparations)
+10	젖산제제
+(Lactic Acid Preparations)
+11	차아염소산나트륨제제
+(Sodium Hypochlorite Preparations)
+12	차아염소산수
+(Hypochlorous Acid Water)
+13	폴리(헥사메틸렌비구아니드)하이드로클로라이드제제
+(Poly(hexamethylenebiguanide)hydrochloride Preparations)
