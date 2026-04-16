@@ -17,14 +17,12 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any, Optional
 
-import asyncpg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from db.connection import get_conn_dep
+from db.supabase_client import get_supabase
 from models.judgment import (Feature1Input, Feature1Output, Ingredient,
                                      ProcessConditions)
 from services.feature1 import run_feature1
@@ -40,42 +38,39 @@ router = APIRouter(
 # ============================================================
 
 
-async def _fetch_pipeline_step(
-    db: asyncpg.Connection, case_id: str, step_key: str = "1"
-) -> Optional[asyncpg.Record]:
-    return await db.fetchrow(
-        """
-        SELECT id, case_id, step_key, step_name, status,
-               ai_result, final_result, edit_reason,
-               law_references, created_at, updated_at
-          FROM pipeline_steps
-         WHERE case_id = $1 AND step_key = $2
-         LIMIT 1
-        """,
-        case_id,
-        step_key,
-    )
+def _fetch_pipeline_step(
+    case_id: str, step_key: str = "1"
+) -> Optional[dict]:
+    supabase = get_supabase()
+    result = supabase.table("pipeline_steps") \
+        .select(
+            "id, case_id, step_key, step_name, status, "
+            "ai_result, final_result, edit_reason, "
+            "law_references, created_at, updated_at"
+        ) \
+        .eq("case_id", case_id) \
+        .eq("step_key", step_key) \
+        .limit(1) \
+        .execute()
+    return result.data[0] if result.data else None
 
 
-async def _upsert_pipeline_step(
-    db: asyncpg.Connection,
+def _upsert_pipeline_step(
     case_id: str,
     status: str,
     ai_result: dict,
 ) -> None:
-    await db.execute(
-        """
-        INSERT INTO pipeline_steps (case_id, step_key, step_name, status, ai_result)
-        VALUES ($1, '1', 'import_check', $2, $3::jsonb)
-        ON CONFLICT (case_id, step_key) DO UPDATE
-          SET status = EXCLUDED.status,
-              ai_result = EXCLUDED.ai_result,
-              updated_at = NOW()
-        """,
-        case_id,
-        status,
-        json.dumps(ai_result, ensure_ascii=False),
-    )
+    supabase = get_supabase()
+    supabase.table("pipeline_steps").upsert(
+        {
+            "case_id": case_id,
+            "step_key": "1",
+            "step_name": "import_check",
+            "status": status,
+            "ai_result": ai_result,  # supabase-py가 dict를 JSONB로 자동 직렬화
+        },
+        on_conflict="case_id,step_key"
+    ).execute()
 
 
 def _to_pipeline_result(out: Feature1Output) -> dict:
@@ -195,17 +190,9 @@ def _to_pipeline_result(out: Feature1Output) -> dict:
     }
 
 
-def _record_to_json(row: asyncpg.Record, field: str) -> Any:
-    """asyncpg Record 의 jsonb 컬럼 값 파싱."""
-    raw = row[field]
-    if raw is None:
-        return None
-    if isinstance(raw, (dict, list)):
-        return raw
-    try:
-        return json.loads(raw)
-    except (TypeError, ValueError):
-        return None
+def _record_to_json(row: dict, field: str) -> Any:
+    """supabase-py는 JSONB를 dict로 자동 반환."""
+    return row.get(field)
 
 
 # ============================================================
@@ -224,10 +211,8 @@ class Feature1GetResponse(BaseModel):
 
 
 @router.get("/{case_id}/pipeline/feature/1", response_model=Feature1GetResponse)
-async def get_feature1(
-    case_id: str, db: asyncpg.Connection = Depends(get_conn_dep)
-) -> Feature1GetResponse:
-    row = await _fetch_pipeline_step(db, case_id, "1")
+async def get_feature1(case_id: str) -> Feature1GetResponse:
+    row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
             status_code=404,
@@ -242,9 +227,10 @@ async def get_feature1(
         status=row["status"],
         ai_result=_record_to_json(row, "ai_result"),
         final_result=_record_to_json(row, "final_result"),
-        edit_reason=row["edit_reason"],
+        edit_reason=row.get("edit_reason"),
         law_references=_record_to_json(row, "law_references"),
-        updated_at=row["updated_at"].isoformat() if row["updated_at"] else None,
+        # supabase-py는 timestamp를 str로 반환 → .isoformat() 불필요
+        updated_at=row.get("updated_at"),
     )
 
 
@@ -260,24 +246,20 @@ _DISTILL_CODES = {"35", "41", "42"}
 _FERMENT_CODES = {"10", "16", "17", "18"}
 
 
-async def _fetch_f0_parsed_result(
-    db: asyncpg.Connection, case_id: str,
-) -> Optional[dict]:
+def _fetch_f0_parsed_result(case_id: str) -> Optional[dict]:
     """f0(step_key='0')의 ai_result에서 ParsedResult를 가져온다."""
-    row = await db.fetchrow(
-        """
-        SELECT ai_result FROM pipeline_steps
-        WHERE case_id = $1 AND step_key = '0' AND status = 'completed'
-        LIMIT 1
-        """,
-        case_id,
-    )
-    if not row or not row["ai_result"]:
+    supabase = get_supabase()
+    result = supabase.table("pipeline_steps") \
+        .select("ai_result") \
+        .eq("case_id", case_id) \
+        .eq("step_key", "0") \
+        .eq("status", "completed") \
+        .limit(1) \
+        .execute()
+    if not result.data:
         return None
-    raw = row["ai_result"]
-    if isinstance(raw, str):
-        return json.loads(raw)
-    return raw
+    # supabase-py가 JSONB를 dict로 자동 파싱
+    return result.data[0].get("ai_result")
 
 
 def _convert_f0_to_f1_ingredients(parsed: dict) -> list[Ingredient]:
@@ -336,14 +318,13 @@ class Feature1RunRequest(BaseModel):
 async def run_feature1_endpoint(
     case_id: str,
     body: Feature1RunRequest,
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
     ingredients = body.ingredients
     process_conditions = body.process_conditions
 
     # ingredients가 없으면 f0 파싱 결과에서 자동 추출
     if not ingredients:
-        parsed = await _fetch_f0_parsed_result(db, case_id)
+        parsed = _fetch_f0_parsed_result(case_id)
         if not parsed:
             raise HTTPException(
                 status_code=400,
@@ -368,8 +349,7 @@ async def run_feature1_endpoint(
             process_conditions = _convert_f0_to_process_conditions(parsed)
 
     try:
-        out = await run_feature1(
-            db=db,
+        out = run_feature1(
             ingredients=ingredients,
             food_type=body.food_type,
             process_conditions=process_conditions or ProcessConditions(),
@@ -385,7 +365,7 @@ async def run_feature1_endpoint(
         )
 
     ai_result = _to_pipeline_result(out)
-    await _upsert_pipeline_step(db, case_id, "waiting_review", ai_result)
+    _upsert_pipeline_step(case_id, "waiting_review", ai_result)
 
     return {
         "case_id": case_id,
@@ -408,9 +388,8 @@ class Feature1UpdateRequest(BaseModel):
 async def update_feature1(
     case_id: str,
     body: Feature1UpdateRequest,
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
-    row = await _fetch_pipeline_step(db, case_id, "1")
+    row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
             status_code=404,
@@ -420,18 +399,11 @@ async def update_feature1(
                 "feature": 1,
             },
         )
-    await db.execute(
-        """
-        UPDATE pipeline_steps
-           SET final_result = $2::jsonb,
-               edit_reason  = $3,
-               updated_at   = NOW()
-         WHERE case_id = $1 AND step_key = '1'
-        """,
-        case_id,
-        json.dumps(body.final_result, ensure_ascii=False),
-        body.edit_reason,
-    )
+    supabase = get_supabase()
+    supabase.table("pipeline_steps").update({
+        "final_result": body.final_result,   # dict → JSONB 자동 처리
+        "edit_reason": body.edit_reason,
+    }).eq("case_id", case_id).eq("step_key", "1").execute()
     return {"case_id": case_id, "updated": True}
 
 
@@ -441,10 +413,8 @@ async def update_feature1(
 
 
 @router.post("/{case_id}/pipeline/feature/1/confirm")
-async def confirm_feature1(
-    case_id: str, db: asyncpg.Connection = Depends(get_conn_dep)
-) -> dict:
-    row = await _fetch_pipeline_step(db, case_id, "1")
+async def confirm_feature1(case_id: str) -> dict:
+    row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
             status_code=404,
@@ -455,15 +425,13 @@ async def confirm_feature1(
             },
         )
 
-    # final_result 가 없으면 ai_result 를 final_result 로 복사
-    await db.execute(
-        """
-        UPDATE pipeline_steps
-           SET status = 'completed',
-               final_result = COALESCE(final_result, ai_result),
-               updated_at = NOW()
-         WHERE case_id = $1 AND step_key = '1'
-        """,
-        case_id,
-    )
+    # COALESCE 대체: Python에서 처리 (final_result 없으면 ai_result 사용)
+    final = row.get("final_result") or row.get("ai_result")
+
+    supabase = get_supabase()
+    supabase.table("pipeline_steps").update({
+        "status": "completed",
+        "final_result": final,
+    }).eq("case_id", case_id).eq("step_key", "1").execute()
+
     return {"case_id": case_id, "status": "completed"}

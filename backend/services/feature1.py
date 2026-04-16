@@ -4,7 +4,7 @@
 참고: 계획/기능1_구현계획/00_마스터_로드맵.md §2 DAG
 
 흐름:
-    run_feature1(db, ingredients, food_type?, process_conditions)
+    run_feature1(ingredients, food_type?, process_conditions)
       ├── check_forbidden_first (Step 0)
       │     └── hit → 즉시 종료
       ├── run_step1 (Step 1 + 1-A + 1-B)
@@ -20,16 +20,13 @@ from __future__ import annotations
 
 from typing import Optional
 
-import asyncpg
-
 from models.judgment import (Feature1Output, Ingredient, LawReference,
                                      ProcessConditions)
 from services.step1_ingredients_check import run_step1
 from services.step3_standards import run_step3
 
 
-async def run_feature1(
-    db: asyncpg.Connection,
+def run_feature1(
     ingredients: list[Ingredient],
     food_type: Optional[str] = None,
     process_conditions: Optional[ProcessConditions] = None,
@@ -37,7 +34,6 @@ async def run_feature1(
     """기능1 통합 실행.
 
     Args:
-        db: asyncpg 커넥션
         ingredients: 원재료 목록 (정보입력 단계 출력)
         food_type: 기능2(아람) 확정 식품유형 — None이면 Step 3 review_needed 처리
         process_conditions: 가열·발효·증류·도수 플래그
@@ -48,7 +44,7 @@ async def run_feature1(
     process = process_conditions or ProcessConditions()
 
     # ── Step 0 + 1 + 1-A + 1-B ────────────────────────────
-    step1_result = await run_step1(db, ingredients)
+    step1_result = run_step1(ingredients)
 
     # Step 0 적중 → 즉시 종료
     if step1_result.get("stopped_at") == "step0":
@@ -85,7 +81,7 @@ async def run_feature1(
         )
 
     # ── Step 3 ────────────────────────────────────────────
-    standards = await run_step3(db, ingredients, food_type, process)
+    standards = run_step3(ingredients, food_type, process)
 
     # 최종 판정
     escalations = list(step1_result.get("escalations", [])) + list(

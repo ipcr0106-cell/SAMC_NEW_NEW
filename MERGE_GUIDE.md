@@ -362,7 +362,6 @@ FEATURE_PROCESSORS = {
 - `backend/constants/condition_patterns.py` — 조건부 원료 분류 패턴
 - `backend/constants/gmo.py` — GMO 위험 원료 상수
 - `backend/constants/thresholds_config.py` — F1 매칭/검증 임계값
-- `backend/db/connection.py` — asyncpg 커넥션 풀 (F1 DB 쿼리용)
 - `backend/db/migrations/001~009*.sql` — F1 테이블 마이그레이션
 - `backend/db/seed/01~05*.sql` — F1 초기 데이터
 - `backend/scripts/bootstrap_f1_db.py` — F1 DB 부트스트랩
@@ -413,7 +412,7 @@ app.include_router(feature1_router)
 app.include_router(db_manager_router)
 ```
 
-lifespan 훅에서 `F1_DATABASE_URL`로 asyncpg 커넥션 풀 초기화 추가됨.
+supabase-py 클라이언트로 전환. `F1_DATABASE_URL` 불필요. `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` 공용 키 사용.
 
 ### F1 DB 테이블 (f1_ prefix)
 
@@ -453,7 +452,6 @@ lifespan 훅에서 `F1_DATABASE_URL`로 asyncpg 커넥션 풀 초기화 추가�
 
 | 키 이름 | 용도 | 사용 기능 |
 |---------|------|-----------|
-| `F1_DATABASE_URL` | asyncpg 직접 연결 | F1 (connection.py) |
 | `F1_ANTHROPIC_API_KEY` | Claude 기준치 추출 | F1 (law_extractor.py) |
 
 ---
@@ -757,7 +755,6 @@ npx next build    # 또는 npm run build
 | `F4_PINECONE_API_KEY` | 법령 검색 | f4 |
 | `F4_PINECONE_HOST` | 인덱스 호스트 | f4 |
 | `F4_DEEPL_API_KEY` | 번역 (선택) | f4 |
-| `F1_DATABASE_URL` | asyncpg 직접 연결 | F1 |
 | `F1_ANTHROPIC_API_KEY` | Claude 기준치 추출 | F1 |
 | `F2_OPENAI_API_KEY` | GPT-4o 식품유형 분류 | F2 |
 | `F2_PINECONE_API_KEY` | Pinecone samc-a | F2 |

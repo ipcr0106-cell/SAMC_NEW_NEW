@@ -26,3 +26,4 @@ frontend_backup_*
 
 # 병합 전 원본 보관 (로컬에만 유지, git에 올리지 않음)
 병합완료된_원본/
+.gstack/
