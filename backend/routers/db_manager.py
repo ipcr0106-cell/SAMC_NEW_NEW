@@ -217,7 +217,7 @@ def _check_ownership(table: str, row_id: str, user_uuid: UUID) -> None:
 
 
 @router.get("/{table}")
-async def list_rows(
+def list_rows(
     table: TableName,
     only_mine: bool = Query(False, description="본인 추가 항목만"),
     only_unverified: bool = Query(False, description="is_verified=false 만"),
@@ -272,7 +272,7 @@ class CreateRequest(BaseModel):
 
 
 @router.post("/{table}")
-async def create_row(
+def create_row(
     table: TableName,
     body: CreateRequest,
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
@@ -318,7 +318,7 @@ class UpdateRequest(BaseModel):
 
 
 @router.patch("/{table}/{row_id}")
-async def update_row(
+def update_row(
     table: TableName,
     row_id: str,
     body: UpdateRequest,
@@ -359,7 +359,7 @@ async def update_row(
 
 
 @router.delete("/{table}/{row_id}")
-async def delete_row(
+def delete_row(
     table: TableName,
     row_id: str,
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
@@ -388,7 +388,7 @@ async def delete_row(
 
 
 @router.post("/{table}/{row_id}/verify")
-async def mark_verified(
+def mark_verified(
     table: TableName,
     row_id: str,
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),

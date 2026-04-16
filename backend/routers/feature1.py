@@ -211,7 +211,7 @@ class Feature1GetResponse(BaseModel):
 
 
 @router.get("/{case_id}/pipeline/feature/1", response_model=Feature1GetResponse)
-async def get_feature1(case_id: str) -> Feature1GetResponse:
+def get_feature1(case_id: str) -> Feature1GetResponse:
     row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
@@ -315,7 +315,7 @@ class Feature1RunRequest(BaseModel):
 
 
 @router.post("/{case_id}/pipeline/feature/1/run")
-async def run_feature1_endpoint(
+def run_feature1_endpoint(
     case_id: str,
     body: Feature1RunRequest,
 ) -> dict:
@@ -385,7 +385,7 @@ class Feature1UpdateRequest(BaseModel):
 
 
 @router.patch("/{case_id}/pipeline/feature/1")
-async def update_feature1(
+def update_feature1(
     case_id: str,
     body: Feature1UpdateRequest,
 ) -> dict:
@@ -413,7 +413,7 @@ async def update_feature1(
 
 
 @router.post("/{case_id}/pipeline/feature/1/confirm")
-async def confirm_feature1(case_id: str) -> dict:
+def confirm_feature1(case_id: str) -> dict:
     row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
