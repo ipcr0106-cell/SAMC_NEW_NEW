@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 from db.supabase_client import get_supabase
@@ -32,6 +33,11 @@ _VERDICT_MAP: dict[str, IngredientVerdict] = {
     "restricted": "restricted",
     "prohibited": "prohibited",
 }
+
+
+def _normalize(s: str) -> str:
+    """Normalize for comparison: remove whitespace, lowercase."""
+    return re.sub(r"\s+", "", s).lower()
 
 
 # ============================================================
@@ -55,18 +61,29 @@ def check_forbidden_first(
         .eq("is_verified", True) \
         .execute().data
 
-    names_set = set(names)
-    hits = [
-        r for r in rows
-        if r["name_ko"] in names_set
-        or any(a in names_set for a in (r["aliases"] or []))
-    ]
+    # normalize + bidirectional substring matching
+    # "마리화나 추출물" ↔ alias "마리화나" 양방향 포함 검사
+    names_norm = [_normalize(n) for n in names]
 
-    # name_ko 기준 중복 제거
     seen: set[str] = set()
     result: list[ForbiddenHit] = []
-    for r in hits:
-        if r["name_ko"] not in seen:
+    for r in rows:
+        candidates = [r["name_ko"], r.get("name_en") or ""]
+        candidates.extend(r.get("aliases") or [])
+        candidates_norm = [_normalize(c) for c in candidates if c]
+
+        hit = False
+        for inp in names_norm:
+            if not inp:
+                continue
+            for c in candidates_norm:
+                if inp in c or c in inp:
+                    hit = True
+                    break
+            if hit:
+                break
+
+        if hit and r["name_ko"] not in seen:
             seen.add(r["name_ko"])
             result.append(ForbiddenHit(
                 name_ko=r["name_ko"],
@@ -151,13 +168,17 @@ def match_ingredient(ing: Ingredient) -> IngredientMatchResult:
 
     # ── 5단계: 퍼지 (trgm RPC) ────────────────────────────
     # RPC 시그니처: search_f1_ingredients_trgm(q TEXT, k INTEGER DEFAULT 30)
-    result = supabase.rpc(
-        "search_f1_ingredients_trgm", {"q": name, "k": 1}
-    ).execute()
-    if result.data:
-        row = result.data[0]
-        if float(row["similarity"]) >= FUZZY_SIMILARITY_THRESHOLD:
-            return _build_result(ing, row, "fuzzy", FUZZY_MATCH_CONFIDENCE)
+    # RPC failure → unidentified fallback (individual ingredient, not whole chain)
+    try:
+        result = supabase.rpc(
+            "search_f1_ingredients_trgm", {"q": name, "k": 1}
+        ).execute()
+        if result.data:
+            row = result.data[0]
+            if float(row["similarity"]) >= FUZZY_SIMILARITY_THRESHOLD:
+                return _build_result(ing, row, "fuzzy", FUZZY_MATCH_CONFIDENCE)
+    except Exception:
+        pass
 
     return _unidentified(ing)
 
