@@ -12,6 +12,7 @@ import {
   updateImportCheckResult,
   confirmImportCheckResult,
   runImportCheck,
+  downloadReport,
   type RunPayload,
 } from "../api/importCheck";
 
@@ -170,6 +171,18 @@ export function useImportCheck(caseId: string) {
     }
   }, [caseId, fetchResult]);
 
+  // PDF report download
+  const handleDownloadPdf = useCallback(async () => {
+    try {
+      await downloadReport(caseId);
+    } catch {
+      setState((prev) => ({
+        ...prev,
+        errorMessage: "PDF 다운로드에 실패했습니다.",
+      }));
+    }
+  }, [caseId]);
+
   return {
     state,
     fetchResult,
@@ -179,5 +192,6 @@ export function useImportCheck(caseId: string) {
     setEditReason,
     saveEdit,
     confirm,
+    handleDownloadPdf,
   };
 }

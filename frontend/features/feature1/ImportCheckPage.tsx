@@ -32,6 +32,7 @@ export default function ImportCheckPage({ caseId }: Props) {
     setEditReason,
     saveEdit,
     confirm,
+    handleDownloadPdf,
   } = useImportCheck(caseId);
 
   const isConfirmed = state.data?.status === "completed";
@@ -146,6 +147,7 @@ export default function ImportCheckPage({ caseId }: Props) {
         canConfirm={canConfirm}
         onSave={saveEdit}
         onConfirm={confirm}
+        onDownloadPdf={handleDownloadPdf}
       />
     </main>
   );
