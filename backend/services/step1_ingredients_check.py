@@ -136,11 +136,14 @@ def match_ingredient(ing: Ingredient) -> IngredientMatchResult:
         return _unidentified(ing)
 
     # ── 1단계: 정확 이름 매칭 ─────────────────────────────
-    result = supabase.table("f1_allowed_ingredients") \
-        .select("id, name_ko, allowed_status, conditions, law_source") \
-        .eq("name_ko", name).limit(1).execute()
-    if result.data:
-        return _build_result(ing, result.data[0], "exact_name", EXACT_MATCH_CONFIDENCE)
+    # 정규화된 이름으로 먼저 시도 ("비타민 C" → "비타민C"), 실패 시 원본으로 재시도
+    name_norm = _normalize(name)
+    for q in dict.fromkeys([name_norm, name]):  # dedupe, 정규화 우선
+        result = supabase.table("f1_allowed_ingredients") \
+            .select("id, name_ko, allowed_status, conditions, law_source") \
+            .eq("name_ko", q).limit(1).execute()
+        if result.data:
+            return _build_result(ing, result.data[0], "exact_name", EXACT_MATCH_CONFIDENCE)
 
     # ── 2단계: INS 번호 매칭 ──────────────────────────────
     if ing.ins:

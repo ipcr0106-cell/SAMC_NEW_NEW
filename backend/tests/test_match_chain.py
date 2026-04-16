@@ -80,18 +80,22 @@ def _build_mock(
     """Build a Supabase mock with separate chains for eq/ilike/rpc.
 
     Args:
-        eq_results: Sequential results for .eq().limit().execute() calls (steps 1,2,3).
-                    Each element is the .data list for that call.
+        eq_results: Sequential results for .eq().limit().execute() calls.
+                    Step 1 may make 1-2 calls (normalize + original fallback),
+                    then steps 2-3 each make 1 call.
+                    After all specified results are consumed, returns empty data.
         ilike_result: Result for .ilike().limit().execute() (step 4).
         rpc_result: Result for .rpc().execute() (step 5).
         rpc_error: If set, .rpc().execute() raises this exception.
     """
     mock = MagicMock()
 
-    # eq chain (steps 1, 2, 3)
+    # eq chain (steps 1, 2, 3) — auto-pads with empty after specified results
     eq_exec = MagicMock()
     if eq_results:
-        eq_exec.side_effect = [MagicMock(data=r) for r in eq_results]
+        _empty = MagicMock(data=[])
+        _iter = iter([MagicMock(data=r) for r in eq_results])
+        eq_exec.side_effect = lambda: next(_iter, _empty)
     else:
         eq_exec.return_value = MagicMock(data=[])
     chain = mock.table.return_value.select.return_value
@@ -174,7 +178,8 @@ class TestStep1ExactName:
 
 class TestStep2INS:
     def test_ins_hit_after_exact_miss(self, monkeypatch):
-        sb = _build_mock(eq_results=[[], [DB_PERMITTED]])  # step1 miss, step2 hit
+        # step1: 2 eq calls (normalize + original miss), step2: hit
+        sb = _build_mock(eq_results=[[], [], [DB_PERMITTED]])
         _patch(monkeypatch, sb)
         r = match_ingredient(Ingredient(name="E300", ins="300"))
         assert r.verdict == "permitted"
@@ -182,13 +187,12 @@ class TestStep2INS:
         assert r.confidence == 1.0
 
     def test_ins_not_tried_when_absent(self, monkeypatch):
-        """No ins field → step 2 skipped, only 1 eq call (step 1)."""
+        """No ins field → step 2 skipped. Step 1 makes 2 eq calls (normalize + original)."""
         sb = _build_mock(eq_results=[[]])
         _patch(monkeypatch, sb)
         r = match_ingredient(Ingredient(name="XX"))
-        # eq should be called once (step 1 only)
         eq_exec = sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute
-        assert eq_exec.call_count == 1
+        assert eq_exec.call_count == 2  # step 1: "xx" + "XX"
 
 
 # ============================================================
@@ -198,19 +202,20 @@ class TestStep2INS:
 
 class TestStep3CAS:
     def test_cas_hit_after_exact_and_ins_miss(self, monkeypatch):
-        sb = _build_mock(eq_results=[[], [], [DB_PERMITTED]])  # step1,2 miss, step3 hit
+        # step1: 2 calls miss, step2: 1 call miss, step3: hit
+        sb = _build_mock(eq_results=[[], [], [], [DB_PERMITTED]])
         _patch(monkeypatch, sb)
         r = match_ingredient(Ingredient(name="XY", ins="999", cas="50-81-7"))
         assert r.verdict == "permitted"
         assert r.match_method == "cas_number"
 
     def test_cas_not_tried_when_absent(self, monkeypatch):
-        sb = _build_mock(eq_results=[[], []])  # step1 miss, step2 miss (ins given)
+        # step1: 2 calls (normalize+orig), step2: 1 call. No step3 (no cas).
+        sb = _build_mock(eq_results=[[], [], []])
         _patch(monkeypatch, sb)
         r = match_ingredient(Ingredient(name="XX", ins="999"))
-        # 2 eq calls: step1 + step2. No step3 (no cas).
         eq_exec = sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute
-        assert eq_exec.call_count == 2
+        assert eq_exec.call_count == 3  # step1(xx,XX) + step2(ins)
 
 
 # ============================================================
