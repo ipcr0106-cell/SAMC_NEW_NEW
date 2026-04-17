@@ -19,6 +19,8 @@ import StandardsSummary from "./components/StandardsSummary";
 import LawRefCheckbox from "./components/LawRefCheckbox";
 import VerdictPanel from "./components/VerdictPanel";
 import ConfirmActions from "./components/ConfirmActions";
+import LawCitationList from "./components/LawCitationList";
+import RagConflictPanel from "./components/RagConflictPanel";
 
 interface Props {
   caseId: string;
@@ -33,6 +35,7 @@ export default function ImportCheckPage({ caseId }: Props) {
     saveEdit,
     confirm,
     handleDownloadPdf,
+    submitHITLDecision,
   } = useImportCheck(caseId);
 
   const isConfirmed = state.data?.status === "completed";
@@ -123,6 +126,25 @@ export default function ImportCheckPage({ caseId }: Props) {
             ))}
           </ul>
         </section>
+      )}
+
+      {/* Phase 4-B: HITL 충돌 패널 — needs_review 원인인 conflict / rag_supplemented 일 때만 */}
+      {internal &&
+        (internal.conflict_status === "conflict" ||
+          internal.conflict_status === "rag_supplemented") && (
+          <RagConflictPanel
+            conflictStatus={internal.conflict_status}
+            ragVerdict={internal.rag_verdict}
+            ragReasoning={internal.rag_reasoning}
+            dbVerdict={source.verdict}
+            onDecide={submitHITLDecision}
+            isSaving={state.isSaving}
+          />
+        )}
+
+      {/* Phase 4-B: 법령 인용 리스트 — rag_skipped 면 citations=[] 로 자동 생략 */}
+      {internal?.law_citations && internal.law_citations.length > 0 && (
+        <LawCitationList citations={internal.law_citations} />
       )}
 
       <LawRefCheckbox

@@ -652,8 +652,77 @@ def _build_report_pdf(case_id: str, result: dict, row: dict) -> bytes:
             source = ref.get("law_source", "-")
             article = ref.get("law_article") or ""
             pdf.body_text(f"  - {source} {article}".strip())
+    pdf.ln(2)
 
-    # ── 6. Escalations ──
+    # ── 6. RAG 법령 인용 (Phase 4-B) ──
+    # rag_verdict 또는 law_citations 가 있으면 렌더 (rag_skipped 는 생략).
+    rag_verdict = internal.get("rag_verdict")
+    rag_reasoning = internal.get("rag_reasoning")
+    law_citations = internal.get("law_citations", [])
+    conflict_status = internal.get("conflict_status", "rag_skipped")
+
+    _CONFLICT_LABEL = {
+        "agreed": "DB·RAG 일치",
+        "conflict": "DB·RAG 충돌 (담당자 결정)",
+        "rag_supplemented": "RAG 보완 판정",
+        "rag_unavailable": "RAG 호출 실패",
+        "rag_skipped": "RAG 미호출",
+    }
+    _RAG_VERDICT_LABEL = {
+        "permitted": "허용",
+        "restricted": "조건부 허용",
+        "prohibited": "금지",
+        "unidentified": "불명확",
+        "error": "판정 오류",
+    }
+    _NS_LABEL = {
+        "additive_code_text": "식품첨가물공전",
+        "food_code_text": "식품공전",
+        "health_food_text": "건강기능식품공전",
+        "temporary_standard": "한시적 기준·규격",
+        "functional_labeling": "기능성표시 고시",
+    }
+
+    if rag_verdict or law_citations:
+        section_num += 1
+        pdf.section_title(f"{section_num}. RAG 법령 인용 (AI 판정 근거)")
+        pdf.kv_row(
+            "충돌 상태",
+            _CONFLICT_LABEL.get(conflict_status, conflict_status),
+        )
+        if rag_verdict:
+            pdf.kv_row(
+                "RAG 판정",
+                _RAG_VERDICT_LABEL.get(rag_verdict, rag_verdict),
+            )
+        if rag_reasoning:
+            pdf.kv_row("RAG 근거", rag_reasoning)
+
+        if law_citations:
+            pdf.ln(1)
+            pdf.sub_title(f"인용 청크 ({len(law_citations)}건)")
+            for i, c in enumerate(law_citations, 1):
+                ns = _NS_LABEL.get(c.get("namespace", ""), c.get("namespace", ""))
+                reg = c.get("regulation_id") or ""
+                sec = c.get("section_path") or ""
+                header = f"  [{i}] {ns}"
+                if reg:
+                    header += f" {reg}"
+                if sec:
+                    header += f" · {sec}"
+                pdf.body_text(header)
+                text = c.get("text", "")
+                # PDF 내 과도한 길이 방지 — 400자 이후 truncate
+                if len(text) > 400:
+                    text = text[:400] + "..."
+                pdf.body_text(f"     {text}")
+                score = c.get("score")
+                if isinstance(score, (int, float)):
+                    pdf.body_text(f"     (score: {score:.3f})")
+                pdf.ln(1)
+        pdf.ln(2)
+
+    # ── 7. Escalations ──
     if escalations:
         section_num += 1
         pdf.section_title(f"{section_num}. 에스컬레이션")

@@ -374,7 +374,7 @@ FEATURE_PROCESSORS = {
 **프론트엔드:**
 - `frontend/features/feature1/` 폴더 전체:
   - `ImportCheckPage.tsx` — F1 메인 컴포넌트
-  - `hooks/useImportCheck.ts` — 상태 관리 훅
+  - `hooks/useImportCheck.ts` — 상태 관리 훅 (HITL 결정 `submitHITLDecision` 포함)
   - `api/importCheck.ts` — F1 전용 API 함수
   - `components/AggregationSummary.tsx` — 판정 요약
   - `components/ConfirmActions.tsx` — 확인 버튼
@@ -383,8 +383,13 @@ FEATURE_PROCESSORS = {
   - `components/LawRefCheckbox.tsx` — 법령 참고 체크박스
   - `components/StandardsSummary.tsx` — 기준치 요약
   - `components/VerdictPanel.tsx` — 최종 판정 패널
-  - `types.ts`, `constants.ts` — F1 전용 타입/상수
+  - `components/LawCitationCard.tsx` — RAG 법령 인용 카드 (Phase 5)
+  - `components/LawCitationList.tsx` — RAG 인용 목록 (namespace별 그룹핑, Phase 5)
+  - `components/RagConflictPanel.tsx` — HITL 충돌 결정 패널 (Phase 5)
+  - `components/__tests__/*.test.tsx` — Vitest 단위 테스트 3파일 17케이스 (Phase 5)
+  - `types.ts`, `constants.ts` — F1 전용 타입/상수 (RagVerdict/ConflictStatus/LawCitation 포함)
 - `frontend/app/cases/[id]/f1/page.tsx` — F1 페이지 라우트 (f0 레이아웃 유지)
+- `frontend/vitest.config.ts`, `frontend/vitest.setup.ts` — Vitest 인프라 (F1이 도입)
 
 ### F1 API 엔드포인트 (수정 금지)
 
@@ -393,9 +398,10 @@ FEATURE_PROCESSORS = {
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | `.../feature/1` | F1 결과 조회 |
-| POST | `.../feature/1/run` | F1 실행 (DB 쿼리 → 판정) |
-| PATCH | `.../feature/1` | 담당자 수정 (final_result) |
+| POST | `.../feature/1/run` | F1 실행 (DB 쿼리 + RAG + HITL 판정). `conflict_status ∈ (conflict, rag_supplemented)` 시 `status="needs_review"` |
+| PATCH | `.../feature/1` | 담당자 수정 (final_result). Phase 5: HITL 결정(RagConflictPanel)도 이 엔드포인트 재사용 |
 | POST | `.../feature/1/confirm` | 확인 완료 → 다음 단계 |
+| GET | `.../feature/1/report` | PDF 레포트 (RAG 인용 섹션 포함) |
 
 **db_manager.py 라우터** (prefix: `/api/v1/admin/db`)
 
@@ -442,6 +448,10 @@ supabase-py 클라이언트로 전환. `F1_DATABASE_URL` 불필요. `SUPABASE_UR
 7. `backend/db/migrations/007_f1_escalation_logs.sql`
 8. `backend/db/migrations/008_f1_trgm_indexes_rpc.sql` — 텍스트 검색 인덱스
 9. `backend/db/migrations/009_f1_rls_policies.sql` — 행 수준 보안
+10. `backend/db/migrations/010_f1_law_chunks.sql` — RAG 미러 테이블 (Phase 4-B)
+11. `backend/db/migrations/011_f1_forbidden_seed_backfill.sql` — 금지 원료 drift 수정
+12. `backend/db/migrations/012_f1_additive_limits_backfill.sql` — 첨가물 기준치 drift (Stage 1)
+13. `backend/db/migrations/013_f1_safety_standards_backfill.sql` — 안전기준 drift (Stage 1)
 
 **시드 데이터 (마이그레이션 후):**
 1. `backend/db/seed/01_f1_ingredients_permitted.sql` — 허용 원료 85건
@@ -449,8 +459,12 @@ supabase-py 클라이언트로 전환. `F1_DATABASE_URL` 불필요. `SUPABASE_UR
 3. `backend/db/seed/03_f1_ingredients_prohibited.sql` — 금지 원료
 4. `backend/db/seed/04_f1_forbidden_ingredients.sql` — 금지 원료 확장
 5. `backend/db/seed/05_f1_thresholds_core.sql` — 기준치 코어
+6. `backend/db/seed/06_f1_additive_limits_expanded.sql` — 첨가물 기준치 확장 (Phase 4-B)
+7. `backend/db/seed/07_f1_safety_standards_expanded.sql` — 안전기준 확장 (Phase 4-B)
 
 또는 `python -m scripts.bootstrap_f1_db` 로 일괄 적용 가능.
+
+> Stage 2 newsamc 830건 이관(`scripts/f1_replicate_additive_from_newsamc.py`)은 커밋 `c45f4ec` 참조. `f1_additive_limits` 총 893건 (is_verified=true).
 
 ### F1 env 키
 
