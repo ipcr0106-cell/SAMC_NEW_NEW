@@ -299,6 +299,18 @@ body {
   .card-shadow {
     box-shadow: 0 2px 8px var(--ds-color-border-subtle);
   }
+
+  .ds-landing-gradient {
+    background:
+      radial-gradient(1200px 420px at 50% -120px, var(--ds-color-primary-soft), transparent 70%),
+      linear-gradient(180deg, color-mix(in srgb, var(--ds-color-surface) 70%, var(--ds-color-bg) 30%) 0%, var(--ds-color-bg) 60%);
+  }
+
+  .ds-glass-nav {
+    background: color-mix(in srgb, var(--ds-color-bg) 88%, transparent);
+    backdrop-filter: blur(14px);
+    border-bottom: var(--ds-border-width-overlay) solid var(--ds-color-border);
+  }
 }
 
 @layer utilities {

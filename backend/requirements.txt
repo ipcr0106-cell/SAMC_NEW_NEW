@@ -16,7 +16,7 @@ reportlab==4.2.5
 python-dotenv==1.0.1
 supabase==2.11.0
 # F2/F3/F4/F5: Pinecone 벡터 검색
-pinecone-client>=5.0.0
+pinecone>=5.0.0
 # F4: multilingual-e5-large 임베딩
 sentence-transformers>=2.2.0
 # F4: PDF 레포트 생성
