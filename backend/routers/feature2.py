@@ -181,7 +181,7 @@ def _get_required_docs(food_type: str, clients: dict) -> list[dict]:
     # 특정 식품유형 서류
     specific = (
         sb.table("f2_required_documents")
-        .select("doc_name, condition, is_mandatory, law_source, food_type")
+        .select("doc_name, doc_description, condition, is_mandatory, law_source, food_type")
         .eq("food_type", food_type)
         .execute()
     )
@@ -189,7 +189,7 @@ def _get_required_docs(food_type: str, clients: dict) -> list[dict]:
     # 공통 서류 (food_type IS NULL)
     common = (
         sb.table("f2_required_documents")
-        .select("doc_name, condition, is_mandatory, law_source, food_type")
+        .select("doc_name, doc_description, condition, is_mandatory, law_source, food_type")
         .is_("food_type", "null")
         .execute()
     )

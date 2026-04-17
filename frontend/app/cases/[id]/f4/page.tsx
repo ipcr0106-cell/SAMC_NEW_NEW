@@ -22,11 +22,11 @@ import type { ImageIssue, LabelIssue } from "@/types/pipeline";
 
 function SeverityBadge({ severity }: { severity: "must_fix" | "review_needed" }) {
   return severity === "must_fix" ? (
-    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 font-medium">
+    <span className="text-xs px-2 py-0.5 rounded-full border font-medium" style={{ background: "var(--ds-color-error-soft)", color: "var(--ds-color-error-text)", borderColor: "var(--ds-color-error-soft)" }}>
       {SEVERITY_LABEL.must_fix}
     </span>
   ) : (
-    <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-medium">
+    <span className="text-xs px-2 py-0.5 rounded-full border font-medium" style={{ background: "var(--ds-color-warning-soft)", color: "var(--ds-color-warning-text)", borderColor: "var(--ds-color-warning-soft)" }}>
       {SEVERITY_LABEL.review_needed}
     </span>
   );
@@ -123,7 +123,7 @@ export default function F4LabelReviewPage() {
 
           {/* 오류 메시지 */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "var(--ds-color-error-soft)", border: "1px solid var(--ds-color-error-soft)", color: "var(--ds-color-error-text)" }}>
               {error}
             </div>
           )}
@@ -219,23 +219,16 @@ export default function F4LabelReviewPage() {
               </details>
             </div>
 
-            <button
+            <Button
               onClick={handleAnalyze}
               disabled={isAnalyzing || !form.label_text.trim()}
-              className="mt-4 w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-semibold text-sm px-5 py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="mt-4 w-full"
+              variant="primary"
+              size="lg"
+              icon={isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Globe size={16} />}
             >
-              {isAnalyzing ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  분석 중...
-                </>
-              ) : (
-                <>
-                  <Globe size={16} />
-                  분석 시작
-                </>
-              )}
-            </button>
+              {isAnalyzing ? "분석 중..." : "분석 시작"}
+            </Button>
           </Card>
 
           {/* ── STEP 2: 분석 결과 ── */}
@@ -553,7 +546,7 @@ export default function F4LabelReviewPage() {
       {/* 하단 액션바 */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="max-w-[1440px] mx-auto px-6">
-          <div className="bg-white/80 backdrop-blur-xl border-t border-slate-200/60 rounded-t-2xl shadow-lg shadow-slate-900/5 px-8 py-4 flex items-center justify-between">
+          <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
             <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f3`)}>
               이전: 필요서류
             </Button>
@@ -570,7 +563,6 @@ export default function F4LabelReviewPage() {
                 variant="primary" size="lg"
                 icon={<ArrowRight size={18} />}
                 onClick={() => router.push(`/cases/${caseId}/f5`)}
-                className="shadow-lg shadow-blue-600/20"
               >
                 F5 한글시안으로 이동
               </Button>

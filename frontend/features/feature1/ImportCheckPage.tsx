@@ -12,6 +12,7 @@
 
 import { useMemo, useState as useLocalState } from "react";
 import { useImportCheck } from "./hooks/useImportCheck";
+import Button from "@/components/ui/Button";
 import ForbiddenAlert from "./components/ForbiddenAlert";
 import AggregationSummary from "./components/AggregationSummary";
 import IngredientMatchTable from "./components/IngredientMatchTable";
@@ -60,11 +61,11 @@ export default function ImportCheckPage({ caseId }: Props) {
   if (state.fetchStatus === "loading" || state.fetchStatus === "idle") {
     return (
       <main className="mx-auto max-w-5xl space-y-4 p-6">
-        <header className="border-b border-gray-200 pb-3">
-          <h1 className="text-xl font-semibold">기능1 — 수입 가능 여부 판정</h1>
-          <div className="text-xs text-gray-500">case: {caseId}</div>
+        <header className="pb-3" style={{ borderBottom: "1px solid var(--ds-color-border)" }}>
+          <h1 className="text-xl font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>기능1 — 수입 가능 여부 판정</h1>
+          <div className="text-xs" style={{ color: "var(--ds-color-text-secondary)" }}>case: {caseId}</div>
         </header>
-        <div className="flex justify-center py-12 text-gray-500">
+        <div className="flex justify-center py-12" style={{ color: "var(--ds-color-text-secondary)" }}>
           <span className="animate-pulse">기능1 결과를 불러오는 중...</span>
         </div>
       </main>
@@ -84,9 +85,9 @@ export default function ImportCheckPage({ caseId }: Props) {
   // ─ 정상 ────────────────────────────────────────
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
-      <header className="border-b border-gray-200 pb-3">
-        <h1 className="text-xl font-semibold">기능1 — 수입 가능 여부 판정</h1>
-        <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+      <header className="pb-3" style={{ borderBottom: "1px solid var(--ds-color-border)" }}>
+        <h1 className="text-xl font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>기능1 — 수입 가능 여부 판정</h1>
+        <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "var(--ds-color-text-secondary)" }}>
           <span>case: {caseId}</span>
           <span>·</span>
           <span>
@@ -118,9 +119,9 @@ export default function ImportCheckPage({ caseId }: Props) {
       <StandardsSummary checks={source.standards_check} />
 
       {internal?.escalations && internal.escalations.length > 0 && (
-        <section className="rounded-lg border border-orange-200 bg-orange-50 p-4">
-          <h3 className="mb-2 font-semibold text-orange-800">에스컬레이션 ({internal.escalations.length})</h3>
-          <ul className="space-y-1 text-sm text-orange-700">
+        <section className="rounded-lg p-4 ds-alert-warning">
+          <h3 className="mb-2 font-semibold">에스컬레이션 ({internal.escalations.length})</h3>
+          <ul className="space-y-1 text-sm">
             {internal.escalations.map((e, i) => (
               <li key={i}>• {e.reason}</li>
             ))}
@@ -200,20 +201,21 @@ function RunPrompt({ caseId, errorMessage }: { caseId: string; errorMessage: str
 
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
-      <header className="border-b border-gray-200 pb-3">
-        <h1 className="text-xl font-semibold">기능1 — 수입 가능 여부 판정</h1>
-        <div className="text-xs text-gray-500">case: {caseId}</div>
+      <header className="pb-3" style={{ borderBottom: "1px solid var(--ds-color-border)" }}>
+        <h1 className="text-xl font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>기능1 — 수입 가능 여부 판정</h1>
+        <div className="text-xs" style={{ color: "var(--ds-color-text-secondary)" }}>case: {caseId}</div>
       </header>
-      <section className="rounded-lg border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
+      <section className="rounded-lg p-4 text-sm ds-alert-warning">
         {runError || errorMessage || "기능1이 아직 실행되지 않았습니다."}
       </section>
-      <button
+      <Button
         onClick={handleRun}
         disabled={running}
-        className="flex items-center gap-2 bg-blue-600 text-white font-semibold text-sm px-5 py-2.5 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-all"
+        variant="primary"
+        size="md"
       >
         {running ? "분석 중..." : "AI 수입판정 실행"}
-      </button>
+      </Button>
     </main>
   );
 }

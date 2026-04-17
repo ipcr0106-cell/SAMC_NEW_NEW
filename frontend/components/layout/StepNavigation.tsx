@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter, useParams, usePathname } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   FileText,
   Search,
@@ -50,7 +50,7 @@ export default function StepNavigation({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/60 px-6 py-4 shadow-sm">
+    <div className="ds-step-nav px-6 py-4">
       {/* 스텝 바 */}
       <div className="flex items-center">
         {steps.map((step, idx) => {
@@ -70,15 +70,15 @@ export default function StepNavigation({
                 }`}
               >
                 <div
-                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 ${
+                  className={`flex items-center justify-center ds-step-node ${
                     isActive
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-4 ring-blue-100"
+                      ? "ds-step-node-active"
                       : isCompleted
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-400"
+                      ? "ds-step-node-completed"
+                      : ""
                   } ${
                     isClickable && !isActive
-                      ? "group-hover:ring-4 group-hover:ring-blue-50 group-hover:scale-105"
+                      ? "group-hover:scale-105"
                       : ""
                   }`}
                 >
@@ -89,13 +89,13 @@ export default function StepNavigation({
                   )}
                 </div>
                 <span
-                  className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  className={`ds-step-label whitespace-nowrap transition-colors ${
                     isActive
-                      ? "text-blue-600"
+                      ? "ds-step-label-active"
                       : isCompleted
-                      ? "text-blue-500"
-                      : "text-slate-400"
-                  } ${isClickable ? "group-hover:text-blue-600" : ""}`}
+                      ? "ds-step-label-completed"
+                      : ""
+                  } ${isClickable ? "group-hover:opacity-90" : ""}`}
                 >
                   {step.label}
                 </span>
@@ -105,8 +105,8 @@ export default function StepNavigation({
               {!isLast && (
                 <div className="flex-1 mx-3 mt-[-18px]">
                   <div
-                    className={`h-[2px] rounded-full transition-colors duration-300 ${
-                      isCompleted ? "bg-blue-400" : "bg-slate-100"
+                    className={`ds-step-line transition-colors duration-300 ${
+                      isCompleted ? "ds-step-line-completed" : ""
                     }`}
                   />
                 </div>

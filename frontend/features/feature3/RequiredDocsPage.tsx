@@ -987,7 +987,7 @@ export default function StepAPage() {
 
         {/* 이전 단계에서 받은 제품 정보 (food_type + keywords만) */}
         {pipelineInput && (
-          <section className="bg-white rounded-[32px] p-8 card-shadow border border-gray-100 mb-6">
+          <section className="ds-surface-card p-8 mb-6">
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">기능 1·2에서 넘어온 정보</p>
               <span className="px-2.5 py-0.5 bg-green-50 text-[10px] font-bold uppercase tracking-wider text-green-600 rounded-full border border-green-200">
@@ -1013,7 +1013,7 @@ export default function StepAPage() {
 
         {/* 기능 3 필수 입력: 수출국, OEM, 최초수입, 유기인증 */}
         {pipelineInput && !stepInputSubmitted && (
-          <section className="bg-white rounded-[32px] p-8 card-shadow border-2 border-blue-200 mb-10">
+          <section className="ds-surface-card p-8 mb-10 border-2 border-blue-200">
             <p className="text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">기능 3 추가 정보 입력</p>
             <p className="text-sm font-light text-gray-500 mb-6">
               수입 가능한 제품입니다. 필요 서류를 확인하기 위해 아래 정보를 입력하세요.
@@ -1070,7 +1070,7 @@ export default function StepAPage() {
 
         {/* 입력 완료 후 요약 표시 */}
         {stepInputSubmitted && pipelineInput && (
-          <section className="bg-white rounded-[32px] p-8 card-shadow border border-gray-100 mb-10">
+          <section className="ds-surface-card p-8 mb-10">
             <div className="flex items-center justify-between mb-4">
               <p className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">제품 정보 (기능 1·2 자동 + 기능 3 입력)</p>
               <button onClick={() => { setStepInputSubmitted(false); setResult(null); }}
@@ -1200,7 +1200,7 @@ export default function StepAPage() {
         )}
 
         {/* 주의사항 */}
-        <section className="bg-white rounded-[32px] p-8 card-shadow border border-amber-100 mb-8">
+        <section className="ds-surface-card p-8 mb-8 border border-amber-100">
           <p className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-4">확인 전 주의사항</p>
           <ul className="space-y-2 text-sm font-light text-gray-600 leading-relaxed">
             <li>서류 목록은 2026.2.5. 기준입니다. 법령 개정 시 변경될 수 있습니다.</li>
