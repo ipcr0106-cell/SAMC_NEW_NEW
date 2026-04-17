@@ -280,6 +280,20 @@ few-shot 효과 **+23.3%p** 는 학술 기대치 +10~12%p를 상회 — F1 태�
 
 **실행 산출물**: [`backend/tests/goldenset_run_result_mini_fewshot.json`](../backend/tests/goldenset_run_result_mini_fewshot.json)
 
+#### ⬆ 후속: Step 3 DB drift 완전 해결 (Stage 1 완료, 2026-04-17)
+
+§4.5 에서는 프롬프트 보수성(A 유형)만 다루었고, Step 3 DB drift(D 유형)는 별도 이월 사항이었다. 이후 Stage 1 에서 실 DB 적용 완료:
+
+| 테이블 | 기존 (seed 05) | Stage 1 후 | 마이그레이션 |
+|---|---|---|---|
+| `f1_additive_limits` (is_verified=true) | 13 | **63** ✅ | [012_f1_additive_limits_backfill.sql](../backend/db/migrations/012_f1_additive_limits_backfill.sql) |
+| `f1_safety_standards` (is_verified=true) | 10 | **40** ✅ | [013_f1_safety_standards_backfill.sql](../backend/db/migrations/013_f1_safety_standards_backfill.sql) |
+
+- 실행 경로: Supabase Studio SQL Editor 수동 실행 (Claude-in-Chrome 자동화)
+- 검증: `sb.table(...).select('*', count='exact').eq('is_verified', True)` → additive=63, safety=40 (total 일치)
+- 커밋: migration 파일은 이미 `e3b4ed4` 에 포함, Stage 1 은 실 DB 적용만 수행 (코드 변경 없음)
+- Step 3 기준치 커버리지 문제 제거 → Stage 2 (newsamc 964건 매핑) 로 진행
+
 ---
 
 ## 5. OPEN-1 (top_K 재검토)
