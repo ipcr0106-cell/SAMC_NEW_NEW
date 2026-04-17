@@ -7,8 +7,8 @@
 >
 > 개정 (2026-04-17): critic 검토 반영 — Phase 4 분할(4-A/4-B), admin_law_update 작업 추가, 골든셋 30건 확대, S2(HITL) 결정 반영
 >
-> **진행 상태 (2026-04-17)**: ✅ Phase 1(`7ba98d1`) · ✅ Phase 2(`eb53d79`) · ✅ Phase 3(`d837a85`) · ⏳ **Phase 4-A 대기**
-> Pinecone samc-law-f1: 2148건 적재 완료. 검증 리포트 Phase 2/3 별도 파일 존재. 세션 이어받기 시 `memory/project_f1_rag.md` 먼저 확인.
+> **진행 상태 (2026-04-17)**: ✅ Phase 1(`7ba98d1`) · ✅ Phase 2(`eb53d79`) · ✅ Phase 3(`d837a85`) · ✅ Phase 4-A(`25592da`) · ⏳ **Phase 4-B 대기**
+> Pinecone samc-law-f1: 2148건 적재 완료. Phase 4-A integration 테스트 11/11 PASSED (실제 Pinecone + OpenAI). 세션 이어받기 시 `memory/project_f1_rag.md` 먼저 확인.
 
 ## Phase 의존 관계
 
