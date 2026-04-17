@@ -1,0 +1,104 @@
+{
+  "version": "v1",
+  "meta": {
+    "phase": "4-B-3",
+    "created": "2026-04-17",
+    "target_model": "gpt-4o-mini",
+    "target_top_k": 5,
+    "target_index": "samc-law-f1",
+    "total_planned": 30,
+    "distribution_planned": {
+      "permitted_db": 5,
+      "permitted_additive_rag": 5,
+      "prohibited_forbidden": 5,
+      "restricted_db": 5,
+      "conditional_additive": 7,
+      "unidentified_virtual": 3
+    },
+    "expected_conflict_distribution": {
+      "agreed": 13,
+      "rag_supplemented": 12,
+      "rag_skipped": 5,
+      "rag_unavailable": "런타임 관측",
+      "conflict": "런타임 관측"
+    },
+    "schema_fields": {
+      "case_id": "string — 케이스 ID (g001~g030)",
+      "description": "string — 한 줄 요약",
+      "ingredients": "array — [{name: string, percentage?: number, ins?: string, cas?: string, part?: string, sub_ingredients?: []}]",
+      "food_type": "string|null — 식품유형 (F2 확정치 가정)",
+      "process_conditions": "object — {is_heated?: bool, is_fermented?: bool, is_distilled?: bool, alcohol_percentage?: number}",
+      "expected_exact_verdict": "permitted|restricted|prohibited|unidentified — _derive_exact_verdict 기대값",
+      "expected_rag_verdict": "permitted|restricted|prohibited|unidentified|null — RAG 판정 기대값 (null=rag_skipped)",
+      "expected_conflict_status": "agreed|conflict|rag_supplemented|rag_unavailable|rag_skipped — 총괄 §2.7 HITL 매트릭스",
+      "notes": "string — 근거 (DB 시드 참조, 법령 근거 등)"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "g001",
+      "description": "허용 원료 — 쌀 단일 (DB 정확명 매칭)",
+      "ingredients": [
+        {"name": "쌀", "percentage": 99.0}
+      ],
+      "food_type": "곡류",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "permitted",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 01(별표1) 곡류 섹션 등록. Step 1 exact_name 정확 매칭 → permitted."
+    },
+    {
+      "case_id": "g011",
+      "description": "금지 원료 — 대마초 (Step 0 게이트)",
+      "ingredients": [
+        {"name": "대마초", "percentage": 5.0}
+      ],
+      "food_type": "음료류",
+      "process_conditions": {},
+      "expected_exact_verdict": "prohibited",
+      "expected_rag_verdict": null,
+      "expected_conflict_status": "rag_skipped",
+      "notes": "f1_forbidden_ingredients 시드 04 drug 카테고리. 마약류 관리법 제2조. Step 0 적중 → RAG 미호출."
+    },
+    {
+      "case_id": "g016",
+      "description": "조건부 원료 — 과라나 (카페인 1일 섭취량 관리)",
+      "ingredients": [
+        {"name": "과라나", "percentage": 3.0}
+      ],
+      "food_type": "음료류",
+      "process_conditions": {},
+      "expected_exact_verdict": "restricted",
+      "expected_rag_verdict": "restricted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 02(별표2) restricted. conditions='카페인 함유 원료, 1일 섭취량 기준 관리'. RAG도 별표2 청크에서 restricted 판정 기대."
+    },
+    {
+      "case_id": "g006",
+      "description": "첨가물 허용 — 설탕 (RAG 보완)",
+      "ingredients": [
+        {"name": "설탕", "percentage": 50.0}
+      ],
+      "food_type": "당류가공품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed_ingredients 미등록(가공당). f1_additive_limits 에도 개별 등재 없음. RAG가 식품공전/첨가물공전 텍스트에서 일반 허용 원료로 permitted 판정 기대."
+    },
+    {
+      "case_id": "g028",
+      "description": "미등록 원료 — 가상명 (양측 unidentified, 합치)",
+      "ingredients": [
+        {"name": "제노스틴", "percentage": 10.0}
+      ],
+      "food_type": "기타가공품",
+      "process_conditions": {},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "unidentified",
+      "expected_conflict_status": "agreed",
+      "notes": "실존하지 않는 가상명. step1 5단계 매칭 모두 실패. 법령 청크에도 전혀 등장하지 않으므로 RAG도 unidentified. 양측 합치로 agreed."
+    }
+  ]
+}
