@@ -126,6 +126,15 @@ async def get_feature3(case_id: str):
 # 유틸 엔드포인트 (법령 검색, 캐시 리로드)
 # ════════════════════════════════════════════════════════════
 
+@router.post("/required-docs/match")
+async def match_docs_direct(info: ProductInfo) -> RequiredDocsResponse:
+    """ProductInfo 직접 입력 → 매칭 결과 반환 (case_id 없이 사용).
+
+    case 업로드 없이 F3 단독 호출용 (프론트 RequiredDocsPage 가 사용).
+    """
+    return match_required_docs(info)
+
+
 @router.post("/required-docs/rag")
 async def search_law_context(payload: dict) -> list[dict]:
     """법령 청크 시맨틱 검색 (AI 교차검증·설명 생성용)."""

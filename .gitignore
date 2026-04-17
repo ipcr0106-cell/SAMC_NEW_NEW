@@ -1,8 +1,12 @@
-# 환경변수 (절대 커밋 금지)
+# 환경변수 (절대 커밋 금지) — 모든 환경별 변형 차단
 .env
-.env.local
+.env.*
+!.env.example
+!.env.*.example
 **/.env
-**/.env.local
+**/.env.*
+!**/.env.example
+!**/.env.*.example
 
 # Python
 __pycache__/
@@ -71,3 +75,6 @@ frontend_backup_*
 # 병합 전 원본 보관 (로컬에만 유지, git에 올리지 않음)
 병합완료된_원본/
 .gstack/
+
+# 개인 작업 스크래치 (로컬에만 유지)
+f3_작업/
