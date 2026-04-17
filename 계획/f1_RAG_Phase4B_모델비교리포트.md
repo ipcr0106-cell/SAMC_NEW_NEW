@@ -3,7 +3,7 @@
 > **작성**: 2026-04-17
 > **Phase**: 4-B-3e (확장 실험 — 100건 + 4모델)
 > **담당**: 병찬
-> **상태**: ✅ 5회차 실행 완료 — **gpt-5.4-mini + few-shot v2 = 71.0% 채택** (OPEN-2 재결정)
+> **상태**: ✅ 6회차 실행 완료 — **Step 0 버그 수정 후 76.0%** (+5.0%p, 법적 리스크 제거)
 
 ---
 
@@ -58,6 +58,7 @@
 | R3 | gpt-5.4-mini | zero-shot | `goldenset_run_v2_54mini_zero.json` |
 | R4 | gpt-5.4-mini | few-shot v1 | `goldenset_run_v2_54mini_few.json` |
 | **R5** | **gpt-5.4-mini** | **few-shot v2 (+4 예시)** | `goldenset_run_v2_54mini_few_v2prompt.json` ✅ |
+| **R6** | **gpt-5.4-mini** | **few-shot v2 + Step 0 fix** | `goldenset_run_v2_step0fix.json` ✅ **최종 채택** |
 
 ---
 
@@ -71,7 +72,8 @@
 | R2 4o-mini few v1 | **65.0%** | 82.0% | 59.0% | 18/41 (43.9%) | 37/41 (90.2%) | 10/18 (55.6%) | 5586ms | 10264ms | $0.14 |
 | R3 5.4-mini zero | 38.0% | 82.0% | 37.0% | 14/41 (34.2%) | 14/41 (34.2%) | 10/18 (55.6%) | 2446ms | 3827ms | $0.14 |
 | **R4 5.4-mini few v1** | **69.0%** | 82.0% | 66.0% | **21/41 (51.2%)** | **38/41 (92.7%)** | 10/18 (55.6%) | **2461ms** | **4185ms** | $0.74 |
-| **R5 5.4-mini few v2** ⭐ | **71.0%** | 82.0% | **76.0%** | **25/41 (61.0%)** | 36/41 (87.8%) | 10/18 (55.6%) | 3297ms | **5702ms** | $0.74 |
+| R5 5.4-mini few v2 | 71.0% | 82.0% | 76.0% | 25/41 (61.0%) | 36/41 (87.8%) | 10/18 (55.6%) | 3297ms | 5702ms | $0.74 |
+| **R6 5.4-mini few v2 + Step 0 fix** ⭐ | **76.0%** | **89.0%** | **82.0%** | 21/41 (51.2%) | **37/41 (90.2%)** | **18/18 (100%)** 🎯 | **2477ms** | **3759ms** | $0.74 |
 
 ### 2.2 핵심 관찰 (R1~R4)
 
@@ -228,12 +230,16 @@ def sync_endpoint():
 
 ## 7. 결론
 
-1. ✅ **OPEN-2 최종 재결정**: `gpt-5.4-mini + few-shot v2` 채택 (**71.0%**, R5)
-2. ✅ **few-shot v1 → v2 재설계 완료** — v2 예시 5(부위 제한)·7(복합원재료) 직접 효과 확인 (개선 5건 vs 역전 3건 = 순 +2건)
-3. ✅ **옵션 B 실측 검증 완료** — FastAPI sync + asyncio.run() 정상 작동. 팀 룰 준수 경로 확보
-4. 🔴 **Step 0 버그 발견** — 향후 수정 대상 8건. 수정 시 **79%+ 도달 예상**
-5. **비용 증가 $1.4/월 → $7.4/월** 감수 (일치율 +6.0%p + 레이턴시 -44%)
-6. **환경변수 채택**: `F1_OPENAI_CHAT_MODEL=gpt-5.4-mini` + `F1_PROMPT_MODE=few` (default)
+1. ✅ **OPEN-2 최종 재결정**: `gpt-5.4-mini + few-shot v2 + Step 0 fix` 채택 (**76.0%**, R6)
+2. ✅ **few-shot v2 재설계 완료** — 예시 5(부위제한)·7(복합원재료) 직접 효과 (개선 5건 vs 역전 3건)
+3. ✅ **Step 0 버그 8건 전부 수정** — rag_skipped **18/18 (100%)** 달성, 법적 리스크 제거
+   - 원인 1: DB 시드 drift — `f1_forbidden_ingredients` 에 시드 파일 15건 중 8건만 적재 → migration 011 로 7건 backfill + aliases 동기화 완료
+   - 원인 2: `check_forbidden_first` 가 sub_ingredients 재귀 검사 미수행 → 복합원재료 위장 대마초(g089) 통과. 재귀 로직 추가 완료
+4. 🟡 **f1_additive_limits / f1_safety_standards drift** 발견 — 각 13/63, 10/40 적재. migration 012/013 작성, **실 DB 적용은 이월** (RAG 가 법령 청크로 보완 중이라 일치율엔 영향 적음)
+5. ✅ **옵션 B 실측 검증 완료** — FastAPI sync + asyncio.run() 정상. Phase 5 초반 적용 권장
+6. **레이턴시 p95 3759ms** (Step 0 빠른 경로 증가 효과로 -34%) → 5초 목표 최초 달성. OPEN-4 캐싱 우선순위 하향
+7. **비용 $7.4/월 (1000건 기준)** 감수 (일치율 +13%p + 법적 리스크 제거 + 레이턴시 -63%)
+8. **환경변수 채택**: `F1_OPENAI_CHAT_MODEL=gpt-5.4-mini` + `F1_PROMPT_MODE=few` (default)
 
 ---
 
@@ -297,6 +303,29 @@ R4 vs R5 diff:
   개선 5건 (R4 실패 → R5 성공): g001 쌀, g039 녹차, g057 은행(부위제한), g062 당귀(부위제한), g080 딸기잼(복합)
   역전 3건 (R4 성공 → R5 실패): g022 유산균 비발효, g041 카라기난, g081 시리얼
   순 개선 +2건, 분기별 agreed +9.8%p, rag +10%p
+```
+
+### R6 (5.4-mini few v2 + Step 0 fix) — `goldenset_run_v2_step0fix.log`
+```
+총 100건 / 성공 100 / 실패 0
+conflict 일치율: 76.0%
+exact   일치율: 89.0%
+rag     일치율: 82.0%
+레이턴시 p50=2476.5ms / p95=3758.9ms
+비용 추정: ~$0.7351
+분기별:  agreed 21/41 (51.2%), rag_supplemented 37/41 (90.2%), rag_skipped 18/18 (100.0%)
+
+Step 0 fix 내용:
+  1) DB: f1_forbidden_ingredients 누락 7건 insert + 기존 8건 aliases 동기화 (migration 011)
+     - 코뿔소 뿔, 센나잎, 요힘베, DMAA, BMPEA, 보라지, 아리스토로키아
+  2) 코드: check_forbidden_first 재귀 로직 추가 (sub_ingredients 깊이 N 단계 검사)
+     - g089 복합원재료 위장(블렌드[무명[대마초]]) 탐지
+
+R5 vs R6:
+  conflict +5.0%p, exact +7.0%p, rag +6.0%p
+  rag_skipped 10/18 (55.6%) → 18/18 (100%) — 완전 적중
+  Step 0 빠른 경로 비중 증가 → p50 3297→2477ms (-25%), p95 5702→3759ms (-34%)
+  법적 리스크 제거 (Step 0 false negative = 0)
 ```
 
 ---
