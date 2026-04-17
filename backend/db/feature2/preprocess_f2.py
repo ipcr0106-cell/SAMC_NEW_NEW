@@ -481,10 +481,14 @@ def upload_foodtype_chunks(
     index,
 ) -> int:
     """
-    f2_food_types 테이블 전체 → 소분류 청크 생성 → Pinecone upsert.
+    f2_food_type_classification 테이블 전체 → 소분류 청크 생성 → Pinecone upsert.
 
     Node `upload_foodtype_chunks.js` 이관. 관리 전용 — 업로드 플로우와 독립.
     별도 관리 엔드포인트에서 수동 트리거해야 함 (Sprint 2에서는 엔드포인트 미등록).
+
+    테이블명 주의: Node 원본은 `f2_food_types`를 참조했으나, 현재 Supabase에는
+    해당 테이블 부재. `f2_food_type_classification` (235행)이 동일한 대/중/소
+    분류 데이터를 포함하므로 여기서 읽는다. Node 시절 이름 변경 누락으로 추정.
 
     ID 규칙은 Node와 동일: md5(f"f2_food_type::{category_no}::{type_name}")
     → 재실행 시 같은 ID로 upsert되어 자동 덮어쓰기.
@@ -493,7 +497,7 @@ def upload_foodtype_chunks(
         Pinecone에 upsert된 벡터 수
     """
     res = (
-        supabase_client.table("f2_food_types")
+        supabase_client.table("f2_food_type_classification")
         .select("*")
         .order("category_no")
         .execute()
@@ -521,8 +525,10 @@ def upload_foodtype_chunks(
                     "category_name": row.get("category_name", "") or "",
                     "food_group": row.get("category_name", "") or "",
                     "type_name": row.get("type_name", "") or "",
+                    # f2_food_type_classification에는 type_code 컬럼이 없음 — 빈 문자열
                     "type_code": row.get("type_code", "") or "",
-                    "source": row.get("source", "") or "식품공전 제5장",
+                    # source는 law_source 컬럼을 우선 사용
+                    "source": row.get("law_source", "") or row.get("source", "") or "식품공전 제5장",
                     "text": text[:1000],
                 },
             })
