@@ -1,8 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { Loader2 } from 'lucide-react';
 import { runFeature2, getFeature2 } from '@/lib/api';
 import { apiClient } from '@/services/apiClient';
+import Card from '@/components/ui/Card';
+import Button from '@/components/ui/Button';
+import Badge from '@/components/ui/Badge';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface RequiredDoc {
@@ -34,11 +38,6 @@ interface PipelineStepRow {
 
 type Phase = 'idle' | 'loading' | 'result' | 'error';
 
-// ── Sub-components ─────────────────────────────────────────────────────────
-function Spinner() {
-  return <div className="spin" />;
-}
-
 // ── Main Component ─────────────────────────────────────────────────────────
 interface FoodClassificationPageProps {
   caseId: string;
@@ -52,7 +51,6 @@ export default function FoodClassificationPage({ caseId }: FoodClassificationPag
   const [isSaving, setIsSaving] = useState(false);
 
   const applyRow = useCallback((row: PipelineStepRow) => {
-    // final_result 우선 → ai_result
     const picked = row.final_result ?? row.ai_result;
     if (!picked) return false;
     setResult(picked);
@@ -61,7 +59,6 @@ export default function FoodClassificationPage({ caseId }: FoodClassificationPag
     return true;
   }, []);
 
-  // 진입 시 기존 결과 조회
   useEffect(() => {
     if (!caseId) return;
     let cancelled = false;
@@ -86,7 +83,6 @@ export default function FoodClassificationPage({ caseId }: FoodClassificationPag
 
     try {
       await runFeature2(caseId);
-      // run 응답에는 law_ref/category_no 미포함 → GET 재조회로 전체 ai_result 획득
       const row = (await getFeature2(caseId)) as PipelineStepRow;
       if (!applyRow(row)) {
         setErrorMsg('분류 결과를 가져오지 못했습니다.');
@@ -116,143 +112,156 @@ export default function FoodClassificationPage({ caseId }: FoodClassificationPag
     }
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────
   return (
-    <div>
-      <div className="card">
-        <div className="card-header">
-          <div>
-            <div className="step-label">F2</div>
-            <div className="step-title">AI 식품유형 분류 &amp; 법령 근거</div>
-          </div>
-          {phase === 'result' && (
-            <button className="btn btn-ghost btn-sm" onClick={startAnalysis} disabled={isSaving}>재실행</button>
-          )}
+    <Card>
+      <div className="flex items-start justify-between mb-4">
+        <div>
+          <div className="text-[11px] font-bold text-blue-600 uppercase tracking-wider">F2</div>
+          <h2 className="text-lg font-bold text-slate-900">AI 식품유형 분류 &amp; 법령 근거</h2>
         </div>
-
-        {/* ── idle ── */}
-        {phase === 'idle' && (
-          <>
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 12, lineHeight: 1.6 }}>
-              f0 서류 업로드와 F1 수입판정 결과를 바탕으로
-              <br />식품유형을 자동 분류하고 적용 법령을 탐색합니다.
-            </div>
-            <button className="btn btn-primary btn-full" onClick={startAnalysis}>
-              AI 분류 실행
-            </button>
-          </>
+        {phase === 'result' && (
+          <Button variant="ghost" size="sm" onClick={startAnalysis} disabled={isSaving}>
+            재실행
+          </Button>
         )}
+      </div>
 
-        {/* ── loading ── */}
-        {phase === 'loading' && (
-          <div className="loading-row active" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Spinner />
-            <span>AI가 식품유형을 분류하고 있습니다...</span>
-          </div>
-        )}
+      {phase === 'idle' && (
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            f0 서류 업로드와 F1 수입판정 결과를 바탕으로
+            <br />식품유형을 자동 분류하고 적용 법령을 탐색합니다.
+          </p>
+          <Button variant="primary" size="lg" onClick={startAnalysis} className="w-full">
+            AI 분류 실행
+          </Button>
+        </div>
+      )}
 
-        {/* ── result ── */}
-        {phase === 'result' && result && (
-          <div>
-            {/* 섹션 1: 주류 여부 */}
-            <div className="step-label" style={{ marginBottom: 6 }}>주류 여부</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <span style={{
-                display: 'inline-block', padding: '3px 12px', borderRadius: 12,
-                fontWeight: 700, fontSize: 13,
-                background: result.is_alcohol ? '#fde8e8' : '#e8f4fd',
-                color: result.is_alcohol ? '#c0392b' : '#1a6b3a',
-              }}>
-                {result.is_alcohol ? '주류' : '일반식품'}
-              </span>
-            </div>
+      {phase === 'loading' && (
+        <div className="flex items-center gap-3 py-4 text-sm text-slate-600">
+          <Loader2 size={16} className="animate-spin text-blue-600" />
+          <span>AI가 식품유형을 분류하고 있습니다...</span>
+        </div>
+      )}
 
-            <div className="section-divider" />
+      {phase === 'result' && result && (
+        <div className="space-y-5">
+          {/* 주류 여부 */}
+          <section>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              주류 여부
+            </h3>
+            <Badge variant={result.is_alcohol ? 'red' : 'blue'} size="md">
+              {result.is_alcohol ? '주류' : '일반식품'}
+            </Badge>
+          </section>
 
-            {/* 섹션 2: 3단계 분류 */}
-            <div className="step-label" style={{ marginBottom: 8 }}>식품유형 3단계 분류</div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+          <div className="border-t border-slate-200" />
+
+          {/* 3단계 분류 */}
+          <section>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              식품유형 3단계 분류
+            </h3>
+            <div className="grid grid-cols-3 gap-2">
               {[
                 { label: '대분류', value: result.category_name },
                 { label: '중분류', value: result.subcategory_name },
                 { label: '소분류', value: result.food_type },
               ].map((c, i) => (
-                <div key={i} style={{ flex: 1, border: '1px solid #dde3f0', borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
-                  <div style={{ fontSize: 11, color: '#888', marginBottom: 4 }}>{c.label}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#1a3a6b' }}>{c.value || '—'}</div>
+                <div key={i} className="rounded-lg border border-slate-200 p-3 text-center">
+                  <div className="text-[11px] text-slate-500 mb-1">{c.label}</div>
+                  <div className="text-sm font-bold text-slate-900">{c.value || '—'}</div>
                 </div>
               ))}
             </div>
+          </section>
 
-            <div className="section-divider" />
+          <div className="border-t border-slate-200" />
 
-            {/* 섹션 3: 판정 근거 */}
-            <div className="step-label" style={{ marginBottom: 8 }}>판정 근거</div>
-            <div className="verdict-box" style={{ marginBottom: 14 }}>
-              <div className="verdict-sub" style={{ marginBottom: 6 }}>
-                근거 법령: {result.law_ref || '—'}
+          {/* 판정 근거 */}
+          <section>
+            <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+              판정 근거
+            </h3>
+            <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
+              <div className="text-sm text-slate-700 mb-2">
+                근거 법령: <span className="font-semibold">{result.law_ref || '—'}</span>
               </div>
               {result.reason && (
-                <div style={{ fontSize: 13, color: '#444', lineHeight: 1.7 }}>{result.reason}</div>
+                <p className="text-sm text-slate-700 leading-relaxed">{result.reason}</p>
               )}
             </div>
+          </section>
 
-            {/* 섹션 4: 필요서류 */}
-            {result.required_docs.length > 0 && (
-              <>
-                <div className="section-divider" />
-                <div className="step-label" style={{ marginBottom: 8 }}>수입 필요서류</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+          {/* 필요서류 */}
+          {result.required_docs.length > 0 && (
+            <>
+              <div className="border-t border-slate-200" />
+              <section>
+                <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+                  수입 필요서류
+                </h3>
+                <div className="space-y-2">
                   {result.required_docs.map((doc, i) => (
-                    <div key={i} style={{
-                      padding: '10px 12px', borderRadius: 8,
-                      border: '1px solid #e5e5e5', background: '#fafafa',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 4 }}>
-                        <span style={{
-                          fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 4,
-                          background: doc.is_mandatory ? '#fde8e8' : '#e8f4fd',
-                          color:      doc.is_mandatory ? '#c0392b' : '#1a73e8',
-                        }}>
+                    <div
+                      key={i}
+                      className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                    >
+                      <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                        <Badge variant={doc.is_mandatory ? 'red' : 'blue'} size="sm">
                           {doc.is_mandatory ? '필수' : '선택'}
+                        </Badge>
+                        <span className="text-sm font-semibold text-slate-800">
+                          {doc.doc_name}
                         </span>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1a3a6b' }}>{doc.doc_name}</span>
                       </div>
                       {doc.condition && (
-                        <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6, marginBottom: 4 }}>{doc.condition}</div>
+                        <p className="text-xs text-slate-600 leading-relaxed mb-1">
+                          {doc.condition}
+                        </p>
                       )}
                       {doc.law_source && (
-                        <div style={{ fontSize: 11, color: '#888' }}>근거: {doc.law_source}</div>
+                        <p className="text-[11px] text-slate-500">근거: {doc.law_source}</p>
                       )}
                     </div>
                   ))}
                 </div>
-              </>
-            )}
+              </section>
+            </>
+          )}
 
-            {/* 섹션 5: 확정 */}
-            {!isConfirmed ? (
-              <button
-                className="btn btn-primary btn-full mt-12"
-                onClick={confirmVerdict}
-                disabled={isSaving}
-              >
-                {isSaving ? <><Spinner /> 저장 중...</> : '✓ 판정 확정'}
-              </button>
-            ) : (
-              <div className="confirmed-badge">✅ 판정이 확정되었습니다.</div>
-            )}
-          </div>
-        )}
+          {/* 확정 */}
+          {!isConfirmed ? (
+            <Button
+              variant="primary"
+              size="lg"
+              className="w-full"
+              onClick={confirmVerdict}
+              disabled={isSaving}
+              icon={isSaving ? <Loader2 size={16} className="animate-spin" /> : undefined}
+            >
+              {isSaving ? '저장 중...' : '판정 확정'}
+            </Button>
+          ) : (
+            <div className="rounded-md bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-700 text-center">
+              ✅ 판정이 확정되었습니다.
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* ── error ── */}
-        {phase === 'error' && (
-          <div>
-            <div className="alert alert-error">{errorMsg}</div>
-            <button className="btn btn-ghost btn-full mt-8" onClick={startAnalysis}>재시도</button>
+      {phase === 'error' && (
+        <div className="space-y-3">
+          <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-700">
+            {errorMsg}
           </div>
-        )}
-      </div>
-    </div>
+          <Button variant="ghost" size="md" onClick={startAnalysis} className="w-full">
+            재시도
+          </Button>
+        </div>
+      )}
+    </Card>
   );
 }
