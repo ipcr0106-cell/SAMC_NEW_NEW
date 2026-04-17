@@ -48,8 +48,21 @@ def _normalize(s: str) -> str:
 def check_forbidden_first(
     ingredients: list[Ingredient]
 ) -> list[ForbiddenHit]:
-    """원재료 이름 중 하나라도 f1_forbidden_ingredients 에 매칭되면 hit 반환."""
-    names = [ing.name.strip() for ing in ingredients if ing.name]
+    """원재료 이름(sub_ingredients 재귀 포함) 중 하나라도 f1_forbidden_ingredients 에 매칭되면 hit 반환.
+
+    재귀 검사 근거: 복합원재료(예: "블렌드[무명원료[대마초]]")의 하위 깊은 성분도 검사하여
+    라벨 위장/숨김 방지. 재귀 없이 루트만 검사하면 g089 유형의 우회가 발생.
+    """
+    names: list[str] = []
+
+    def _collect(ings: list[Ingredient]) -> None:
+        for ing in ings:
+            if ing.name:
+                names.append(ing.name.strip())
+            if ing.sub_ingredients:
+                _collect(ing.sub_ingredients)
+
+    _collect(ingredients)
     if not names:
         return []
 
