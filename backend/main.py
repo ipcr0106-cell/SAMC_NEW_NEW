@@ -5,8 +5,6 @@ SAMC 수입식품 검역 AI 플랫폼 — FastAPI 메인 진입점
     cd backend && uvicorn main:app --reload --port 8000
 """
 
-import os
-from contextlib import asynccontextmanager
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -28,38 +26,10 @@ from routers.feature5 import router as feature5_router
 from routers.dummy_seed import router as dummy_seed_router
 
 
-# ── DB 커넥션 풀 lifespan 훅 ──────────────────────────────
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """앱 시작 시 DB pool 초기화, 종료 시 정리."""
-    from db.connection import init_pool, close_pool
-    load_dotenv(Path(__file__).parent / ".env", override=True)
-
-    dsn = os.environ.get("F1_DATABASE_URL")
-    if dsn:
-        try:
-            await init_pool(dsn)
-            print("[lifespan] DB pool initialized")
-        except Exception as exc:
-            print(f"[lifespan] DB pool init failed: {exc}")
-    else:
-        print("[lifespan] F1_DATABASE_URL missing - F1 DB disabled")
-
-    yield
-
-    try:
-        from db.connection import close_pool
-        await close_pool()
-        print("[lifespan] DB pool closed")
-    except Exception:
-        pass
-
-
 app = FastAPI(
     title="SAMC 수입식품 검역 AI",
     description="수입식품 검역 자동화 파이프라인 API",
     version="0.1.0",
-    lifespan=lifespan,
 )
 
 # CORS — 프론트엔드(localhost:3000, Vercel 배포 URL) 허용
