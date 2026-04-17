@@ -187,7 +187,11 @@ function AlcoholCheckbox({
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────
-export default function Step2Page() {
+interface FoodClassificationPageProps {
+  caseId: string;
+}
+
+export default function FoodClassificationPage({ caseId }: FoodClassificationPageProps) {
   // File management
   const [files, setFiles] = useState<FileItem[]>([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
