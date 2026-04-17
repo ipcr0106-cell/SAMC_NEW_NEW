@@ -121,9 +121,15 @@ export default function F4LabelReviewPage() {
         {/* 좌측: 메인 콘텐츠 */}
         <div className="lg:col-span-2 space-y-6">
 
-          {/* 오류 메시지 */}
+          {/* 오류 / 안내 메시지 */}
           {error && (
-            <div className="rounded-xl px-4 py-3 text-sm" style={{ background: "var(--ds-color-error-soft)", border: "1px solid var(--ds-color-error-soft)", color: "var(--ds-color-error-text)" }}>
+            <div
+              className={`border rounded-xl px-4 py-3 text-sm ${
+                error.includes("법령 DB가 업데이트 중")
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : "bg-red-50 border-red-200 text-red-700"
+              }`}
+            >
               {error}
             </div>
           )}
