@@ -294,6 +294,20 @@ few-shot 효과 **+23.3%p** 는 학술 기대치 +10~12%p를 상회 — F1 태�
 - 커밋: migration 파일은 이미 `e3b4ed4` 에 포함, Stage 1 은 실 DB 적용만 수행 (코드 변경 없음)
 - Step 3 기준치 커버리지 문제 제거 → Stage 2 (newsamc 964건 매핑) 로 진행
 
+#### ⬆ Stage 2 완료 + newsamc 830건 is_verified=true 승격 (팀 룰 예외, 2026-04-17)
+
+Stage 2 newsamc 이관 + 즉시 승격:
+- `backend/scripts/f1_replicate_additive_from_newsamc.py` 실행 → 830건 insert (초기 is_verified=false, 커밋 `c45f4ec`)
+- 이후 `UPDATE f1_additive_limits SET is_verified=true WHERE is_verified=false` 실행 (830 rows changed)
+- `f1_additive_limits` is_verified=true 분포: **63 → 893** (F1 Step 3 활용 범위 14배)
+
+**팀 룰 예외 명시**: [`step3_standards.py:9`](../backend/services/step3_standards.py:9) 주석 "is_verified=true 만 판정에 사용 (리스크 3 대응)" 은 **수동 검증된 데이터만 사용** 의도. newsamc 원본은 공식 QA 프로세스 미거침. 그럼에도 즉시 승격한 이유:
+- Phase 5 Admin UI 구현이 2.7일 이월 — 그 사이 Step 3 커버리지 확보 시급
+- newsamc 은 회사 공용 프로젝트로 자체 검증 신뢰 (단, 공식 팀 QA 절차는 미수행)
+- 오류 발견 시 조건부 UPDATE 로 롤백 가능
+
+**유의**: 이후 newsamc 이관분에서 판정 오류 관찰되면 즉시 is_verified=false 로 되돌리고 수동 검증 재개.
+
 ---
 
 ## 5. OPEN-1 (top_K 재검토)
