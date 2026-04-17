@@ -182,6 +182,28 @@ def _get_f1_clients() -> dict:
     return _feature_clients["F1"]
 
 
+def _get_f2_clients() -> dict:
+    """F2 전처리용 클라이언트 (Pinecone + Supabase + OpenAI)."""
+    if "F2" in _feature_clients:
+        return _feature_clients["F2"]
+
+    from openai import OpenAI
+    from pinecone import Pinecone
+    from supabase import create_client
+
+    clients = {
+        "index": Pinecone(api_key=os.getenv("F2_PINECONE_API_KEY")).Index(
+            os.getenv("F2_PINECONE_INDEX", "samc-a")
+        ),
+        "supabase": create_client(
+            os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY")
+        ),
+        "openai": OpenAI(api_key=os.getenv("F2_OPENAI_API_KEY")),
+    }
+    _feature_clients["F2"] = clients
+    return clients
+
+
 async def _run_f4_preprocess(
     tmp_path: Path,
     law_name: str,
@@ -305,12 +327,38 @@ async def _run_f1_preprocess(
     }
 
 
+async def _run_f2_preprocess(
+    tmp_path: Path,
+    law_name: str,
+    progress_callback=None,
+) -> dict:
+    """F2 전처리: 단일 법령 PDF/HWPX → 청킹 → Pinecone + Supabase 업로드.
+
+    Phase 3 Sprint 1(2026-04-17) 스켈레톤 상태. 실제 구현은 Sprint 2.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent / "db" / "feature2"))
+
+    clients = _get_f2_clients()
+
+    from preprocess_f2 import run_f2_preprocess  # noqa: PLC0415
+
+    return await run_f2_preprocess(
+        file_path=tmp_path,
+        law_name=law_name,
+        index=clients["index"],
+        supabase_client=clients["supabase"],
+        openai_client=clients["openai"],
+        progress_callback=progress_callback,
+    )
+
+
 # 기능별 전처리 함수 레지스트리
 # 기능 병합 시 여기에 항목 추가
 FEATURE_PROCESSORS = {
     "F1": _run_f1_preprocess,
+    "F2": _run_f2_preprocess,
     "F4": _run_f4_preprocess,
-    # F2 병합 시 → "F2": _run_f2_preprocess,
     # F3 병합 시 → "F3": _run_f3_preprocess,
     # F5 병합 시 → "F5": _run_f5_preprocess,
 }
@@ -434,7 +482,7 @@ async def upload_and_update(
                             progress_callback=progress_callback,
                         )
                     )
-                elif feature == "F1":
+                elif feature in ("F1", "F2"):
                     tasks.append(
                         processor(
                             tmp_path=tmp_paths[i],
