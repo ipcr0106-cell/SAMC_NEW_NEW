@@ -11,7 +11,6 @@ import {
   User as UserIcon,
   Menu,
   X,
-  ChevronDown,
   Trash2,
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
@@ -27,7 +26,7 @@ export default function DashboardPage() {
   const [casesTotal, setCasesTotal] = useState(0);
   const [creatingCase, setCreatingCase] = useState(false);
   const creatingCaseRef = useRef(false); // 동기 가드 — useState는 비동기라 더블클릭 방지 불완전
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [activeTopMenu, setActiveTopMenu] = useState("start");
 
   const loadCases = async () => {
     try {
@@ -112,22 +111,11 @@ export default function DashboardPage() {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const navItems = [
-    { label: "Overview", active: true, action: () => scrollTo("cases-section") },
-    {
-      label: "검역관리",
-      active: false,
-      hasDropdown: true,
-      action: () => scrollTo("cases-section"),
-      dropdownItems: [
-        { label: "새 건 등록", desc: "수입식품 검역 건을 새로 시작합니다", action: handleNewCase },
-        { label: "전체 건 목록", desc: "등록된 검역 건 현황을 확인합니다", action: () => scrollTo("cases-section") },
-        { label: "완료된 건", desc: "검역이 완료된 건을 조회합니다", action: () => scrollTo("cases-section") },
-        { label: "법령 DB 관리", desc: "법령 파일 업데이트 및 DB 재구축", action: () => router.push("/admin/law-update") },
-      ],
-    },
-    { label: "AI 기능", active: false, action: () => scrollTo("cases-section") },
-    { label: "파이프라인", active: false, action: () => scrollTo("cases-section") },
+  const topMenuItems = [
+    { id: "start", label: "시작", action: () => scrollTo("hero-section") },
+    { id: "required-docs", label: "필요서류다운", action: () => alert("준비중입니다. 아직 백엔드 연동 전입니다.") },
+    { id: "label-review", label: "라벨검토", action: () => alert("준비중입니다. 아직 백엔드 연동 전입니다.") },
+    { id: "korean-label", label: "한글표시사항", action: () => alert("준비중입니다. 아직 백엔드 연동 전입니다.") },
   ];
 
   return (
@@ -153,52 +141,21 @@ export default function DashboardPage() {
             </button>
 
             <div className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => (
-                <div
-                  key={item.label}
-                  className="relative"
-                  onMouseEnter={() => item.hasDropdown && setOpenDropdown(item.label)}
-                  onMouseLeave={() => setOpenDropdown(null)}
+              {topMenuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTopMenu(item.id);
+                    item.action();
+                  }}
+                  className={`flex items-center gap-1 px-4 py-[6px] rounded-full text-[13px] font-medium transition-all ${
+                    activeTopMenu === item.id
+                      ? "bg-slate-100 text-slate-900"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`}
                 >
-                  <button
-                    onClick={() => !item.hasDropdown && item.action?.()}
-                    className={`flex items-center gap-1 px-4 py-[6px] rounded-full text-[13px] font-medium transition-all ${
-                      item.active
-                        ? "bg-slate-100 text-slate-900"
-                        : "text-slate-500 hover:text-slate-700"
-                    }`}
-                  >
-                    {item.label}
-                    {item.hasDropdown && (
-                      <ChevronDown
-                        size={12}
-                        className={`transition-transform duration-200 ${openDropdown === item.label ? "rotate-180" : ""}`}
-                      />
-                    )}
-                  </button>
-
-                  {/* 드롭다운 메뉴 */}
-                  {item.hasDropdown && item.dropdownItems && openDropdown === item.label && (
-                    <div className="absolute top-full left-0 pt-2 z-50">
-                      <div className="bg-white border border-slate-200 rounded-xl shadow-lg py-2 min-w-[220px]">
-                        {item.dropdownItems.map((sub, idx) => (
-                          <button
-                            key={idx}
-                            onClick={sub.action}
-                            className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors group"
-                          >
-                            <p className="text-[13px] font-medium text-slate-700 group-hover:text-slate-900">
-                              {sub.label}
-                            </p>
-                            <p className="text-[11px] text-slate-400 mt-0.5">
-                              {sub.desc}
-                            </p>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  {item.label}
+                </button>
               ))}
             </div>
           </div>
@@ -250,18 +207,47 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="mt-8 grid lg:grid-cols-3 gap-4">
-          <div className="ds-surface-card p-4">
-            <p className="text-[11px] font-semibold" style={{ color: "var(--ds-color-text-tertiary)" }}>검역 상태</p>
-            <p className="text-[26px] font-extrabold mt-1" style={{ color: "var(--ds-color-text-heading)" }}>진행중</p>
+        <div className="mt-8 grid grid-cols-2 gap-4">
+          <div className="ds-surface-card p-5 sm:p-6">
+            <p className="text-[12px] font-semibold" style={{ color: "var(--ds-color-text-tertiary)" }}>
+              Quick Start
+            </p>
+            <h3 className="text-[24px] font-extrabold mt-1" style={{ color: "var(--ds-color-text-heading)" }}>
+              서류 업로드하기
+            </h3>
+            <p className="text-[13px] mt-2" style={{ color: "var(--ds-color-text-secondary)" }}>
+              파일 업로드 후 AI 검역 파이프라인을 시작합니다.
+            </p>
+            <div className="mt-5">
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => alert("백엔드 연결 전입니다. UI만 먼저 준비했습니다.")}
+              >
+                서류 업로드하기
+              </Button>
+            </div>
           </div>
-          <div className="ds-surface-card p-4">
-            <p className="text-[11px] font-semibold" style={{ color: "var(--ds-color-text-tertiary)" }}>평균 처리 시간</p>
-            <p className="text-[26px] font-extrabold mt-1" style={{ color: "var(--ds-color-text-heading)" }}>4분 32초</p>
-          </div>
-          <div className="ds-surface-card p-4">
-            <p className="text-[11px] font-semibold" style={{ color: "var(--ds-color-text-tertiary)" }}>AI 정확도</p>
-            <p className="text-[26px] font-extrabold mt-1" style={{ color: "var(--ds-color-text-heading)" }}>4.87</p>
+
+          <div className="ds-surface-card p-5 sm:p-6">
+            <p className="text-[12px] font-semibold" style={{ color: "var(--ds-color-text-tertiary)" }}>
+              Jump In
+            </p>
+            <h3 className="text-[24px] font-extrabold mt-1" style={{ color: "var(--ds-color-text-heading)" }}>
+              F3부터 시작하기
+            </h3>
+            <p className="text-[13px] mt-2" style={{ color: "var(--ds-color-text-secondary)" }}>
+              필요서류 단계부터 바로 진입하는 빠른 작업 모드입니다.
+            </p>
+            <div className="mt-5">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => alert("백엔드 연결 전입니다. F3 시작 플로우는 추후 연결됩니다.")}
+              >
+                f3부터 시작하기
+              </Button>
+            </div>
           </div>
         </div>
       </section>
