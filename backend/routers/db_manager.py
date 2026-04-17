@@ -25,14 +25,14 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Literal, Optional
 from uuid import UUID
 
-import asyncpg
-from fastapi import APIRouter, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 from pydantic import BaseModel
 
-from db.connection import get_conn_dep
+from db.supabase_client import get_supabase
 
 router = APIRouter(
     prefix="/api/v1/admin/db",
@@ -182,12 +182,14 @@ def _parse_uuid(row_id: str) -> UUID:
         )
 
 
-async def _check_ownership(
-    db: asyncpg.Connection, table: str, row_id: str, user_uuid: UUID
-) -> None:
+def _check_ownership(table: str, row_id: str, user_uuid: UUID) -> None:
     row_uuid = _parse_uuid(row_id)
-    row = await db.fetchrow(f"SELECT created_by FROM {table} WHERE id = $1", row_uuid)
-    if not row:
+    supabase = get_supabase()
+    result = supabase.table(table) \
+        .select("created_by") \
+        .eq("id", str(row_uuid)) \
+        .limit(1).execute()
+    if not result.data:
         raise HTTPException(
             status_code=404,
             detail={
@@ -196,7 +198,9 @@ async def _check_ownership(
                 "feature": 1,
             },
         )
-    if row["created_by"] is None or row["created_by"] != user_uuid:
+    created_by = result.data[0].get("created_by")
+    # supabase-py는 UUID를 str로 반환 → str(user_uuid)로 비교
+    if created_by is None or created_by != str(user_uuid):
         raise HTTPException(
             status_code=403,
             detail={
@@ -213,20 +217,21 @@ async def _check_ownership(
 
 
 @router.get("/{table}")
-async def list_rows(
+def list_rows(
     table: TableName,
     only_mine: bool = Query(False, description="본인 추가 항목만"),
     only_unverified: bool = Query(False, description="is_verified=false 만"),
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
     meta = _require_table(table)
     user_uuid = _user_id(x_user_id)
+    supabase = get_supabase()
 
-    conditions = []
-    params: list = []
+    # count="exact" 로 전체 건수 포함 쿼리
+    query = supabase.table(table).select(meta["list_columns"], count="exact")
+
     if only_mine:
         if not user_uuid:
             raise HTTPException(
@@ -237,28 +242,23 @@ async def list_rows(
                     "feature": 1,
                 },
             )
-        params.append(user_uuid)
-        conditions.append(f"created_by = ${len(params)}")
+        query = query.eq("created_by", str(user_uuid))
     if only_unverified:
-        conditions.append("is_verified = false")
+        query = query.eq("is_verified", False)
 
-    # C1 수정: COUNT 쿼리에는 WHERE 바인딩만, SELECT 에는 WHERE + limit/offset
-    filter_params = list(params)  # only_mine UUID 등 WHERE 바인딩만
-    params.extend([limit, offset])
-    where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
-    query = (
-        f"SELECT {meta['list_columns']} FROM {table} {where} "
-        f"ORDER BY {meta['order_by']} LIMIT ${len(params) - 1} OFFSET ${len(params)}"
-    )
+    # 정렬 + 페이지네이션
+    order_cols = [c.strip() for c in meta["order_by"].split(",")]
+    for col in order_cols:
+        query = query.order(col)
 
-    rows = await db.fetch(query, *params)
-    total = await db.fetchval(f"SELECT COUNT(*) FROM {table} {where}", *filter_params)
+    result = query.range(offset, offset + limit - 1).execute()
+
     return {
         "table": table,
-        "total": total,
+        "total": result.count,
         "limit": limit,
         "offset": offset,
-        "items": [dict(r) for r in rows],
+        "items": result.data,
     }
 
 
@@ -272,11 +272,10 @@ class CreateRequest(BaseModel):
 
 
 @router.post("/{table}")
-async def create_row(
+def create_row(
     table: TableName,
     body: CreateRequest,
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
     meta = _require_table(table)
     user_uuid = _user_id(x_user_id)
@@ -301,13 +300,11 @@ async def create_row(
             },
         )
 
-    cols = list(data.keys()) + ["created_by"]
-    vals = list(data.values()) + [user_uuid]
-    placeholders = ", ".join(f"${i+1}" for i in range(len(vals)))
-    sql = (
-        f"INSERT INTO {table} ({', '.join(cols)}) VALUES ({placeholders}) RETURNING id"
-    )
-    new_id = await db.fetchval(sql, *vals)
+    data["created_by"] = str(user_uuid)
+
+    supabase = get_supabase()
+    result = supabase.table(table).insert(data).execute()
+    new_id = result.data[0]["id"]
     return {"table": table, "id": str(new_id)}
 
 
@@ -321,12 +318,11 @@ class UpdateRequest(BaseModel):
 
 
 @router.patch("/{table}/{row_id}")
-async def update_row(
+def update_row(
     table: TableName,
     row_id: str,
     body: UpdateRequest,
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
     meta = _require_table(table)
     user_uuid = _user_id(x_user_id)
@@ -339,7 +335,7 @@ async def update_row(
                 "feature": 1,
             },
         )
-    await _check_ownership(db, table, row_id, user_uuid)
+    _check_ownership(table, row_id, user_uuid)
 
     patch = _filter_columns(body.data, meta["columns"])
     if not patch:
@@ -352,12 +348,8 @@ async def update_row(
             },
         )
 
-    set_parts = [f"{col} = ${i+2}" for i, col in enumerate(patch.keys())]
-    sql = (
-        f"UPDATE {table} SET {', '.join(set_parts)}, updated_at = NOW() "
-        f"WHERE id = $1"
-    )
-    await db.execute(sql, _parse_uuid(row_id), *patch.values())
+    supabase = get_supabase()
+    supabase.table(table).update(patch).eq("id", row_id).execute()
     return {"table": table, "id": row_id, "updated": True}
 
 
@@ -367,11 +359,10 @@ async def update_row(
 
 
 @router.delete("/{table}/{row_id}")
-async def delete_row(
+def delete_row(
     table: TableName,
     row_id: str,
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
     _require_table(table)
     user_uuid = _user_id(x_user_id)
@@ -384,8 +375,10 @@ async def delete_row(
                 "feature": 1,
             },
         )
-    await _check_ownership(db, table, row_id, user_uuid)
-    await db.execute(f"DELETE FROM {table} WHERE id = $1", _parse_uuid(row_id))
+    _check_ownership(table, row_id, user_uuid)
+
+    supabase = get_supabase()
+    supabase.table(table).delete().eq("id", row_id).execute()
     return {"table": table, "id": row_id, "deleted": True}
 
 
@@ -395,11 +388,10 @@ async def delete_row(
 
 
 @router.post("/{table}/{row_id}/verify")
-async def mark_verified(
+def mark_verified(
     table: TableName,
     row_id: str,
     x_user_id: Optional[str] = Header(None, alias="X-User-Id"),
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
     _require_table(table)
     user_uuid = _user_id(x_user_id)
@@ -413,17 +405,19 @@ async def mark_verified(
             },
         )
     row_uuid = _parse_uuid(row_id)
+    now_iso = datetime.now(timezone.utc).isoformat()
+
+    supabase = get_supabase()
     # verified_by 컬럼이 있는 테이블만 (thresholds 계열)
     if table in ("f1_additive_limits", "f1_safety_standards"):
-        await db.execute(
-            f"UPDATE {table} SET is_verified = true, verified_by = $2, "
-            f"verified_at = NOW(), updated_at = NOW() WHERE id = $1",
-            row_uuid,
-            user_uuid,
-        )
+        supabase.table(table).update({
+            "is_verified": True,
+            "verified_by": str(user_uuid),
+            "verified_at": now_iso,
+        }).eq("id", str(row_uuid)).execute()
     else:
-        await db.execute(
-            f"UPDATE {table} SET is_verified = true, updated_at = NOW() WHERE id = $1",
-            row_uuid,
-        )
+        supabase.table(table).update({
+            "is_verified": True,
+        }).eq("id", str(row_uuid)).execute()
+
     return {"table": table, "id": row_id, "is_verified": True}

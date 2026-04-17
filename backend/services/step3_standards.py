@@ -11,11 +11,9 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Optional
 
-import asyncpg
-
+from db.supabase_client import get_supabase
 from constants.thresholds_config import (GENERAL_LIMIT_TEXT,
                                                  LIQUOR_CHECK_ITEMS,
                                                  is_alcohol_boundary)
@@ -44,30 +42,29 @@ def _is_alcohol_food(food_type: Optional[str], process: ProcessConditions) -> bo
 # ============================================================
 
 
-async def _fetch_additive_limits(
-    db: asyncpg.Connection, food_type: str, additive_names: list[str]
-) -> list[asyncpg.Record]:
+def _fetch_additive_limits(
+    food_type: str, additive_names: list[str]
+) -> list[dict]:
     """해당 식품유형 + 원재료명에 대응하는 additive_limits 행 조회."""
     if not additive_names:
         return []
-    return await db.fetch(
-        """
-        SELECT additive_name, food_type, max_ppm, combined_group, combined_max,
-               conversion_factor, colorant_category, total_tar_limit,
-               condition_text, regulation_ref
-          FROM f1_additive_limits
-         WHERE is_verified = true
-           AND food_type IN ($1, '전체')
-           AND additive_name = ANY($2::text[])
-        """,
-        food_type,
-        additive_names,
-    )
+    supabase = get_supabase()
+    result = supabase.table("f1_additive_limits") \
+        .select(
+            "additive_name, food_type, max_ppm, combined_group, combined_max, "
+            "conversion_factor, colorant_category, total_tar_limit, "
+            "condition_text, regulation_ref"
+        ) \
+        .eq("is_verified", True) \
+        .in_("food_type", [food_type, "전체"]) \
+        .in_("additive_name", additive_names) \
+        .execute()
+    return result.data
 
 
 def _check_additive_single(
     ing: Ingredient,
-    row: asyncpg.Record,
+    row: dict,
     process: ProcessConditions,
 ) -> LimitCheckResult:
     """개별 첨가물 허용량 검증."""
@@ -141,12 +138,11 @@ def _check_additive_single(
     )
 
 
-async def _evaluate_compound_groups(
-    db: asyncpg.Connection,
+def _evaluate_compound_groups(
     food_type: str,
     per_item_results: list[LimitCheckResult],
     ingredients: list[Ingredient],
-    add_rows_by_name: Optional[dict[str, asyncpg.Record]] = None,
+    add_rows_by_name: Optional[dict[str, dict]] = None,
 ) -> list[CompoundGroupResult]:
     """combined_group 합산 판정.
 
@@ -166,19 +162,14 @@ async def _evaluate_compound_groups(
         # 사전에 로드한 딕셔너리 우선 사용, 없으면 개별 조회 (하위 호환)
         row = add_rows_by_name.get(r.item_name) if add_rows_by_name else None
         if row is None:
-            row = await db.fetchrow(
-                """
-                SELECT combined_group, combined_max, conversion_factor,
-                       regulation_ref, total_tar_limit
-                  FROM f1_additive_limits
-                 WHERE is_verified = true
-                   AND food_type IN ($1, '전체')
-                   AND additive_name = $2
-                 LIMIT 1
-                """,
-                food_type,
-                r.item_name,
-            )
+            supabase = get_supabase()
+            fb = supabase.table("f1_additive_limits") \
+                .select("combined_group, combined_max, conversion_factor, regulation_ref, total_tar_limit") \
+                .eq("is_verified", True) \
+                .in_("food_type", [food_type, "전체"]) \
+                .eq("additive_name", r.item_name) \
+                .limit(1).execute()
+            row = fb.data[0] if fb.data else None
         if not row or not row["combined_group"]:
             continue
 
@@ -229,23 +220,20 @@ async def _evaluate_compound_groups(
 # ============================================================
 
 
-async def _fetch_safety_standards(
-    db: asyncpg.Connection, food_type: str, standard_types: list[str]
-) -> list[asyncpg.Record]:
-    return await db.fetch(
-        """
-        SELECT food_type, standard_type, target_name, max_limit, regulation_ref
-          FROM f1_safety_standards
-         WHERE is_verified = true
-           AND food_type IN ($1, '전체')
-           AND standard_type = ANY($2::text[])
-        """,
-        food_type,
-        standard_types,
-    )
+def _fetch_safety_standards(
+    food_type: str, standard_types: list[str]
+) -> list[dict]:
+    supabase = get_supabase()
+    result = supabase.table("f1_safety_standards") \
+        .select("food_type, standard_type, target_name, max_limit, regulation_ref") \
+        .eq("is_verified", True) \
+        .in_("food_type", [food_type, "전체"]) \
+        .in_("standard_type", standard_types) \
+        .execute()
+    return result.data
 
 
-def _safety_to_check(row: asyncpg.Record) -> LimitCheckResult:
+def _safety_to_check(row: dict) -> LimitCheckResult:
     """safety_standards 행을 LimitCheckResult로 변환 (실측 없으므로 no_data)."""
     category_map = {
         "heavy_metal": "heavy_metal",
@@ -269,28 +257,23 @@ def _safety_to_check(row: asyncpg.Record) -> LimitCheckResult:
 # ============================================================
 
 
-async def check_liquor_safety(
-    db: asyncpg.Connection,
+def check_liquor_safety(
     food_type: str,
     alcohol_percentage: Optional[float],
 ) -> tuple[list[LimitCheckResult], list[dict]]:
     escalations: list[dict] = []
 
-    # 주류 4대 항목 병렬 조회
-    async def _fetch_item(name: str) -> LimitCheckResult:
-        row = await db.fetchrow(
-            """
-            SELECT target_name, max_limit, regulation_ref, standard_type
-              FROM f1_safety_standards
-             WHERE is_verified = true
-               AND standard_type = 'alcohol'
-               AND target_name ILIKE '%' || $1 || '%'
-             LIMIT 1
-            """,
-            name,
-        )
-        if row:
-            return _safety_to_check(row)
+    # 주류 4대 항목 sequential 조회 (4건이라 성능 영향 없음)
+    def _fetch_item(name: str) -> LimitCheckResult:
+        supabase = get_supabase()
+        result = supabase.table("f1_safety_standards") \
+            .select("target_name, max_limit, regulation_ref, standard_type") \
+            .eq("is_verified", True) \
+            .eq("standard_type", "alcohol") \
+            .ilike("target_name", f"%{name}%") \
+            .limit(1).execute()
+        if result.data:
+            return _safety_to_check(result.data[0])
         return LimitCheckResult(
             item_name=name,
             category="alcohol",
@@ -298,9 +281,7 @@ async def check_liquor_safety(
             status="no_data",
         )
 
-    checks = await asyncio.gather(
-        *[_fetch_item(item["name"]) for item in LIQUOR_CHECK_ITEMS]
-    )
+    checks = [_fetch_item(item["name"]) for item in LIQUOR_CHECK_ITEMS]
 
     # 도수 경계치 에스컬레이션
     if is_alcohol_boundary(alcohol_percentage):
@@ -314,7 +295,7 @@ async def check_liquor_safety(
             }
         )
 
-    return list(checks), escalations
+    return checks, escalations
 
 
 # ============================================================
@@ -322,8 +303,7 @@ async def check_liquor_safety(
 # ============================================================
 
 
-async def run_step3(
-    db: asyncpg.Connection,
+def run_step3(
     ingredients: list[Ingredient],
     food_type: Optional[str],
     process: Optional[ProcessConditions] = None,
@@ -346,9 +326,7 @@ async def run_step3(
         )
 
     # 첨가물 기준치 검증
-    add_rows = await _fetch_additive_limits(
-        db, food_type, [i.name for i in ingredients]
-    )
+    add_rows = _fetch_additive_limits(food_type, [i.name for i in ingredients])
     add_rows_by_name = {r["additive_name"]: r for r in add_rows}
 
     # C-NEW-2 가드: 첨가물 후보 (INS/CAS 있거나 이름이 DB 매치된 것) 중
@@ -386,13 +364,13 @@ async def run_step3(
         # 일반 원료 (INS/CAS 없음)는 첨가물 아님 → skip (의도된 동작)
 
     # 복합 합산 (H6: 이미 로드한 add_rows_by_name 재사용으로 N+1 제거)
-    compound_results = await _evaluate_compound_groups(
-        db, food_type, additive_checks, ingredients, add_rows_by_name
+    compound_results = _evaluate_compound_groups(
+        food_type, additive_checks, ingredients, add_rows_by_name
     )
 
     # 안전기준 조회 (중금속 + 미생물)
-    safety_rows = await _fetch_safety_standards(
-        db, food_type, ["heavy_metal", "microbe", "pesticide", "contaminant"]
+    safety_rows = _fetch_safety_standards(
+        food_type, ["heavy_metal", "microbe", "pesticide", "contaminant"]
     )
     safety_checks = [_safety_to_check(r) for r in safety_rows]
 
@@ -400,8 +378,8 @@ async def run_step3(
 
     # 주류 분기
     if _is_alcohol_food(food_type, process):
-        liquor_checks, liquor_escalations = await check_liquor_safety(
-            db, food_type, process.alcohol_percentage
+        liquor_checks, liquor_escalations = check_liquor_safety(
+            food_type, process.alcohol_percentage
         )
         all_checks.extend(liquor_checks)
         escalations.extend(liquor_escalations)

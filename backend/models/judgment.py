@@ -53,13 +53,13 @@ class Ingredient(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(..., description="원재료명(한국어 또는 학명/영문)")
-    name_original: Optional[str] = Field(None, description="원문 원재료명 (번역 전)")
+    name_original: Optional[str] = Field(None, description="원문 원재료명 (번역 전) — 현재 미사용, LLM 정규화 원본 추적용으로 예약")
     percentage: Optional[float] = Field(None, description="함량 비율 (%)")
     ins: Optional[str] = Field(None, description="INS 번호")
     cas: Optional[str] = Field(None, description="CAS 번호")
-    chemical_name: Optional[str] = Field(None, description="화학성분명")
+    chemical_name: Optional[str] = Field(None, description="화학성분명 — 현재 미사용, DB 매칭 실패 시 화학명 재검색용으로 예약")
     part: Optional[str] = Field(None, description="사용 부위 (잎, 뿌리 등)")
-    is_allergen: Optional[bool] = Field(None, description="라벨상 알레르겐 표시 여부")
+    is_allergen: Optional[bool] = Field(None, description="라벨상 알레르겐 표시 여부 — 현재 미사용, F3 연동용으로 예약")
     sub_ingredients: Optional[list["Ingredient"]] = Field(
         None, description="복합원재료 하위 성분"
     )
@@ -71,10 +71,10 @@ class ProcessConditions(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     is_heated: Optional[bool] = None
-    is_fermented: Optional[bool] = None
+    is_fermented: Optional[bool] = None  # 현재 미사용 — 발효식품 전용 기준치 분기 예약
     is_distilled: Optional[bool] = None
     alcohol_percentage: Optional[float] = None
-    ph_value: Optional[float] = None
+    ph_value: Optional[float] = None  # 현재 미사용 — pH 기반 기준치 분기 예약 (예: 산성식품 pH 4.6 이하)
 
 
 class Feature1Input(BaseModel):
