@@ -60,3 +60,19 @@ export const confirmImportCheckResult = async (
 ): Promise<void> => {
   await apiClient.post(API_PATHS.confirm(caseId));
 };
+
+// 레포트 PDF 다운로드
+export const downloadReport = async (caseId: string): Promise<void> => {
+  const res = await apiClient.get(API_PATHS.report(caseId), {
+    responseType: "blob",
+  });
+  const blob = new Blob([res.data], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `F1_report_${caseId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
