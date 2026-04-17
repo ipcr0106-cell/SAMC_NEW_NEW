@@ -14,13 +14,13 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ label, options, placeholder, className = "", ...props }, ref) => {
     return (
-      <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col" style={{ gap: "var(--ds-space-field-label-gap)" }}>
         {label && (
-          <label className="text-sm font-medium text-slate-700">{label}</label>
+          <label className="ds-label">{label}</label>
         )}
         <select
           ref={ref}
-          className={`w-full bg-white px-3.5 py-2.5 text-sm text-slate-800 rounded-xl border border-slate-200 hover:border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all appearance-none cursor-pointer ${className}`}
+          className={`ds-input ds-select px-3.5 py-2.5 ${className}`}
           {...props}
         >
           {placeholder && (

@@ -149,24 +149,24 @@ export default function FileDropzone({
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
-      className={`relative rounded-2xl border-2 border-dashed transition-all duration-200 group ${
+      className={`relative ds-dropzone group ${
         isDragging
-          ? "border-blue-400 bg-blue-50/50"
+          ? "ds-dropzone-dragging"
           : hasFiles
-          ? "border-emerald-200 bg-emerald-50/30"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
+          ? "ds-dropzone-filled"
+          : ""
       }`}
     >
       <div className="flex flex-col p-4">
         {/* 헤더: 아이콘 + 제목 + 파일 개수 배지 */}
         <div className="flex items-center gap-2.5 mb-2">
           <div
-            className={`flex items-center justify-center w-9 h-9 rounded-xl transition-colors ${
+            className={`flex items-center justify-center ds-dropzone-icon transition-colors ${
               hasFiles
-                ? "bg-emerald-100 text-emerald-600"
+                ? "ds-dropzone-icon-filled"
                 : isDragging
-                ? "bg-blue-100 text-blue-600"
-                : "bg-slate-100 text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500"
+                ? "ds-dropzone-icon-dragging"
+                : ""
             }`}
           >
             {isUploading ? (
@@ -179,7 +179,7 @@ export default function FileDropzone({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-sm font-semibold text-slate-700">
+              <span className="text-sm font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>
                 {config.title}
               </span>
               {allFiles.length > 0 && (
@@ -193,7 +193,7 @@ export default function FileDropzone({
                 </Badge>
               )}
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">{config.description}</p>
+            <p className="text-[11px] mt-0.5" style={{ color: "var(--ds-color-text-tertiary)" }}>{config.description}</p>
           </div>
         </div>
 
@@ -205,9 +205,9 @@ export default function FileDropzone({
               return (
                 <div
                   key={f.id}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-100 text-xs text-slate-600 group/file"
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs ds-file-item group/file"
                 >
-                  <CheckCircle2 size={12} className="text-emerald-500 shrink-0" />
+                  <CheckCircle2 size={12} className="shrink-0" style={{ color: "var(--ds-color-success-text)" }} />
                   <button
                     type="button"
                     disabled={openingIds.has(f.id)}
@@ -217,7 +217,8 @@ export default function FileDropzone({
                       handleOpenFile(f.id);
                     }}
                     title={`"${f.name}" 열기`}
-                    className="truncate flex-1 text-left hover:text-blue-600 hover:underline disabled:opacity-50 flex items-center gap-1"
+                    className="truncate flex-1 text-left hover:underline disabled:opacity-50 flex items-center gap-1"
+                    style={{ color: "var(--ds-color-text-secondary)" }}
                   >
                     <span className="truncate">{f.name}</span>
                     {openingIds.has(f.id) ? (
@@ -246,7 +247,8 @@ export default function FileDropzone({
                         }
                       }}
                       title="파일 삭제"
-                      className="shrink-0 text-slate-300 hover:text-red-500 transition-colors disabled:opacity-50 opacity-0 group-hover/file:opacity-100"
+                      className="shrink-0 transition-colors disabled:opacity-50 opacity-0 group-hover/file:opacity-100"
+                      style={{ color: "var(--ds-color-text-tertiary)" }}
                     >
                       {isDeleting ? (
                         <Loader2 size={12} className="animate-spin" />
@@ -261,10 +263,10 @@ export default function FileDropzone({
           </div>
         ) : (
           <div className="py-2 text-center">
-            <p className="text-xs text-slate-400">
+            <p className="text-xs" style={{ color: "var(--ds-color-text-tertiary)" }}>
               드래그하여 놓거나 클릭하여 업로드
             </p>
-            <p className="text-[10px] text-slate-300 mt-0.5">
+            <p className="text-[10px] mt-0.5" style={{ color: "var(--ds-color-text-tertiary)" }}>
               여러 파일 동시 선택 가능
             </p>
           </div>
@@ -273,7 +275,7 @@ export default function FileDropzone({
         {/* 추가 업로드 버튼 (파일이 있을 때) 또는 전체 영역 클릭 (없을 때) */}
         <label className="cursor-pointer">
           {hasFiles ? (
-            <div className="flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-slate-300 text-xs text-slate-500 hover:bg-slate-50 hover:text-blue-600 hover:border-blue-300 transition-colors">
+            <div className="flex items-center justify-center gap-1.5 py-2 text-xs transition-colors ds-file-add">
               <Plus size={14} />
               <span>파일 추가</span>
             </div>
