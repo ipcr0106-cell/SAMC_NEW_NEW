@@ -65,13 +65,22 @@ DEFAULT_OUTPUT = BACKEND_DIR / "tests" / "goldenset_run_result.json"
 
 # ============================================================
 # 비용 추정 상수 (2026-04 기준 USD/1M token)
+# 출처: OpenAI API pricing 2026-04
 # ============================================================
 
 PRICE_EMBED = 0.02  # text-embedding-3-small
-PRICE_CHAT_INPUT_MINI = 0.15  # gpt-4o-mini input
-PRICE_CHAT_OUTPUT_MINI = 0.60  # gpt-4o-mini output
-PRICE_CHAT_INPUT_FULL = 2.50  # gpt-4o input
-PRICE_CHAT_OUTPUT_FULL = 10.00  # gpt-4o output
+
+# (input, output) per 1M tokens
+PRICE_TABLE: dict[str, tuple[float, float]] = {
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4o": (2.50, 10.00),
+    "gpt-5.4-mini": (0.75, 4.50),
+    "gpt-5.4-nano": (0.20, 1.25),
+    "gpt-5.4": (1.25, 10.00),
+    "gpt-5-mini": (0.25, 2.00),
+    "gpt-5-nano": (0.05, 0.40),
+    "gpt-5": (1.25, 10.00),
+}
 
 AVG_EMBED_TOKENS = 50
 AVG_CHAT_INPUT_TOKENS = 8000  # 컨텍스트 ~8K (top_k=5 × 2 × ~4000자 / 4token per char)
@@ -79,13 +88,17 @@ AVG_CHAT_OUTPUT_TOKENS = 300  # JSON 응답
 
 
 def estimate_cost_per_case(model: str) -> float:
-    """건당 예상 비용 (USD)."""
-    if "mini" in model.lower():
-        chat_input = PRICE_CHAT_INPUT_MINI
-        chat_output = PRICE_CHAT_OUTPUT_MINI
-    else:
-        chat_input = PRICE_CHAT_INPUT_FULL
-        chat_output = PRICE_CHAT_OUTPUT_FULL
+    """건당 예상 비용 (USD). 매칭 실패 시 gpt-4o 가격으로 fallback."""
+    m = model.lower().strip()
+    # 정확 매칭 우선, 없으면 접두 매칭으로 fallback
+    chat_input, chat_output = PRICE_TABLE.get(
+        m, PRICE_TABLE["gpt-4o"]
+    )
+    if m not in PRICE_TABLE:
+        for key, price in PRICE_TABLE.items():
+            if m.startswith(key):
+                chat_input, chat_output = price
+                break
     embed_cost = AVG_EMBED_TOKENS * PRICE_EMBED / 1_000_000
     chat_cost = (
         AVG_CHAT_INPUT_TOKENS * chat_input / 1_000_000
