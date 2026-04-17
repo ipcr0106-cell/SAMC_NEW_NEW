@@ -114,7 +114,20 @@ async def upload_law(
             claude_client  = clients["claude"],
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"전처리 실패: {e}")
+        # 크래시 시 is_updating 플래그 강제 해제 (preprocess_single_law의 finally에서도 처리하지만 이중 안전)
+        try:
+            from preprocess_laws import set_law_updating
+            set_law_updating(clients["supabase"], law_name, False)
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "PREPROCESS_FAILED",
+                "message": str(e),
+                "recovery": "Please retry the upload. The previous data has been cleared and needs to be re-uploaded.",
+            },
+        )
     finally:
         tmp_path.unlink(missing_ok=True)
 

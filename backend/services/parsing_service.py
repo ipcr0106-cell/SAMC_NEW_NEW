@@ -31,8 +31,11 @@ from schemas.upload import (
     ProcessCodeCandidate,
     ProcessCodeReason,
     ProcessInfo,
+    ProcessStep,
+    ProcessCodeSuggestItem,
+    ProcessCodeSuggestResponse,
 )
-from constants.process_codes import get_prompt_table
+from constants.process_codes import get_prompt_table, PROCESS_CODE_MAP
 
 logger = logging.getLogger(__name__)
 
@@ -66,40 +69,81 @@ SYSTEM_PROMPT = f"""당신은 한국 식품 수입 검역 전문가이자 문서
 1. 반드시 아래 JSON 형식만 출력하세요. 설명이나 마크다운 코드 블록 없이 순수 JSON만 반환합니다.
 2. 누락된 정보는 빈 문자열("") 또는 빈 배열([])로 채웁니다.
 3. 배합비율은 퍼센트(%) 숫자를 문자열로 표기합니다 (예: "45.00").
-4. **INS 번호와 CAS 번호 추출이 매우 중요합니다.**
+4. **원재료 사용 부위(`part`) 추출이 중요합니다.**
+   - 원재료명에 부위가 명시된 경우 반드시 분리하여 part 필드에 기재하세요.
+   - 예: "스테비아(잎)" → name: "스테비아", part: "잎"
+   - 예: "감초뿌리추출물" → name: "감초추출물", part: "뿌리"
+   - 부위 표기가 없으면 part는 빈 문자열("")로 둡니다.
+5. **복합원재료 중첩 파싱이 중요합니다.**
+   - 원재료명 뒤에 괄호로 하위 성분이 나열된 경우(예: "과일혼합(딸기60%, 블루베리40%)") sub_ingredients 배열에 중첩 구조로 파싱하세요.
+   - 하위 성분도 동일한 IngredientItem 구조를 따릅니다.
+   - 복합원재료가 아닌 단순 원재료는 sub_ingredients를 빈 배열([])로 둡니다.
+6. **INS 번호와 CAS 번호 추출이 매우 중요합니다.**
    - MSDS 문서에서 CAS 번호(예: 64-17-5, 7732-18-5)를 반드시 추출하세요.
    - 식품첨가물의 INS 번호(예: INS 330, E330)를 반드시 추출하세요.
    - 번호가 명시되어 있지 않더라도, 잘 알려진 식품첨가물이면 INS 번호를 기재하세요.
    - CAS 번호 형식: 숫자-숫자-숫자 (예: 9005-25-8)
    - INS 번호 형식: 숫자 (예: 330, 1400) 또는 E코드 (예: E330)
    - MSDS의 화학성분명, 농도(%), 위험등급도 ins_number 또는 cas_number 필드에 기재할 수 없는 경우 name 필드에 괄호 병기하세요.
-5. **제조공정 코드 변환이 핵심입니다.** 제조공정도(process) 텍스트에서 공정 설명을 하나하나 분석하여, 아래 유니패스 공정 코드 참조 테이블에서 가장 가까운 코드를 매핑하세요.
-   - 예: "원료를 섞어서 가열한 뒤 캔에 넣고 밀봉" → ["20", "01", "45", "46"]
-   - 예: "맥아를 분쇄하고 물과 섞어 발효시킨 후 여과하여 병입" → ["32", "20", "10", "15", "45"]
-   - 하나의 문장에서 여러 공정이 묘사되면 각각 별도 코드로 분리합니다.
+5. **제조공정 코드 변환이 핵심입니다.** 제조공정도(process) 텍스트에서 공정 설명을 하나하나 분석하여, 아래 식약처 공식 공정 코드 참조 테이블에서 가장 가까운 코드를 매핑하세요.
+   - **반드시 모든 공정 단계를 빠짐없이 추출하세요.** 텍스트에 10개 이상의 단계가 나열되어 있다면 그 수만큼 코드가 나와야 합니다. 중간에 생략하지 마세요.
+   - **다국어 공정도 처리:** 스페인어·영어·중국어·일본어 등 외국어로 된 공정도에서도 모든 단계를 추출합니다.
+     - 스페인어 예시 매핑: "Recepción MP"→1(원료), "Horneado/Bake"→11(굽기), "Molienda/Pounding"→52(압착) 또는 32(분쇄), "Fermentación"→27(발효), "Destilación"→78(증류), "Almacén/Warehouse"→67(저장), "Maduración/Maturation"→48(숙성), "Dilución/Dilution"→100(희석), "Enfriamiento/Cooling"→17(냉각), "Filtración/Filtration"→55(여과), "Lavado de botellas/Bottle wash"→45(세척), "Llenado/Bottle filling"→E6(충전), "Sellado/Bottle sealed"→26(밀봉), "Etiquetado/Bottle label"→A4(표면처리), "Empaque/Packaging"→A3(포장)
+   - 예: "원료를 섞어서 가열한 뒤 캔에 넣고 밀봉" → ["1", "A6", "8", "26"]
+   - 예: "맥아를 분쇄하고 물과 섞어 발효시킨 후 여과하여 병입" → ["32", "A6", "27", "55", "26"]
+   - 예: "글루코아밀라아제로 효소처리 후 농축" → ["F1", "21"]
+   - 예: "헥산으로 용매추출 후 탈색·탈취·정제" → ["G3", "94", "99", "73"]
+   - 흐름도에 번호가 있는 경우(예: 1. Reception MP, 2. Bake ... 20. Packaging) 번호 순서대로 각각 코드를 부여합니다.
+   - 하나의 공정 단계(박스 1개)에 코드 1개를 원칙으로 하되, 복합 공정(예: "증류 후 바로 냉각")은 분리합니다.
    - 공정 순서를 유지해서 배열에 담습니다 (공정 흐름도 순서대로).
    - 매핑할 수 없는 공정은 가장 가까운 코드를 선택하고, raw_process_text에 원문을 보존합니다.
    - **각 코드마다 process_code_reasons 배열에 선정 근거를 반드시 기재하세요.** 어떤 원문 텍스트를 보고 이 코드를 선택했는지 간략히 설명합니다.
    - **process_code_candidates 배열은 반드시 작성하고, 아래 규칙을 철저히 따르세요.**
      a) 추천 코드(is_recommended=true): process_codes에 포함된 코드 전부를 후보 배열에도 넣습니다.
-     b) 유사 코드(is_recommended=false): **추천 코드 1개당 반드시 1~2개의 유사/혼동 가능 코드를 추가**합니다. 유사 코드가 없는 추천 코드는 없다고 봐도 무방합니다. 반드시 포함하세요.
+     b) 유사 코드(is_recommended=false): **추천 코드 1개당 반드시 1~2개의 유사/혼동 가능 코드를 추가**합니다. 반드시 포함하세요.
      c) confusion_note는 절대 비워두지 마세요. "추천 코드 XX(이름)와 어떻게 다른지"를 한 문장으로 명확히 씁니다.
-     d) 자주 혼동되는 쌍 예시 (참고용):
-        - 01(가열살균) ↔ 03(UHT살균), 04(LTLT저온살균)
-        - 10(발효) ↔ 16(유산균발효), 17(초산발효), 18(알코올발효)
-        - 15(여과) ↔ 21(막여과), 22(정밀여과)
-        - 20(혼합) ↔ 26(교반), 27(유화), 28(균질화)
-        - 25(추출) ↔ 29(열수추출), 33(초임계추출), 34(용매추출)
-        - 30(농축) ↔ 31(감압농축)
-        - 32(분쇄) ↔ 36(미분쇄)
-        - 35(증류) ↔ 41(감압증류)
-        - 45(충전) ↔ 46(밀봉), 47(진공포장), F04(무균충전)
-        - 50(열풍건조) ↔ 12(동결건조), 51(분무건조), 54(감압건조)
-        - E01(반죽) ↔ 20(혼합)
-        - E02(발효도우) ↔ 10(발효)
-6. 다국어 텍스트(영어, 중국어, 일본어 등)는 한국어로 번역하여 성분명에 기재하되, 원문도 괄호 안에 병기합니다.
+     d) 자주 혼동되는 쌍 예시 (참고용, 식약처 공식 코드 기준):
+        - 8(가열) ↔ 39(살균), 25(멸균), 7(예열)
+        - 27(발효) ↔ 28(후발효), 29(배양), 71(접종)
+        - 55(여과) ↔ 61(원심분리), 30(분리), 87(침전)
+        - A6(혼합) ↔ J2(교반), 64(유화), 16(균질)
+        - 84(추출) ↔ 85(용매추출), G1~G14(용매추출 세분류)
+        - 21(농축) ↔ 20(재농축), 101(증발)
+        - 32(분쇄) ↔ 33(분말), D4(짓이김)
+        - 78(증류) ↔ 53(액화), 101(증발)
+        - E6(충전) ↔ 26(밀봉), A3(포장)
+        - A7(효소처리) ↔ F1~F31(효소처리 세분류) — 효소 종류가 특정되면 F계열 사용
+        - 85(용매추출) ↔ G1~G14(용매추출 세분류) — 용매 종류가 특정되면 G계열 사용
+7. **제조공정 파싱 불완전 처리 (중요):**
+   - 제조공정도 텍스트가 아예 없거나, OCR 결과가 손상/불충분하여 공정 코드를 신뢰할 수 없는 경우:
+     → `process_info.is_incomplete: true`로 설정하고, `incomplete_reason`에 이유를 한국어로 기재하세요.
+   - 예: 이미지 해상도 불량, 공정 설명 없이 그림만 있음, OCR 텍스트 5단어 미만 등
+   - `incomplete_reason` 예시: "제조공정도 텍스트가 거의 없어 공정 코드를 추출할 수 없습니다. 공정 설명을 직접 입력해주세요."
+   - 부분적으로 파싱 가능한 경우에도(일부 코드만 추출) `is_incomplete: true`로 표시하고 이유를 기재하세요.
+   - 충분히 파싱된 경우는 `is_incomplete: false`, `incomplete_reason: ""`으로 두세요.
+8. **MSDS 처리 — CAS 번호와 함량만 추출 (우선순위 낮음):**
+   - MSDS 문서에서는 각 화학성분의 CAS 번호와 함량(농도, %)만 추출하면 됩니다.
+   - 유해성, 독성, GHS 분류, 응급 조치 등 검역과 무관한 내용은 무시하세요.
+   - 추출된 CAS 번호는 ingredients 배열에 cas_number 필드로 기재합니다.
+9. **제품 기본 정보 추가 추출:**
+   - `manufacturer`: 제조사(회사)명을 라벨 또는 서류에서 추출하세요. 없으면 빈 문자열.
+   - `alcohol_percentage`: 라벨에서 알코올 도수를 숫자(float)로 추출하세요.
+     예: "ALC. 14.5% BY VOL" → 14.5 / "알코올 함량 5%" → 5.0 / 주류가 아니면 null.
+   - `content_volume`: 내용량 문자열을 추출하세요. 예: "500mL", "1kg", "300g×10". 없으면 빈 문자열.
+8. **제조공정도에서 투입 원료/재료도 ingredients로 추출하세요.**
+   - 공정도에 화살표로 투입되는 재료(예: Water, Yeast, Steam, Caramel, Barrel, Cap 등)를 ingredients 배열에 추가합니다.
+   - ratio는 빈 문자열(""), origin은 알 수 없으면 빈 문자열로 처리합니다.
+   - 단, 포장재(Box, Label, 병 등)는 식품 성분이 아니므로 제외합니다.
+9. 다국어 텍스트(영어, 중국어, 일본어 등)는 한국어로 번역하여 성분명에 기재하되, 원문도 괄호 안에 병기합니다.
+10. **수출국 라벨(label) 정보 추출 — label_info 필드 채우기:**
+    - `export_country`: 라벨의 원산지(Country of Origin / País de Origen) 또는 제조국을 추출. 없으면 basic_info.export_country와 동일하게 기재.
+    - `is_oem`: 라벨에 "Manufactured by / Produced for / Distributed by" 등 위탁생산 표현이 있으면 true.
+    - `label_texts`: 라벨에 표기된 주요 문구 목록 (제품명, 제조사, 내용량, 알코올도수, 원재료 표기, 영양성분 요약, 인증마크, 바코드 텍스트 등). 중요 문구를 빠짐없이 배열로 담으세요.
+    - `design_description`: 라벨의 시각적 특징 설명 (색상, 로고, 병 모양, 이미지, 레이아웃 등).
+    - `warnings`: 경고문구, 주의사항, 알레르기 정보, 임산부 경고 등. 배열로 담으세요.
+    - 라벨 텍스트가 없어도 basic_info에서 알 수 있는 정보(export_country, is_oem)는 반드시 채우세요.
 
-## 유니패스 제조공정 코드 참조 테이블 (전체)
+## 식약처 공식 제조공정 코드 참조 테이블 (211개)
 {_PROCESS_CODE_TABLE}
 
 ## 출력 JSON 스키마
@@ -109,7 +153,10 @@ SYSTEM_PROMPT = f"""당신은 한국 식품 수입 검역 전문가이자 문서
     "export_country": "수출국 (예: 미국)",
     "is_first_import": false,
     "is_organic": false,
-    "is_oem": false
+    "is_oem": false,
+    "manufacturer": "제조사명 (없으면 빈 문자열)",
+    "alcohol_percentage": null,
+    "content_volume": "내용량 (예: 500mL, 없으면 빈 문자열)"
   }},
   "ingredients": [
     {{
@@ -118,36 +165,63 @@ SYSTEM_PROMPT = f"""당신은 한국 식품 수입 검역 전문가이자 문서
       "ratio": "배합비율 퍼센트 (예: 45.00)",
       "origin": "원산지 국가",
       "ins_number": "INS 번호 (없으면 빈 문자열)",
-      "cas_number": "CAS 번호 (없으면 빈 문자열)"
+      "cas_number": "CAS 번호 (없으면 빈 문자열)",
+      "part": "사용 부위 (예: 잎, 없으면 빈 문자열)",
+      "sub_ingredients": []
+    }},
+    {{
+      "id": "ing-2",
+      "name": "과일혼합",
+      "ratio": "30.00",
+      "origin": "",
+      "ins_number": "",
+      "cas_number": "",
+      "part": "",
+      "sub_ingredients": [
+        {{"id": "ing-2-1", "name": "딸기", "ratio": "60", "origin": "", "ins_number": "", "cas_number": "", "part": "", "sub_ingredients": []}},
+        {{"id": "ing-2-2", "name": "블루베리", "ratio": "40", "origin": "", "ins_number": "", "cas_number": "", "part": "", "sub_ingredients": []}}
+      ]
     }}
   ],
   "process_info": {{
-    "process_codes": ["01", "15"],
+    "process_codes": ["8", "27"],
     "process_code_reasons": [
-      {{"code": "01", "reason": "원문 '가열 살균 처리' → 코드 01(가열처리) 선택"}},
-      {{"code": "15", "reason": "원문 '발효조에서 발효' → 코드 15(발효) 선택"}}
+      {{"code": "8", "name": "가열", "reason": "원문 'Bake' → 굽기/가열 공정"}},
+      {{"code": "27", "name": "발효", "reason": "원문 'Fermentation' → 발효 공정"}}
     ],
     "process_code_candidates": [
+      {{"code": "8",  "name": "가열",  "reason": "원문 'Bake' — 가열 공정", "is_recommended": true,  "confusion_note": ""}},
+      {{"code": "11", "name": "굽기",  "reason": "Bake는 굽기와도 연관됨",    "is_recommended": false, "confusion_note": "8(가열)은 가열 전반, 11(굽기)은 오븐·직화 굽기에 특화. 아가베 Bake는 8이 적합."}},
+      {{"code": "27", "name": "발효",  "reason": "원문 'Fermentation' — 발효", "is_recommended": true,  "confusion_note": ""}},
+      {{"code": "28", "name": "후발효","reason": "발효 이후 추가 숙성 가능",  "is_recommended": false, "confusion_note": "27(발효)은 1차 발효, 28(후발효)은 발효 완료 후 추가 숙성. 일반적으로 27이 맞음."}}
+    ],
+    "process_steps": [
       {{
-        "code": "01",
-        "reason": "원문 '가열 살균 처리' — 일반 가열처리 공정에 해당",
-        "is_recommended": true,
-        "confusion_note": ""
+        "step_number": 1,
+        "step_name_original": "Bake",
+        "step_name_ko": "굽기",
+        "recommended_code": "8",
+        "recommended_code_name": "가열",
+        "recommended_reason": "아가베 심(피냐)을 오븐에 굽는 공정 → 가열(8) 코드",
+        "similar_codes": [
+          {{"code": "11", "name": "굽기", "reason": "오븐 굽기 특화 코드", "is_recommended": false, "confusion_note": "8(가열)은 모든 가열 방식, 11(굽기)은 직화/오븐 굽기 특화. 아가베 Bake는 8이 통상적."}}
+        ]
       }},
       {{
-        "code": "02",
-        "reason": "끓임(boiling) 공정도 가열과 유사하나 01이 더 포괄적",
-        "is_recommended": false,
-        "confusion_note": "01(가열처리)은 모든 가열을, 02(끓임)은 boiling 특화. '살균 처리'는 01이 적합."
-      }},
-      {{
-        "code": "15",
-        "reason": "원문 '발효조에서 발효' — 발효 공정 명시",
-        "is_recommended": true,
-        "confusion_note": ""
+        "step_number": 2,
+        "step_name_original": "Fermentation",
+        "step_name_ko": "발효",
+        "recommended_code": "27",
+        "recommended_code_name": "발효",
+        "recommended_reason": "효모를 이용한 당 발효 공정",
+        "similar_codes": [
+          {{"code": "28", "name": "후발효", "reason": "2차 발효 가능성", "is_recommended": false, "confusion_note": "27(발효)은 1차 알코올 발효, 28(후발효)은 발효 후 추가 숙성. 데킬라 Fermentation은 27."}}
+        ]
       }}
     ],
-    "raw_process_text": "원문 공정 설명 텍스트 전체 (코드 변환 근거 확인용)"
+    "raw_process_text": "원문 공정 설명 텍스트 전체 (코드 변환 근거 확인용)",
+    "is_incomplete": false,
+    "incomplete_reason": ""
   }},
   "label_info": {{
     "export_country": "수출국 (예: 미국, 일본)",
@@ -297,25 +371,43 @@ def _parse_llm_response(response_text: str) -> ParsedResult:
         return _empty_result()
 
     bi_raw = data.get("basic_info", {})
+    raw_alcohol = bi_raw.get("alcohol_percentage")
+    alcohol_pct = None
+    if raw_alcohol is not None:
+        try:
+            alcohol_pct = float(raw_alcohol)
+        except (TypeError, ValueError):
+            alcohol_pct = None
     basic_info = BasicInfo(
         product_name=bi_raw.get("product_name", ""),
         export_country=bi_raw.get("export_country", ""),
         is_first_import=bi_raw.get("is_first_import", False),
         is_organic=bi_raw.get("is_organic", False),
         is_oem=bi_raw.get("is_oem", False),
+        manufacturer=bi_raw.get("manufacturer", ""),
+        alcohol_percentage=alcohol_pct,
+        content_volume=bi_raw.get("content_volume", ""),
     )
 
-    ingredients: list[IngredientItem] = []
-    for idx, ing_raw in enumerate(data.get("ingredients", []), start=1):
-        item = IngredientItem(
-            id=ing_raw.get("id", f"ing-{idx}"),
+    def _parse_ingredient(ing_raw: dict, idx_prefix: str) -> IngredientItem:
+        """원재료 1개를 재귀적으로 파싱 (복합원재료 sub_ingredients 포함)."""
+        sub_list: list[IngredientItem] = []
+        for sub_idx, sub_raw in enumerate(ing_raw.get("sub_ingredients", []), start=1):
+            sub_list.append(_parse_ingredient(sub_raw, f"{idx_prefix}-{sub_idx}"))
+        return IngredientItem(
+            id=ing_raw.get("id", idx_prefix),
             name=ing_raw.get("name", ""),
             ratio=str(ing_raw.get("ratio", "")),
             origin=ing_raw.get("origin", ""),
             ins_number=str(ing_raw.get("ins_number", "")),
             cas_number=str(ing_raw.get("cas_number", "")),
+            part=ing_raw.get("part", ""),
+            sub_ingredients=sub_list,
         )
-        ingredients.append(item)
+
+    ingredients: list[IngredientItem] = []
+    for idx, ing_raw in enumerate(data.get("ingredients", []), start=1):
+        ingredients.append(_parse_ingredient(ing_raw, f"ing-{idx}"))
 
     pi_raw = data.get("process_info", {})
     # 공정 코드 근거 파싱 (하위 호환)
@@ -323,8 +415,10 @@ def _parse_llm_response(response_text: str) -> ParsedResult:
     parsed_reasons: list[ProcessCodeReason] = []
     for r in raw_reasons:
         if isinstance(r, dict) and r.get("code"):
+            code = str(r.get("code", ""))
             parsed_reasons.append(ProcessCodeReason(
-                code=str(r.get("code", "")),
+                code=code,
+                name=PROCESS_CODE_MAP.get(code, ""),  # 항상 공식 이름 사용
                 reason=str(r.get("reason", "")),
             ))
     # 공정 코드 후보 파싱 (추천 + 유사)
@@ -332,8 +426,10 @@ def _parse_llm_response(response_text: str) -> ParsedResult:
     parsed_candidates: list[ProcessCodeCandidate] = []
     for c in raw_candidates:
         if isinstance(c, dict) and c.get("code"):
+            code = str(c.get("code", ""))
             parsed_candidates.append(ProcessCodeCandidate(
-                code=str(c.get("code", "")),
+                code=code,
+                name=PROCESS_CODE_MAP.get(code, ""),  # LLM 제공 이름 무시, 공식 맵 사용
                 reason=str(c.get("reason", "")),
                 is_recommended=bool(c.get("is_recommended", False)),
                 confusion_note=str(c.get("confusion_note", "")),
@@ -344,22 +440,78 @@ def _parse_llm_response(response_text: str) -> ParsedResult:
         for r in parsed_reasons:
             parsed_candidates.append(ProcessCodeCandidate(
                 code=r.code,
+                name=r.name,
                 reason=r.reason,
                 is_recommended=(r.code in rec_codes),
                 confusion_note="",
             ))
+    # 단계별 공정 분석 파싱
+    raw_steps = pi_raw.get("process_steps", [])
+    parsed_steps: list[ProcessStep] = []
+    for s in raw_steps:
+        if not isinstance(s, dict):
+            continue
+        rec_code = str(s.get("recommended_code", ""))
+        # 유사 코드 파싱
+        sim_list: list[ProcessCodeCandidate] = []
+        for sc in s.get("similar_codes", []):
+            if not isinstance(sc, dict) or not sc.get("code"):
+                continue
+            sim_code = str(sc.get("code", ""))
+            sim_list.append(ProcessCodeCandidate(
+                code=sim_code,
+                name=PROCESS_CODE_MAP.get(sim_code, ""),  # 공식 이름 강제
+                reason=str(sc.get("reason", "")),
+                is_recommended=False,
+                confusion_note=str(sc.get("confusion_note", "")),
+            ))
+        parsed_steps.append(ProcessStep(
+            step_number=int(s.get("step_number", 0)),
+            step_name_original=str(s.get("step_name_original", "")),
+            step_name_ko=str(s.get("step_name_ko", "")),
+            recommended_code=rec_code,
+            recommended_code_name=PROCESS_CODE_MAP.get(rec_code, ""),  # 공식 이름 강제
+            recommended_reason=str(s.get("recommended_reason", "")),
+            similar_codes=sim_list,
+        ))
+    # step_number 순 정렬
+    parsed_steps.sort(key=lambda x: x.step_number)
+
     process_info = ProcessInfo(
         process_codes=pi_raw.get("process_codes", []),
         process_code_reasons=parsed_reasons,
         process_code_candidates=parsed_candidates,
+        process_steps=parsed_steps,
         raw_process_text=pi_raw.get("raw_process_text", ""),
+        is_incomplete=bool(pi_raw.get("is_incomplete", False)),
+        incomplete_reason=str(pi_raw.get("incomplete_reason", "")),
     )
 
-    li_raw = data.get("label_info", {})
+    li_raw = data.get("label_info", {}) or {}
+    # export_country: label_info 우선, 없으면 basic_info fallback
+    _label_country = li_raw.get("export_country") or bi_raw.get("export_country", "")
+    # is_oem: label_info 우선, 없으면 basic_info fallback
+    _label_oem = li_raw.get("is_oem")
+    if _label_oem is None:
+        _label_oem = bi_raw.get("is_oem", False)
+    # label_texts: 비어있으면 product_name + manufacturer 등으로 최소 채우기
+    _label_texts = li_raw.get("label_texts") or []
+    if not _label_texts:
+        # 라벨 텍스트 없을 때 기본 정보에서 최소 항목 구성
+        _auto_texts = []
+        if bi_raw.get("product_name"):
+            _auto_texts.append(f"제품명: {bi_raw['product_name']}")
+        if bi_raw.get("manufacturer"):
+            _auto_texts.append(f"제조사: {bi_raw['manufacturer']}")
+        if bi_raw.get("content_volume"):
+            _auto_texts.append(f"내용량: {bi_raw['content_volume']}")
+        if bi_raw.get("alcohol_percentage"):
+            _auto_texts.append(f"알코올 도수: {bi_raw['alcohol_percentage']}%")
+        _label_texts = _auto_texts
     label_info = LabelInfo(
-        export_country=li_raw.get("export_country", bi_raw.get("export_country", "")),
-        is_oem=li_raw.get("is_oem", bi_raw.get("is_oem", False)),
-        label_texts=li_raw.get("label_texts", []),
+        export_country=_label_country,
+        is_oem=bool(_label_oem),
+        label_texts=_label_texts,
         design_description=li_raw.get("design_description", ""),
         warnings=li_raw.get("warnings", []),
     )
@@ -379,3 +531,89 @@ def _empty_result() -> ParsedResult:
         ingredients=[],
         process_info=ProcessInfo(),
     )
+
+
+# ─────────────────────────────────────────────
+# 공정 코드 추천 (사용자 수동 입력용)
+# ─────────────────────────────────────────────
+
+_PROCESS_SUGGEST_SYSTEM_PROMPT = f"""당신은 한국 식약처 제조공정 코드 전문가입니다.
+사용자가 입력한 제조공정 설명 텍스트를 분석하여, 식약처 공식 공정 코드를 추천합니다.
+
+## 출력 형식
+반드시 아래 JSON 배열만 출력하세요. 설명이나 마크다운 없이 순수 JSON만 반환합니다.
+
+[
+  {{
+    "code": "A6",
+    "name": "혼합",
+    "reason": "원문 '재료를 혼합하여' → 혼합 공정에 해당",
+    "is_recommended": true,
+    "confusion_note": ""
+  }},
+  {{
+    "code": "J2",
+    "name": "교반",
+    "reason": "혼합과 유사하나 교반은 액체·반액체 특화",
+    "is_recommended": false,
+    "confusion_note": "A6(혼합)은 모든 상태의 혼합, J2(교반)은 액체/반액체 교반에 특화. 고체 혼합은 A6이 적합."
+  }}
+]
+
+## 규칙
+1. 추천 코드(is_recommended=true): 입력 텍스트에 해당하는 공정 코드를 순서대로 모두 추출합니다.
+2. 유사 코드(is_recommended=false): 추천 코드 1개당 1~2개의 혼동 가능 코드를 반드시 추가합니다.
+3. confusion_note는 절대 비워두지 마세요. 추천 코드와 어떻게 다른지 한 문장으로 명확히 씁니다.
+4. 공정 순서를 유지합니다 (먼저 일어나는 공정이 배열 앞에 옵니다).
+5. 하나의 문장에 여러 공정이 있으면 각각 별도 코드로 분리합니다.
+
+## 식약처 공식 공정 코드 참조 테이블 (211개)
+{_PROCESS_CODE_TABLE}
+"""
+
+
+async def suggest_process_codes(text: str) -> ProcessCodeSuggestResponse:
+    """사용자가 직접 입력한 공정 설명 텍스트에서 식약처 공정 코드 추천.
+
+    is_incomplete=True인 경우 또는 사용자가 공정 설명을 수동 입력할 때 사용.
+    추천 코드(is_recommended=True) + 유사 코드(is_recommended=False) 함께 반환.
+
+    ⚠️ 현재: OpenAI 사용 (임시) → 최종: Claude로 롤백
+    """
+    logger.info(f"공정 코드 추천 시작: '{text[:80]}...' ({len(text)}자)")
+
+    # >>> OPENAI TEMP
+    response_text = await _call_openai(_PROCESS_SUGGEST_SYSTEM_PROMPT, text)
+    # response_text = await _call_claude(_PROCESS_SUGGEST_SYSTEM_PROMPT, text)
+    # <<< OPENAI TEMP
+
+    # JSON 파싱
+    cleaned = response_text
+    if "```json" in cleaned:
+        cleaned = cleaned.split("```json", 1)[1].split("```", 1)[0]
+    elif "```" in cleaned:
+        cleaned = cleaned.split("```", 1)[1].split("```", 1)[0]
+
+    suggestions: list[ProcessCodeSuggestItem] = []
+    try:
+        raw_list = json.loads(cleaned.strip())
+        if not isinstance(raw_list, list):
+            raise ValueError("응답이 배열 형식이 아닙니다.")
+        for item in raw_list:
+            if not isinstance(item, dict) or not item.get("code"):
+                continue
+            code = str(item.get("code", ""))
+            # LLM이 반환한 name 대신 PROCESS_CODE_MAP 공식 이름 사용 (오류 방지)
+            official_name = PROCESS_CODE_MAP.get(code, "")
+            suggestions.append(ProcessCodeSuggestItem(
+                code=code,
+                name=official_name,
+                reason=str(item.get("reason", "")),
+                is_recommended=bool(item.get("is_recommended", True)),
+                confusion_note=str(item.get("confusion_note", "")),
+            ))
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error(f"공정 코드 추천 JSON 파싱 실패: {e}\n원문: {response_text[:300]}")
+
+    logger.info(f"공정 코드 추천 완료: {len(suggestions)}개 후보")
+    return ProcessCodeSuggestResponse(suggestions=suggestions, input_text=text)

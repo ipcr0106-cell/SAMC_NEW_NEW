@@ -622,6 +622,7 @@ async def upload_and_update(
                 await progress_queue.put({
                     "type": "error",
                     "message": str(r),
+                    "recovery": "Processing failed midway. Please re-upload the file to retry. The system will rebuild from scratch.",
                     "traceback": traceback.format_exception(r),
                 })
             else:
