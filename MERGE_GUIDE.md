@@ -321,7 +321,7 @@ F2 (식품유형 분류 결과)
 
 | 기능 | 전처리 함수 | 방식 | 저장소 |
 |------|------------|------|--------|
-| F1 | `law_extractor.extract_thresholds_bulk()` | Claude LLM → 구조화 기준치 | Supabase (f1_ 테이블) |
+| F1 | `_run_f1_preprocess()` | PDF→텍스트 → `f1_chunking` → OpenAI 임베딩 | Pinecone `samc-law-f1` + Supabase (`f1_law_chunks`) |
 | F4 | `preprocess_laws.preprocess_single_law()` | 임베딩 → 벡터 upsert | Pinecone + Supabase (f4_ 테이블) |
 
 ### 기능 병합 시 법령 업데이트 추가 방법
@@ -354,7 +354,11 @@ FEATURE_PROCESSORS = {
 - `backend/services/feature1.py` — F1 통합 오케스트레이션 (Step 0+1+3)
 - `backend/services/step1_ingredients_check.py` — 원재료 허용/금지 판정
 - `backend/services/step3_standards.py` — 기준치 수치 비교 (일반+주류)
-- `backend/services/law_extractor.py` — 법령→기준치 Claude 추출
+- `backend/services/f1_rag_judge.py` — RAG 판정 (임베딩 + Pinecone 검색 + OpenAI Chat JSON)
+- `backend/services/f1_openai_client.py` — F1 OpenAI 임베딩/Chat 래퍼
+- `backend/services/f1_pinecone_client.py` — F1 Pinecone 클라이언트 (`samc-law-f1`)
+- `backend/services/f1_chunking.py` — 법령 조항 기반 청킹 (tiktoken)
+- `backend/models/f1_law_citation.py` — F1 RAG 판정 Pydantic (LawCitation, RagJudgement, ConflictStatus)
 - `backend/models/judgment.py` — F1 Pydantic 모델
 - `backend/utils/chunker.py` — 법령 마크다운 청킹
 - `backend/utils/cleaner.py` — kordoc 변환 후 마크다운 정제
@@ -370,7 +374,7 @@ FEATURE_PROCESSORS = {
 **프론트엔드:**
 - `frontend/features/feature1/` 폴더 전체:
   - `ImportCheckPage.tsx` — F1 메인 컴포넌트
-  - `hooks/useImportCheck.ts` — 상태 관리 훅
+  - `hooks/useImportCheck.ts` — 상태 관리 훅 (HITL 결정 `submitHITLDecision` 포함)
   - `api/importCheck.ts` — F1 전용 API 함수
   - `components/AggregationSummary.tsx` — 판정 요약
   - `components/ConfirmActions.tsx` — 확인 버튼
@@ -379,8 +383,13 @@ FEATURE_PROCESSORS = {
   - `components/LawRefCheckbox.tsx` — 법령 참고 체크박스
   - `components/StandardsSummary.tsx` — 기준치 요약
   - `components/VerdictPanel.tsx` — 최종 판정 패널
-  - `types.ts`, `constants.ts` — F1 전용 타입/상수
+  - `components/LawCitationCard.tsx` — RAG 법령 인용 카드 (Phase 5)
+  - `components/LawCitationList.tsx` — RAG 인용 목록 (namespace별 그룹핑, Phase 5)
+  - `components/RagConflictPanel.tsx` — HITL 충돌 결정 패널 (Phase 5)
+  - `components/__tests__/*.test.tsx` — Vitest 단위 테스트 3파일 17케이스 (Phase 5)
+  - `types.ts`, `constants.ts` — F1 전용 타입/상수 (RagVerdict/ConflictStatus/LawCitation 포함)
 - `frontend/app/cases/[id]/f1/page.tsx` — F1 페이지 라우트 (f0 레이아웃 유지)
+- `frontend/vitest.config.ts`, `frontend/vitest.setup.ts` — Vitest 인프라 (F1이 도입)
 
 ### F1 API 엔드포인트 (수정 금지)
 
@@ -389,9 +398,10 @@ FEATURE_PROCESSORS = {
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | `.../feature/1` | F1 결과 조회 |
-| POST | `.../feature/1/run` | F1 실행 (DB 쿼리 → 판정) |
-| PATCH | `.../feature/1` | 담당자 수정 (final_result) |
+| POST | `.../feature/1/run` | F1 실행 (DB 쿼리 + RAG + HITL 판정). `conflict_status ∈ (conflict, rag_supplemented)` 시 `status="needs_review"` |
+| PATCH | `.../feature/1` | 담당자 수정 (final_result). Phase 5: HITL 결정(RagConflictPanel)도 이 엔드포인트 재사용 |
 | POST | `.../feature/1/confirm` | 확인 완료 → 다음 단계 |
+| GET | `.../feature/1/report` | PDF 레포트 (RAG 인용 섹션 포함) |
 
 **db_manager.py 라우터** (prefix: `/api/v1/admin/db`)
 
@@ -438,6 +448,10 @@ supabase-py 클라이언트로 전환. `F1_DATABASE_URL` 불필요. `SUPABASE_UR
 7. `backend/db/migrations/007_f1_escalation_logs.sql`
 8. `backend/db/migrations/008_f1_trgm_indexes_rpc.sql` — 텍스트 검색 인덱스
 9. `backend/db/migrations/009_f1_rls_policies.sql` — 행 수준 보안
+10. `backend/db/migrations/010_f1_law_chunks.sql` — RAG 미러 테이블 (Phase 4-B)
+11. `backend/db/migrations/011_f1_forbidden_seed_backfill.sql` — 금지 원료 drift 수정
+12. `backend/db/migrations/012_f1_additive_limits_backfill.sql` — 첨가물 기준치 drift (Stage 1)
+13. `backend/db/migrations/013_f1_safety_standards_backfill.sql` — 안전기준 drift (Stage 1)
 
 **시드 데이터 (마이그레이션 후):**
 1. `backend/db/seed/01_f1_ingredients_permitted.sql` — 허용 원료 85건
@@ -445,14 +459,23 @@ supabase-py 클라이언트로 전환. `F1_DATABASE_URL` 불필요. `SUPABASE_UR
 3. `backend/db/seed/03_f1_ingredients_prohibited.sql` — 금지 원료
 4. `backend/db/seed/04_f1_forbidden_ingredients.sql` — 금지 원료 확장
 5. `backend/db/seed/05_f1_thresholds_core.sql` — 기준치 코어
+6. `backend/db/seed/06_f1_additive_limits_expanded.sql` — 첨가물 기준치 확장 (Phase 4-B)
+7. `backend/db/seed/07_f1_safety_standards_expanded.sql` — 안전기준 확장 (Phase 4-B)
 
 또는 `python -m scripts.bootstrap_f1_db` 로 일괄 적용 가능.
+
+> Stage 2 newsamc 830건 이관(`scripts/f1_replicate_additive_from_newsamc.py`)은 커밋 `c45f4ec` 참조. `f1_additive_limits` 총 893건 (is_verified=true).
 
 ### F1 env 키
 
 | 키 이름 | 용도 | 사용 기능 |
 |---------|------|-----------|
-| `F1_ANTHROPIC_API_KEY` | Claude 기준치 추출 | F1 (law_extractor.py) |
+| `F1_OPENAI_API_KEY` | OpenAI 임베딩 + Chat JSON 판정 | F1 (RAG) |
+| `F1_OPENAI_EMBED_MODEL` | 임베딩 모델명 (기본: text-embedding-3-small) | F1 |
+| `F1_OPENAI_CHAT_MODEL` | 판정 LLM 모델명 (기본: gpt-4o-mini) | F1 |
+| `F1_PINECONE_API_KEY` | Pinecone `samc-law-f1` 접근 | F1 (RAG) |
+| `F1_PINECONE_INDEX` | 인덱스명 (samc-law-f1) | F1 |
+| `F1_RAG_TOP_K` | 검색 상위 K (기본: 5) | F1 |
 
 ---
 
@@ -755,7 +778,12 @@ npx next build    # 또는 npm run build
 | `F4_PINECONE_API_KEY` | 법령 검색 | f4 |
 | `F4_PINECONE_HOST` | 인덱스 호스트 | f4 |
 | `F4_DEEPL_API_KEY` | 번역 (선택) | f4 |
-| `F1_ANTHROPIC_API_KEY` | Claude 기준치 추출 | F1 |
+| `F1_OPENAI_API_KEY` | OpenAI 임베딩 + Chat JSON | F1 (RAG) |
+| `F1_OPENAI_EMBED_MODEL` | 임베딩 모델명 | F1 |
+| `F1_OPENAI_CHAT_MODEL` | 판정 모델명 | F1 |
+| `F1_PINECONE_API_KEY` | Pinecone 접근 | F1 |
+| `F1_PINECONE_INDEX` | 인덱스명 (samc-law-f1) | F1 |
+| `F1_RAG_TOP_K` | 검색 상위 K | F1 |
 | `F2_OPENAI_API_KEY` | GPT-4o 식품유형 분류 | F2 |
 | `F2_PINECONE_API_KEY` | Pinecone samc-a | F2 |
 | `F2_PINECONE_INDEX` | 인덱스명 (samc-a) | F2 |

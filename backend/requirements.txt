@@ -15,9 +15,10 @@ python-docx==1.1.2
 reportlab==4.2.5
 python-dotenv==1.0.1
 supabase==2.11.0
-# F2/F3/F4/F5: Pinecone 벡터 검색
-pinecone-client>=5.0.0
-pinecone>=5.0.1
+# F1/F2/F3/F4/F5: Pinecone 벡터 검색
+pinecone>=8.0.0
+# F1: 청킹 토큰 카운팅 (cl100k_base)
+tiktoken>=0.7.0
 # F4: multilingual-e5-large 임베딩
 sentence-transformers>=3.3.0
 # F4: PDF 레포트 생성
