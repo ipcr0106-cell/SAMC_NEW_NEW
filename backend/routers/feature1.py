@@ -27,9 +27,10 @@ from fpdf import FPDF
 from pydantic import BaseModel
 
 from db.supabase_client import get_supabase
+from models.f1_law_citation import RagJudgement
 from models.judgment import (Feature1Input, Feature1Output, Ingredient,
                                      ProcessConditions)
-from services.feature1 import run_feature1
+from services.feature1 import run_feature1, run_feature1_with_rag
 
 router = APIRouter(
     prefix="/api/v1/cases",
@@ -77,12 +78,19 @@ def _upsert_pipeline_step(
     ).execute()
 
 
-def _to_pipeline_result(out: Feature1Output) -> dict:
+def _to_pipeline_result(
+    out: Feature1Output,
+    rag: Optional[RagJudgement] = None,
+    conflict_status: str = "rag_skipped",
+) -> dict:
     """백엔드 Feature1Output 을 팀 약속 Feature1Result (types/pipeline.ts) 형식으로 변환.
 
     약속 필드:
         ingredients[], verdict, import_possible, fail_reasons[], standards_check[]
     추가로 _internal 키에 상세 결과 포함 (프론트에서 선택 활용).
+
+    Phase 4-B (RAG + HITL):
+        rag, conflict_status default 유지로 기존 호출자(`run_feature1` 단독)는 후방 호환.
     """
     verdict_to_status = {
         "permitted": "allowed",
@@ -190,6 +198,13 @@ def _to_pipeline_result(out: Feature1Output) -> dict:
             "forbidden_hits": [h.model_dump() for h in out.forbidden_hits],
             "escalations": out.escalations,
             "law_refs": [r.model_dump() for r in out.law_refs],
+            # ── Phase 4-B: RAG + HITL ──
+            "rag_verdict": rag.rag_verdict if rag else None,
+            "rag_reasoning": rag.rag_reasoning if rag else None,
+            "law_citations": (
+                [c.model_dump() for c in rag.law_citations] if rag else []
+            ),
+            "conflict_status": conflict_status,
         },
     }
 
@@ -319,7 +334,7 @@ class Feature1RunRequest(BaseModel):
 
 
 @router.post("/{case_id}/pipeline/feature/1/run")
-def run_feature1_endpoint(
+async def run_feature1_endpoint(
     case_id: str,
     body: Feature1RunRequest,
 ) -> dict:
@@ -353,10 +368,14 @@ def run_feature1_endpoint(
             process_conditions = _convert_f0_to_process_conditions(parsed)
 
     try:
-        out = run_feature1(
+        out, rag, conflict_status = await run_feature1_with_rag(
             ingredients=ingredients,
             food_type=body.food_type,
             process_conditions=process_conditions or ProcessConditions(),
+            payload_for_rag={
+                "ingredients": [i.name for i in ingredients],
+                "food_type": body.food_type,
+            },
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
@@ -368,12 +387,21 @@ def run_feature1_endpoint(
             },
         )
 
-    ai_result = _to_pipeline_result(out)
-    _upsert_pipeline_step(case_id, "waiting_review", ai_result)
+    ai_result = _to_pipeline_result(out, rag, conflict_status)
+
+    # HITL status 결정 (총괄 §2.7 엄격)
+    #   - conflict / rag_supplemented → needs_review (사람 결정 필요)
+    #   - agreed / rag_unavailable / rag_skipped → waiting_review (기존 흐름)
+    new_status = (
+        "needs_review"
+        if conflict_status in ("conflict", "rag_supplemented")
+        else "waiting_review"
+    )
+    _upsert_pipeline_step(case_id, new_status, ai_result)
 
     return {
         "case_id": case_id,
-        "status": "waiting_review",
+        "status": new_status,
         "ai_result": ai_result,
     }
 
