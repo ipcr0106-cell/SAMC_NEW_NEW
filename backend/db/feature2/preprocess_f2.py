@@ -443,7 +443,7 @@ async def run_f2_preprocess(
             )
         except Exception as e:
             # Pinecone은 이미 성공했으므로 Supabase 실패는 경고만 — 전체 실패 처리하지 않음
-            print(f"[경고] f2_food_type_classification insert 실패 ({law_name}): {e}")
+            print(f"[WARN] f2_food_type_classification insert failed ({law_name}): {e}")
 
     if progress_callback:
         await progress_callback("F2", law_name, "done", 100)
