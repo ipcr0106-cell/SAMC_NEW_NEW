@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 from datetime import datetime
 from typing import Any, Optional
@@ -334,7 +335,7 @@ class Feature1RunRequest(BaseModel):
 
 
 @router.post("/{case_id}/pipeline/feature/1/run")
-async def run_feature1_endpoint(
+def run_feature1_endpoint(
     case_id: str,
     body: Feature1RunRequest,
 ) -> dict:
@@ -368,14 +369,18 @@ async def run_feature1_endpoint(
             process_conditions = _convert_f0_to_process_conditions(parsed)
 
     try:
-        out, rag, conflict_status = await run_feature1_with_rag(
-            ingredients=ingredients,
-            food_type=body.food_type,
-            process_conditions=process_conditions or ProcessConditions(),
-            payload_for_rag={
-                "ingredients": [i.name for i in ingredients],
-                "food_type": body.food_type,
-            },
+        # 옵션 B: f1_수정_요청_사항 §7 "async def 엔드포인트 금지" 룰 준수.
+        # 엔드포인트는 sync 로 유지하고, run_feature1_with_rag (async) 는 asyncio.run() 으로 호출.
+        out, rag, conflict_status = asyncio.run(
+            run_feature1_with_rag(
+                ingredients=ingredients,
+                food_type=body.food_type,
+                process_conditions=process_conditions or ProcessConditions(),
+                payload_for_rag={
+                    "ingredients": [i.name for i in ingredients],
+                    "food_type": body.food_type,
+                },
+            )
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
