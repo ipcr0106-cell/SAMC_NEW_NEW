@@ -17,14 +17,31 @@ SAMC 수입식품 검역 AI — OCR / 텍스트 추출 서비스
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import io
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import httpx
+
+# OpenAI 클라이언트 모듈 레벨 싱글톤 (요청마다 재생성 방지)
+_openai_vision_client: Optional[Any] = None
+
+def _get_openai_client():
+    global _openai_vision_client
+    if _openai_vision_client is None:
+        api_key = os.getenv("F0_OPENAI_API_KEY", "")
+        if not api_key:
+            return None
+        try:
+            from openai import AsyncOpenAI
+            _openai_vision_client = AsyncOpenAI(api_key=api_key)
+        except ImportError:
+            return None
+    return _openai_vision_client
 
 logger = logging.getLogger(__name__)
 
@@ -115,16 +132,30 @@ async def _extract_from_pdf(file_bytes: bytes, doc_type: str = "") -> str:
             # 텍스트 레이어 없음 → 이미지로 변환하여 OCR 대기열에 추가
             image_pages.append(page_num)
 
-    # 이미지 페이지 Vision OCR
+    # 이미지 페이지: 먼저 렌더링(CPU-bound, 동기) 후 Vision OCR 병렬 처리
+    page_renders: list[tuple[int, bytes]] = []
     for page_num in image_pages:
         page = doc[page_num]
         pix = page.get_pixmap(dpi=300)
-        img_bytes = pix.tobytes("png")
-        ocr_text = await _extract_from_image(img_bytes, "image/png", doc_type=doc_type)
-        if ocr_text:
-            pages_text.append(f"--- 페이지 {page_num + 1} (OCR) ---\n{ocr_text}")
+        page_renders.append((page_num, pix.tobytes("png")))
 
     doc.close()
+
+    if page_renders:
+        ocr_tasks = [
+            _extract_from_image(img_bytes, "image/png", doc_type=doc_type)
+            for _, img_bytes in page_renders
+        ]
+        ocr_results = await asyncio.gather(*ocr_tasks, return_exceptions=True)
+        for (page_num, _), result in zip(page_renders, ocr_results):
+            if isinstance(result, Exception):
+                logger.warning(f"페이지 {page_num + 1} OCR 실패: {result}")
+                continue
+            if result:
+                pages_text.append(f"--- 페이지 {page_num + 1} (OCR) ---\n{result}")
+
+    # 페이지 번호 순 정렬 후 합치기
+    pages_text.sort(key=lambda s: int(s.split("페이지 ")[1].split(" ")[0]) if "페이지 " in s else 0)
     return "\n\n".join(pages_text)
 
 
@@ -313,15 +344,9 @@ async def _extract_from_image(image_bytes: bytes, mime_type: str, doc_type: str 
 
 async def _extract_from_image_openai(image_bytes: bytes, media_type: str, prompt: str = "") -> str:
     """OpenAI gpt-4o Vision으로 이미지 텍스트 추출 — 개발/테스트용 임시 구현."""
-    openai_api_key = os.getenv("F0_OPENAI_API_KEY", "")
-    if not openai_api_key:
-        logger.error("F0_OPENAI_API_KEY가 설정되지 않았습니다.")
-        return ""
-
-    try:
-        from openai import AsyncOpenAI
-    except ImportError:
-        logger.error("openai 패키지가 설치되지 않았습니다. pip install openai")
+    client = _get_openai_client()
+    if client is None:
+        logger.error("F0_OPENAI_API_KEY가 설정되지 않았거나 openai 패키지 미설치.")
         return ""
 
     b64_data = base64.b64encode(image_bytes).decode("utf-8")
@@ -330,7 +355,6 @@ async def _extract_from_image_openai(image_bytes: bytes, media_type: str, prompt
     ocr_prompt = prompt or _OCR_PROMPT
 
     try:
-        client = AsyncOpenAI(api_key=openai_api_key)
         completion = await client.chat.completions.create(
             model=model,
             max_tokens=4096,

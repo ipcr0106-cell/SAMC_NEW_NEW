@@ -16,6 +16,7 @@ SAMC — 수출국 라벨 이미지 처리 서비스.
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import hashlib
 import io
@@ -38,10 +39,9 @@ _COMBINED_PROMPT = """이 수출국 라벨 이미지를 분석해서 아래 두 
 
 반드시 아래 JSON 형식만 반환하세요 (다른 텍스트 없이):
 {
-  "bbox": {
-    "found": true,
-    "x1": 0, "y1": 0, "x2": 0, "y2": 0
-  },
+  "bboxes": [
+    {"x1": 0, "y1": 0, "x2": 0, "y2": 0}
+  ],
   "texts": {
     "product_name": "",
     "ingredients": "",
@@ -52,10 +52,12 @@ _COMBINED_PROMPT = """이 수출국 라벨 이미지를 분석해서 아래 두 
   }
 }
 
-[bbox 규칙]
-- 실제 제품 사진(포토그래픽 이미지) 영역의 절대 픽셀 좌표
-- 로고/텍스트/배경/영양성분표 제외. 없으면 "found": false, x1~x2 모두 0
-- 여러 개면 가장 큰 것 하나. 약간 여유(padding)를 둬서 잘리지 않게.
+[bboxes 규칙]
+- 이미지 안에 있는 모든 제품 사진(포토그래픽 이미지) 영역의 절대 픽셀 좌표를 배열로 반환하세요.
+- 하나만 있으면 배열에 1개, 여러 개(예: 앞면·뒷면·측면 사진, 여러 제품 샷)면 각각 배열에 넣으세요.
+- 로고, 텍스트 영역, 배경, 영양성분표, 바코드 제외 — 실제 사진 영역만.
+- 제품 사진이 아예 없으면 빈 배열 []을 반환하세요.
+- 각 bbox는 약간 여유(padding)를 두어 이미지가 잘리지 않게 하세요.
 
 [texts 규칙]
 - product_name: 제품명 (브랜드명 포함)
@@ -69,11 +71,16 @@ _COMBINED_PROMPT = """이 수출국 라벨 이미지를 분석해서 아래 두 
 
 
 async def _analyze_label(image_bytes: bytes) -> dict[str, Any]:
-    """Vision API로 bbox 검출 + 텍스트 추출 동시 수행."""
+    """Vision API로 다중 bbox 검출 + 텍스트 추출 동시 수행.
+
+    반환:
+        {"bboxes": [{"x1":..,"y1":..,"x2":..,"y2":..}, ...], "texts": {...}}
+        bbox 없으면 bboxes=[]
+    """
     api_key = os.getenv("F0_OPENAI_API_KEY", "")
     if not api_key:
         logger.warning("F0_OPENAI_API_KEY 없음 — 라벨 분석 스킵")
-        return {"bbox": {"found": False}, "texts": {}}
+        return {"bboxes": [], "texts": {}}
 
     try:
         from openai import AsyncOpenAI
@@ -101,10 +108,21 @@ async def _analyze_label(image_bytes: bytes) -> dict[str, Any]:
             }],
         )
         raw = completion.choices[0].message.content or "{}"
-        return json.loads(raw)
+        result = json.loads(raw)
+        # 하위 호환: 구버전 응답({"bbox": {...}}) 처리
+        if "bbox" in result and "bboxes" not in result:
+            old_bbox = result["bbox"]
+            if old_bbox.get("found") and old_bbox.get("x2", 0) != 0:
+                result["bboxes"] = [{"x1": old_bbox["x1"], "y1": old_bbox["y1"],
+                                     "x2": old_bbox["x2"], "y2": old_bbox["y2"]}]
+            else:
+                result["bboxes"] = []
+        elif "bboxes" not in result:
+            result["bboxes"] = []
+        return result
     except Exception as e:
         logger.warning(f"라벨 Vision 분석 실패: {e}")
-        return {"bbox": {"found": False}, "texts": {}}
+        return {"bboxes": [], "texts": {}}
 
 
 # ─────────────────────────────────────────────
@@ -396,61 +414,75 @@ async def process_label_image(
     if not pages:
         return None
 
-    saved_paths: list[str] = []
-    image_index = 0  # 이 파일 내에서 실제로 저장된 이미지 순번
-
-    for idx, page_bytes in enumerate(pages):
-        # 3) Vision 분석 (bbox + 텍스트 한 번에)
+    # 3) 모든 페이지 Vision 분석 병렬 실행
+    async def _safe_analyze(idx: int, page_bytes: bytes) -> dict:
         try:
-            analysis = await _analyze_label(page_bytes)
+            return await _analyze_label(page_bytes)
         except Exception as e:
             logger.warning(f"image {idx}: Vision 분석 예외 — {e}")
-            analysis = {"bbox": {"found": False}, "texts": {}}
+            return {"bboxes": [], "texts": {}}
 
-        bbox_info = analysis.get("bbox", {})
+    analyses = await asyncio.gather(*[_safe_analyze(i, pb) for i, pb in enumerate(pages)])
+
+    # 4) 크롭 목록 수집 (CPU-bound, 동기)
+    crops: list[dict] = []
+    for idx, (page_bytes, analysis) in enumerate(zip(pages, analyses)):
+        bboxes: list[dict] = analysis.get("bboxes", []) or []
         texts = analysis.get("texts", {}) or {}
 
-        has_bbox = bbox_info.get("found") and any(
-            bbox_info.get(k, 0) != 0 for k in ["x2", "y2"]
-        )
-
-        if has_bbox:
-            bbox = {k: bbox_info[k] for k in ["x1", "y1", "x2", "y2"] if k in bbox_info}
-            cropped_bytes, cw, ch = _crop(page_bytes, bbox)
-        else:
-            # bbox 없으면 원본 전체 이미지로 저장
-            # → Vision 실패/API키 없어도 사용자가 직접 확인 가능
+        if not bboxes:
             logger.info(f"image {idx}: bbox 없음 — 원본 이미지 저장")
-            cropped_bytes = page_bytes
             try:
-                from PIL import Image
-                img = Image.open(io.BytesIO(page_bytes))
-                cw, ch = img.size
+                from PIL import Image as _PIL_Image
+                _img = _PIL_Image.open(io.BytesIO(page_bytes))
+                cw, ch = _img.size
             except Exception:
                 cw, ch = 0, 0
-            bbox = {}
-
-        if not cropped_bytes:
-            logger.warning(f"image {idx}: 저장할 이미지 바이트 없음 — 스킵")
+            crops.append({"cropped_bytes": page_bytes, "bbox": {}, "width": cw, "height": ch, "texts": texts})
             continue
 
-        # 4) 저장 — image_index로 동일 파일 내 순번 기록
-        path = await _save_crop_record(
+        for bbox_idx, bbox_info in enumerate(bboxes):
+            bbox = {k: bbox_info.get(k, 0) for k in ["x1", "y1", "x2", "y2"]}
+            cropped_bytes, cw, ch = _crop(page_bytes, bbox)
+            if not cropped_bytes:
+                logger.warning(f"image {idx}, bbox {bbox_idx}: 크롭 실패 — 스킵")
+                continue
+            # 첫 번째 bbox만 texts 공유, 나머지는 빈 texts
+            crops.append({
+                "cropped_bytes": cropped_bytes,
+                "bbox": bbox,
+                "width": cw,
+                "height": ch,
+                "texts": texts if bbox_idx == 0 else {},
+            })
+
+    # 5) Storage 업로드 병렬 처리
+    saved_paths: list[str] = []
+
+    async def _save_one(image_index: int, crop: dict) -> Optional[str]:
+        return await _save_crop_record(
             sb=sb,
             case_id=case_id,
             source_document_id=source_document_id,
             original_storage_path=original_storage_path,
             source_hash=source_hash,
             image_index=image_index,
-            cropped_bytes=cropped_bytes,
-            bbox=bbox,
-            width=cw,
-            height=ch,
-            texts=texts,
+            cropped_bytes=crop["cropped_bytes"],
+            bbox=crop["bbox"],
+            width=crop["width"],
+            height=crop["height"],
+            texts=crop["texts"],
         )
-        if path:
-            saved_paths.append(path)
-            image_index += 1  # 성공한 것만 카운트
+
+    save_results = await asyncio.gather(
+        *[_save_one(i, crop) for i, crop in enumerate(crops)],
+        return_exceptions=True,
+    )
+    for res in save_results:
+        if isinstance(res, Exception):
+            logger.warning(f"라벨 이미지 저장 실패 (스킵): {res}")
+        elif res:
+            saved_paths.append(res)
 
     if not saved_paths:
         logger.info(f"라벨 {source_document_id}: 저장된 이미지 없음")
