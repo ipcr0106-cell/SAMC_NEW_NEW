@@ -1,0 +1,4295 @@
+{
+  "run_meta": {
+    "model": "gpt-4o-mini",
+    "top_k": 5,
+    "index": "samc-law-f1",
+    "goldenset_version": "v2",
+    "started_at": "2026-04-17T09:30:57.743602+00:00",
+    "finished_at": "2026-04-17T09:40:24.012276+00:00",
+    "total_ms": 566266.0,
+    "total_cases": 100
+  },
+  "summary": {
+    "total": 100,
+    "success": 100,
+    "errors": 0,
+    "exact_accuracy": 0.82,
+    "rag_accuracy": 0.59,
+    "conflict_accuracy": 0.65,
+    "conflict_distribution_actual": {
+      "agreed": 27,
+      "rag_supplemented": 47,
+      "rag_skipped": 11,
+      "conflict": 15
+    },
+    "exact_distribution_actual": {
+      "permitted": 21,
+      "unidentified": 58,
+      "prohibited": 11,
+      "restricted": 10
+    },
+    "per_branch_conflict_accuracy": {
+      "agreed": {
+        "total": 41,
+        "conflict_match": 18,
+        "accuracy": 0.439
+      },
+      "rag_supplemented": {
+        "total": 41,
+        "conflict_match": 37,
+        "accuracy": 0.9024
+      },
+      "rag_skipped": {
+        "total": 18,
+        "conflict_match": 10,
+        "accuracy": 0.5556
+      }
+    },
+    "latency_p50_ms": 5586.0,
+    "latency_p95_ms": 10264.4,
+    "cost_estimate_usd": 0.1381
+  },
+  "results": [
+    {
+      "case_id": "g001",
+      "description": "허용 원료 — 쌀 단일 (DB 정확명 매칭)",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "법령 청크에 곡류 카테고리가 명시되어 있으며, 쌀은 곡류에 속하는 원료로 식품공전상 허용됩니다. 따라서 쌀은 식품으로 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-40",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.45078215,
+              "text_preview": "(3) 타르색소∶검출되어서는 아니 된다.\n\n3. 냉동식품\n\n“냉동식품”이라 함은 제조･가공 또는 조리한 식품을 장기보존할 목적으로 냉동처리, 냉동보관하는 것으로서 용기･포장에 넣은 식품을 말한다.\n(1) 가열하지 않고 섭취하는 냉동식품∶별도의 가열과정 없이 그대로 섭취할 수 있는 냉동식품을 말한다.\n(2) 가열하여 섭취하는 냉동식품∶섭취시 별도의 가열과정을..."
+            }
+          ]
+        },
+        "latency_ms": 6922.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g002",
+      "description": "허용 원료 — 사과 단일",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "사과는 과일류에 속하며, 과채가공품으로 가공될 수 있는 원료입니다. 법령 청크에 과일류에 대한 언급이 있어 사과의 사용이 허용됩니다.",
+          "law_citations": []
+        },
+        "latency_ms": 6406.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g003",
+      "description": "허용 원료 — 우유",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "우유는 유가공품의 주원료로 명시되어 있으며, 식품공전에서 허용되는 원료입니다. 따라서 우유는 유가공품으로서 사용이 가능합니다.",
+          "law_citations": []
+        },
+        "latency_ms": 4719.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g004",
+      "description": "허용 원료 — 꿀",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "당류가공품 카테고리에 꿀이 포함될 수 있으며, 꿀은 일반적으로 식품으로 허용되는 원료입니다. 따라서 꿀은 식품공전상 허용된 원료로 판단됩니다.",
+          "law_citations": []
+        },
+        "latency_ms": 3016.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g005",
+      "description": "허용 원료 — 인삼",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "인삼은 건강기능식품의 기능성 원료로 명시되어 있으며, 관련 법령에 따라 안전성과 기능성 평가가 이루어져야 한다. 따라서 인삼은 건강기능식품의 원료로 사용이 허용된다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0013",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.492085606,
+              "text_preview": "1) 이 규정에 따른 건강기능식품은 인체에 보건 목적의 유용한 효과를 얻기 위한 기능성 원료 또는 성분의 섭취를 주된 목적으로, 정제 ･ 캡슐 ･ 환 ･ 과립 ･ 액상 ･분말 ･ 편상 ･ 페이스트상 ･ 시럽 ･ 겔 ･ 젤리 ･ 바 ･ 필름의 형태로 1회 섭취가 용이하게 제조 ･ 가공되어야 하며, 최종제품의 제조 시 기능성 원료의 특성이 변화될 수 있는 추출..."
+            },
+            {
+              "chunk_id": "health_food_text_0099",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.491226345,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 인삼(Panax ginseng C.A. Meyer)\n\n※ 말리지 아니한 수삼, 수삼을 햇볕 ･ 열풍 또는 기타 방법으로 익히지 아니하고 말린 백삼, 수삼을 물로 익혀 말린 태극삼\n\n(2) 제조방법\n\n(가)상기 (1)의 원재료를 그대로 분말화하거나 수분을 제거한 후 분말화하여 제조하여야 함\n\n(나)상기 (1)의 원재료를 물이..."
+            }
+          ]
+        },
+        "latency_ms": 9031.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g006",
+      "description": "첨가물 허용 — 설탕",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "설탕은 당류가공품의 주원료로 사용되며, 식품공전에서 허용된 원료입니다. 따라서 설탕은 식품으로서 사용이 가능합니다.",
+          "law_citations": []
+        },
+        "latency_ms": 4938.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g007",
+      "description": "첨가물 허용 — 포도당",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "포도당은 당류가공품의 주원료로 명시되어 있으며, 식품공전에서 허용된 원료입니다. 따라서 포도당은 당류가공품으로 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-48",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.504612148,
+              "text_preview": "1) 정의올리고당류라 함은 당질원료를 이용하여 10 이하의 당 분자가 직쇄 또는 분지결합 하도록 효소를 작용시켜 얻은 당액이나 이를 여과, 정제, 농축한 액상 또는 분말상의 것으로 올리고당과 올리고당가공품을 말한다.\n2) 원료 등의 구비요건\n3) 제조･가공기준\n4) 식품유형\n(1) 올리고당당질원료를 이용하여 당 분자가 직쇄 또는 분지 결합되도록 효소를 작용..."
+            }
+          ]
+        },
+        "latency_ms": 11218.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g008",
+      "description": "첨가물 허용 — 구연산 (INS 330)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "구연산은 건강기능식품의 기능성 성분으로 언급되며, 특정 함량 기준(300 mg/g 이상)과 일일 섭취량(1~1.3 g) 관리가 필요함. 따라서 사용 조건이 명시되어 있어 제한적 사용으로 판단됨.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0142",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.545927048,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 매실(Prunus mune Sieb. et Zucc)\n\n(2)제조방법 : 상기 (1)의 원재료를 열수로 추출한 후 여과 ･ 농축하여 제조하여야 함\n\n(3)기능성분(또는 지표성분)의 함량 : 구연산이 300 mg/g 이상 함유되어 있어야 함\n\n(4) 제조 시 유의사항 : 시안화합물이 제거되어야 함\n\n2) 규격\n\n(1) 성상 ..."
+            }
+          ]
+        },
+        "latency_ms": 5813.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g009",
+      "description": "첨가물 허용 — 아스코르브산 (INS 300)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "아스코르브산은 산화방지제로서 식품첨가물로 사용이 허용되며, 관련 법령에서 명시된 바와 같이 비타민 C로 분류됩니다. 따라서 음료류에 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0064",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window43",
+              "score": 0.514912248,
+              "text_preview": "��칼륨은 아래의 식품에 한하여 사용하여야 한다. 아세설팜칼륨의 사용량은<br>1. 과자, 조림류(농산물을 주원료로 한 것에 한함) : 2.5g/kg 이하<br>2. 추잉껌 : 5.0g/kg 이하<br>3. 소스, 캔디류, 잼류, 절임류, 빙과, 아이스크림류, 아이스크림믹스류, 플라워페이스트 : 1.0g/kg 이하<br>4. 음료류, 가공유, 발효유류 : ..."
+            }
+          ]
+        },
+        "latency_ms": 10125.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g010",
+      "description": "첨가물 허용 — 글리세린",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "법령 청크에서 글리세린이 습윤제 및 안정제로 명시되어 있어 식품공전상 허용된 원료임을 나타냅니다. 따라서 글리세린은 기타가공품으로 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0025",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window4",
+              "score": 0.468624949,
+              "text_preview": " II. 2. 1)의 규정에 따라 사용하여야 한다. | 산도조절제 |\n| 글루콘산철**<br>Ferrous Gluconate<br>이명 : Iron(II) gluconate |  | 579/<br>299-29-6 | 글루콘산철은 아래의 식품에 한하여 사용하여야 한다. 다만, 올리브가공품에 한하여 글루콘산철의 사용량은 철로서<br>1. 올리브가공품 : 0.1..."
+            }
+          ]
+        },
+        "latency_ms": 6406.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g011",
+      "description": "금지 — 대마초 (Step 0)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 94.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g012",
+      "description": "금지 — 양귀비 (Step 0)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 31.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g013",
+      "description": "금지 — 코카잎 (Step 0)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 47.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g014",
+      "description": "금지 — THC (alias 매칭)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 31.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g015",
+      "description": "금지 — 카바카바 (Step 0)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 31.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g016",
+      "description": "조건부 — 과라나 (DB restricted, 기타 조건부)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 과라나 또는 관련 카테고리에 대한 언급이 없음. 따라서 해당 원료의 식품 수입 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 8157.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g017",
+      "description": "조건부 가열 — 소브산 + is_heated=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "소브산은 빵류에 사용될 수 있는 보존료로, 사용량이 1.0g/kg 이하로 제한되어야 한다. 따라서 소브산의 사용은 규정된 조건을 준수해야 한다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.486432046,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            }
+          ]
+        },
+        "latency_ms": 8157.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g018",
+      "description": "조건부 가열 — 소브산 + is_heated=F",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "소브산은 잼류에 대해 1.0g/kg 이하로 사용해야 하며, 이는 사용량 제한이 있는 원료로 분류됩니다. 따라서 잼류 제품에 소브산을 사용할 경우, 이 기준을 준수해야 합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0068",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window47",
+              "score": 0.478752702,
+              "text_preview": "에 겔 건강기능식품 성분의 배합비율을 적용)∶0.5g/kg 이하(소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 소브산으로서의 사용량은 1.0g/kg 이하)<br>6. 잼류∶1.0g/kg 이하(소브산, 소브산칼륨, 소브산칼슘, 파라옥시안식향산메틸, 파라옥시안식향산..."
+            },
+            {
+              "chunk_id": "additive_general_0071",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window50",
+              "score": 0.47443375,
+              "text_preview": "소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 0.6g/kg 이하, 그 중 소브산으로서의 사용량은 0.5g/kg 이하)<br>3. 기타음료(분말제품 제외), 인삼․홍삼음료 ∶0.6g/kg 이하(파라옥시안식향산에틸 또는 파라옥시안식향산메틸과 병용할 때에는 안식향산으로서 사용량과 파라옥시안식향산으로서 사..."
+            }
+          ]
+        },
+        "latency_ms": 8218.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g019",
+      "description": "조건부 가열 — 소브산칼륨 + is_heated=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "소브산칼륨은 빵류에 사용될 수 있으나, 사용량이 1.0g/kg 이하로 제한되어야 한다. 따라서, 해당 원료는 사용 조건이 명시된 제한된 원료로 분류된다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.524898,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            },
+            {
+              "chunk_id": "additive_general_0045",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window24",
+              "score": 0.522092581,
+              "text_preview": "안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 1.0g/kg 이하)<br>11. 발효음료류(살균한것은 제외) : 0.05g/kg 이하.<br>12. 과실주, 탁주, 약주 : 0.2g/kg 이하<br>13. 마가린：2..."
+            }
+          ]
+        },
+        "latency_ms": 4922.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g020",
+      "description": "조건부 가열 — 소브산칼륨 + is_heated=F",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "소브산칼륨은 어육가공품에 사용될 수 있으며, 사용량은 2.0g/kg 이하로 제한되어야 한다. 따라서, 사용 조건이 명시되어 있어 제한된 원료로 판단된다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.549286187,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            },
+            {
+              "chunk_id": "additive_general_0045",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window24",
+              "score": 0.537295341,
+              "text_preview": "안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 1.0g/kg 이하)<br>11. 발효음료류(살균한것은 제외) : 0.05g/kg 이하.<br>12. 과실주, 탁주, 약주 : 0.2g/kg 이하<br>13. 마가린：2..."
+            }
+          ]
+        },
+        "latency_ms": 9125.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g021",
+      "description": "조건부 발효 — 유산균 + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "유산균은 유가공품의 일반 원료로 식품공전상 허용됩니다. 유가공품 카테고리에 속하는 원료로 명시되어 있습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-123",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.456968427,
+              "text_preview": "(1) 치즈∶원유 또는 유가공품에 유산균, 응유효소, 유기산 등을 가하여 응고시킨 후 유청을 제거하여 제조·가공한 유고형분 18% 이상(다만 응고 공정 이후 추가된 유고형분은 제외)의 것을 말한다. 또한 유청 또는 유청에 원유, 유가공품 등을 가한 것을 농축하거나 가열 응고시켜 제조·가공한 것도 포함한다. 다만, 가공치즈에 해당하는 것은 제외한다.\n(2) ..."
+            }
+          ]
+        },
+        "latency_ms": 9656.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g022",
+      "description": "조건부 발효 — 유산균 + is_fermented=F",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "유산균은 건강기능식품의 일반 원료로 사용될 수 있으며, 법령 청크에 건강기능식품의 기준 및 규격이 언급되어 있어 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0000",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.537637711,
+              "text_preview": "건강기능식품의 기준 및 규격"
+            }
+          ]
+        },
+        "latency_ms": 4954.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g023",
+      "description": "조건부 발효 — Bacillus subtilis + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "Bacillus subtilis는 건강기능식품의 기능성 원료로 사용될 수 있으나, 일일 섭취량 및 제조 기준에 대한 조건이 명시되어 있다. 따라서 사용 시 주의사항 및 섭취량 관리가 필요하다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0200",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.541708,
+              "text_preview": "(2) 제조방법\n\n(가)(1)의 원재료를 이용하여 배양하거나 배양 ･ 건조하여 제조하여야 하며, 배양하여 제조하는 경우에는 「식품의 기준 및 규격」의 발효유류(발효유분말 제외)의 제조 ･ 가공기준 및 규격(대장균군, 살모넬라, 리스테리아모노사이토제네스, 황색포도상구균만 해당한다)에 적합하여야 함\n\n(나)Enterococcus 속 균주는 항생제 내성 유전자 ..."
+            },
+            {
+              "chunk_id": "health_food_text_0168",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.484488279,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 옥수수전분\n\n(2)제조방법 : 상기 (1)의 원재료를 가열하여 얻은 배소덱스트린을 α-amylase (Bacillus subtilis 또는 Bacillus licheniformis 유래) 및 amyloglucosidase (Aspergillus niger 유래)로 효소분해하고 정제한 덱스트린 중에 난소화성 성분을 분획하여 ..."
+            }
+          ]
+        },
+        "latency_ms": 5625.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g024",
+      "description": "조건부 발효 — Bacillus subtilis + is_fermented=F",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "Bacillus subtilis는 효소제로서 식품의 제조 및 가공에 사용될 수 있는 원료로 명시되어 있습니다. 따라서 해당 원료는 식품공전상 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0109",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_226_window0",
+              "score": 0.49399513,
+              "text_preview": "정 의 이 품목은 Bacillus subtilis, Bacillus amyloliquefaciens, Aspergillus속 및 Candida속의 배양물에서 얻어진 효소이다. 다만, 역가조정, 품질보존 등을 위하여 희석제, 안정제 등을 첨가할 수 있다.\n이 품목은 L-글루타민에 작용하여 아미드기를 가수분해하여 L-글루탐산과 암모니아를 생성한다.\n성 상 이 ..."
+            },
+            {
+              "chunk_id": "health_food_text_0210",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.459244907,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 고초균(Bacillus subtilis)\n\n(2) 제조방법 : 상기 (1)의 원재료를 배양하고 여과하거나 칼륨, 칼슘, 나트륨, 마그네슘의 염을 단독 또는 복합으로 충분히 중화시킨 후 결정화하여 식용에 적합하도록 함\n\n(3)기능성분(또는 지표성분)의 함량 : 폴리감마글루탐산을 700 mg/g 이상 함유하고 있어야 함\n\n2)..."
+            }
+          ]
+        },
+        "latency_ms": 2593.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g025",
+      "description": "조건부 도수 — 에탄올 15% (발효주 경계)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "에탄올은 일반 식품 원료로서 식품공전에서 허용되는 원료입니다. 발효주와 같은 식품 유형에 사용될 수 있습니다.",
+          "law_citations": []
+        },
+        "latency_ms": 2532.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g026",
+      "description": "조건부 도수 — 에탄올 19% (발효주 상한)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "에탄올은 일반 식품 원료로서 식품공전에서 허용되는 원료입니다. 발효주와 같은 식품 유형에 적합하게 사용될 수 있습니다.",
+          "law_citations": []
+        },
+        "latency_ms": 2312.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g027",
+      "description": "조건부 도수 — 에탄올 25% (증류주 경계)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "에탄올은 증류주로서 주세법의 규정에 따라 제조 및 가공 기준이 정해져 있으며, 에탄올의 함량 및 메탄올 기준이 명시되어 있다. 따라서 사용 조건 및 함량에 대한 준수가 필요하다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-105",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.380480111,
+              "text_preview": "(3) 보존료(g/kg)∶다음에서 정하는 것 이외의 보존료가 검출되어서는 아니 된다.\n\n| 소브산<br>소브산칼륨<br>소브산칼슘 | 0.2 이하(소브산으로서, 탁주, 약주, 과실주에 한한다) |\n| --- | --- |\n(4) 납(mg/kg)∶0.2 이하(과실주 중 포도주에 한한다)\n(5) 대장균군 : n=5, c=2, m=0, M=10(탁주, 약주 중 ..."
+            }
+          ]
+        },
+        "latency_ms": 2875.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g028",
+      "description": "미등록 — 가상명 제노스틴",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 제노스틴 또는 해당 카테고리에 대한 언급이 없음. 따라서 이 원료는 식품공전에서 확인할 수 없는 상태이다.",
+          "law_citations": []
+        },
+        "latency_ms": 3375.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g029",
+      "description": "미등록 — 가상명 크리오벨라",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 '크리오벨라'라는 원료명이나 해당 카테고리에 대한 언급이 없음. 따라서 해당 원료의 적합성을 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 3750.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g030",
+      "description": "미등록 — 가상명 루미얀",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 '루미얀'이라는 원료명이나 관련 카테고리가 언급되지 않아 해당 원료의 적합성을 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 9063.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g031",
+      "description": "허용 DB — 돼지고기",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "법령 청크에서 돼지고기가 식육류로 명시되어 있으며, 축산물의 동물성 원료로 허용됩니다. 따라서 돼지고기는 식품공전상 허용된 원료입니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-10",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.480094284,
+              "text_preview": "2) 동물성 원료\n\n<table>\n<tr><th>대분류</th><th>중분류</th><th>소분류</th><th>품 목</th></tr>\n<tr><td rowspan=\"3\">축<br>산<br>물</td><td>-</td><td>식육류</td><td>소고기, 돼지고기, 양고기, 염소고기, 토끼고기, 말고기, 사슴고기, 닭고기, 꿩고기, 오리고기, 거위고기, ..."
+            }
+          ]
+        },
+        "latency_ms": 6078.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g032",
+      "description": "허용 DB — 닭고기",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "닭고기는 축산물 카테고리에 속하며, 법령 청크에서 닭고기가 식육류로 명시되어 있습니다. 따라서 식품공전상 허용된 원료로 판단됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-10",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.474519581,
+              "text_preview": "2) 동물성 원료\n\n<table>\n<tr><th>대분류</th><th>중분류</th><th>소분류</th><th>품 목</th></tr>\n<tr><td rowspan=\"3\">축<br>산<br>물</td><td>-</td><td>식육류</td><td>소고기, 돼지고기, 양고기, 염소고기, 토끼고기, 말고기, 사슴고기, 닭고기, 꿩고기, 오리고기, 거위고기, ..."
+            }
+          ]
+        },
+        "latency_ms": 8093.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g033",
+      "description": "허용 DB — 연어",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "연어는 어패류에 해당하며, 법령 청크에서 천연식품으로 명시된 어패류 카테고리에 포함됩니다. 따라서 수산가공품으로서의 사용이 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0040",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window19",
+              "score": 0.472289354,
+              "text_preview": "의 식품에 사용하여서는 아니 된다.<br>1. 천연식품〔식육류, 어패류, 과일류, 채소류, 해조류, 콩류 등 및 그 단순가공품(탈피, 절단 등)〕<br>2. 다류<br>3. 커피<br>4. 고춧가루, 실고추<br>5. 김치류<br>6. 고추장, 조미고추장<br>7. 식초 | 착색료 |\n| 산성아황산나트륨<br>Sodium Bisulfite<br>아황산수소나..."
+            }
+          ]
+        },
+        "latency_ms": 3891.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g034",
+      "description": "허용 DB — 참치",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "참치는 수산물 카테고리에 속하며, 수산물은 일반적으로 식품공전에서 허용되는 원료입니다. 따라서 참치는 수산가공품으로 사용이 가능합니다.",
+          "law_citations": []
+        },
+        "latency_ms": 6141.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g035",
+      "description": "허용 DB — 고등어",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "고등어는 해양 어류에 속하며, 법령 청크에서 해양 어류 카테고리에 명시되어 있습니다. 따라서 수산가공품으로서 허용되는 원료입니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-10",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.49652046,
+              "text_preview": "2) 동물성 원료\n\n<table>\n<tr><th>대분류</th><th>중분류</th><th>소분류</th><th>품 목</th></tr>\n<tr><td rowspan=\"3\">축<br>산<br>물</td><td>-</td><td>식육류</td><td>소고기, 돼지고기, 양고기, 염소고기, 토끼고기, 말고기, 사슴고기, 닭고기, 꿩고기, 오리고기, 거위고기, ..."
+            }
+          ]
+        },
+        "latency_ms": 9078.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g036",
+      "description": "허용 DB — 참깨",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 참깨 또는 그에 속한 카테고리에 대한 언급이 없음. 따라서 해당 원료에 대한 판별이 불가능함.",
+          "law_citations": []
+        },
+        "latency_ms": 8422.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g037",
+      "description": "허용 DB — 아몬드",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 아몬드 또는 과자류와 관련된 언급이 없음. 따라서 해당 원료에 대한 정보가 확인되지 않음.",
+          "law_citations": []
+        },
+        "latency_ms": 6797.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g038",
+      "description": "허용 DB — 호두",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 호두 또는 과자류와 관련된 언급이 없음. 따라서 해당 원료의 식품 수입 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 8828.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g039",
+      "description": "허용 DB — 녹차",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "법령 청크에 녹차와 관련된 원료가 명시되어 있지 않지만, 음료류 카테고리에 속하는 일반 식품 원료로 사용이 가능하다고 판단됩니다. 따라서 녹차는 식품공전상 허용된 원료로 간주됩니다.",
+          "law_citations": []
+        },
+        "latency_ms": 2984.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g040",
+      "description": "허용 DB — 홍삼",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 홍삼 또는 건강기능식품 카테고리에 대한 언급이 없음. 따라서 해당 원료의 법적 지위가 불확실함.",
+          "law_citations": []
+        },
+        "latency_ms": 4953.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g041",
+      "description": "첨가물 — 카라기난 (INS 407)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "카라기난은 법령 청크에서 유화제, 증점제, 안정제로 사용될 수 있는 원료로 명시되어 있습니다. 따라서 음료류에 사용이 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0091",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window70",
+              "score": 0.52141726,
+              "text_preview": ", 산형과 당근(Daucus carota L.등)의 뿌리 건조체를 유지 또는 유기용제인 아세톤, 이소프로필알콜, 메탄올, 헥산으로 추출해서 얻어지는 당근카로틴, 종려과 엘라에이스(Elaeis guineensis JACQ.) 팜유의 흡착분리 또는 분리한 불검화물에서 유기용제인 아세톤, 이소프로필알콜, 메탄올, 헥산으로 추출해서 얻어지는 팜유카로틴에서 얻어지는..."
+            }
+          ]
+        },
+        "latency_ms": 7000.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g042",
+      "description": "첨가물 — 잔탄검 (INS 415)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 기준치 초과",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "잔탄검은 다당류로 구성된 원료로, 식품첨가물로 사용될 수 있는 일반 원료로 분류됩니다. 법령 청크에서 잔탄검의 성분 및 특성이 명시되어 있어 식품공전상 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0802",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_1627",
+              "score": 0.495783567,
+              "text_preview": "정 의 이 품목은 콩과 타라(Caesalpinia spinosa Kuntze)의 종자에서 얻어지는 것으로서 주성분은 다당류이다.\n성 상 이 품목은 백～엷은 황색의 분말로 거의 냄새가 없다.\n확인시험\n(1) 이 품목의 수용액에 소량의 붕산나트륨을 가할 때, 겔상으로 된다.\n(2) 이 품목 2g을 400mL 비이커에 취하여 이소프로필알콜 약 4mL로 완전히 적..."
+            }
+          ]
+        },
+        "latency_ms": 8781.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g043",
+      "description": "첨가물 — 스테비올배당체 (INS 960)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "prohibited",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "prohibited",
+          "rag_reasoning": "스테비올배당체는 특정 식품에 사용이 금지되어 있으며, 설탕, 포도당, 물엿, 벌꿀류와 같은 감미료에 사용될 수 없다. 따라서 음료류에 사용이 불가능하다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0048",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window27",
+              "score": 0.550159335,
+              "text_preview": " |\n| 쉘락<br>Shellac<br>이명 : Shellac, Bleached | 이 품목은 개각충(介殼蟲) Laccifer (Tachardia), Lacca Kerr (Coccidae)의 수지성 분비물인 Lac을 탄산나트륨용액에 녹이고 차아염소산나트륨으로 표백한 후 묽은 황산으로 침전시켜 건조한 것을 백쉘락(White Shellac, Bleached S..."
+            }
+          ]
+        },
+        "latency_ms": 5766.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g044",
+      "description": "첨가물 — 수크랄로스 (INS 955)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 수크랄로스 또는 해당 카테고리에 대한 언급이 없음. 따라서 해당 원료의 적합성을 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 9469.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g045",
+      "description": "첨가물 — 아스파탐 (INS 951)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "아스파탐은 음료류에 사용될 수 있으나, 사용량에 대한 제한이 있습니다. 음료류에서 아스파탐의 사용량은 법령에 따라 규정된 기준을 준수해야 합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0065",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window44",
+              "score": 0.482794791,
+              "text_preview": "식품(영‧유아용 특수조제식품 제외), 체중조절용 조제식품, 임신‧수유부용 식품, 주류, 과‧채가공품, 서류가공품, 어육가공품류, 기타수산물가공품, 기타가공품, 유함유가공품 : 1.0g/kg 이하<br>4. 캔디류, 코코아가공품류 또는 초콜릿류, 유탕면, 복합조미식품, 향신료조제품, 만두피 : 0.5g/kg 이하<br>5. 건강기능식품 | 산화방지제 |\n| ..."
+            }
+          ]
+        },
+        "latency_ms": 5531.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g046",
+      "description": "금지 — 호랑이 뼈 (endangered)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 78.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g047",
+      "description": "금지 — 천산갑 비늘 (endangered)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 47.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g048",
+      "description": "금지 — 코뿔소 뿔 (endangered)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "prohibited",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "prohibited",
+          "rag_reasoning": "코뿔소 뿔은 건강기능식품 원료로서 사용이 금지된 원료로 분류됩니다. 법령 청크에서 명시적으로 사용 금지 원료로 언급되지 않았지만, 일반적으로 코뿔소 뿔은 보호종으로 지정되어 있어 식품 원료로 사용할 수 없습니다.",
+          "law_citations": []
+        },
+        "latency_ms": 9188.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g049",
+      "description": "금지 — 에페드라 (unauthorized)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 78.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g050",
+      "description": "금지 — 센나잎 (unauthorized)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 센나잎 또는 해당 카테고리에 대한 언급이 없음. 따라서 해당 원료의 사용 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 4828.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g051",
+      "description": "금지 — 요힘베 (unauthorized)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 요힘베 또는 관련 카테고리에 대한 언급이 없음. 따라서 해당 원료의 적합성을 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 6562.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g052",
+      "description": "금지 — DMAA (unauthorized)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "prohibited",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "prohibited",
+          "rag_reasoning": "DMAA는 건강기능식품에서 사용이 금지된 물질로, 의약품 성분으로 분류됩니다. 따라서 해당 원료는 식품원료로 적합하지 않습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-31",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.464793772,
+              "text_preview": "(1) 발기부전치료제, 비만치료제, 당뇨병치료제 등 의약품성분과 그 유사물질은 검출되어서는 아니 된다. 이에 해당되는 물질은 아래와 같다.\n\n① 발기부전치료제 및 그 유사물질\n\n| 번호 | 물질명 |\n| --- | --- |\n| 1 | 실데나필(sildenafil) |\n| 2 | 타다라필(tadalafil) |\n| 3 | 바데나필(vardenafil) |\n..."
+            }
+          ]
+        },
+        "latency_ms": 2516.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g053",
+      "description": "금지 — BMPEA (unauthorized)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "BMPEA라는 원료는 법령 청크에 명시되어 있지 않으며, 관련 카테고리나 규정도 언급되지 않았습니다. 따라서 해당 원료는 확인할 수 없는 상태입니다.",
+          "law_citations": []
+        },
+        "latency_ms": 2406.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g054",
+      "description": "금지 — 컴프리 (toxin)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 47.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g055",
+      "description": "금지 — 보라지 (toxin)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 보라지 또는 관련 카테고리에 대한 언급이 없음. 따라서 해당 원료는 확인할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 4641.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g056",
+      "description": "금지 — 아리스토로키아 (toxin)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 아리스토로키아라는 원료명이나 관련 카테고리가 언급되지 않음. 따라서 해당 원료는 식품공전에서 확인할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 4672.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g057",
+      "description": "조건부 — 은행 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 '은행' 또는 관련 카테고리 언급이 없음. 따라서 해당 원료에 대한 정보가 부족하여 판별할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 5234.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g058",
+      "description": "조건부 — 마황 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 78.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g059",
+      "description": "조건부 — 와사비 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 와사비 또는 해당 카테고리에 대한 언급이 없음. 따라서 해당 원료의 적합성을 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 5016.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g060",
+      "description": "조건부 — 센나 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 센나 또는 관련 카테고리에 대한 언급이 없음. 따라서 해당 원료의 사용 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 5468.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g061",
+      "description": "조건부 — 허니부시 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 허니부시 또는 관련 카테고리에 대한 언급이 없음. 따라서 해당 원료의 식품 적합성 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 2079.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g062",
+      "description": "조건부 — 당귀 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 당귀라는 원료명이나 관련 카테고리 언급이 없음. 따라서 해당 원료의 사용 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 6375.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g063",
+      "description": "조건부 — 감초 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 감초 또는 관련 카테고리에 대한 언급이 없음. 따라서 해당 원료의 식품 수입 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 2296.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g064",
+      "description": "조건부 — 결명자 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 결명자 또는 해당 원료가 속한 카테고리에 대한 언급이 없음. 따라서 해당 원료의 사용 가능 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 4469.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g065",
+      "description": "조건부 — 하수오 (DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 하수오 또는 관련 카테고리에 대한 언급이 없음. 따라서 해당 원료의 사용 여부를 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 9594.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g066",
+      "description": "조건부 가열 — 안식향산 + is_heated=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "안식향산은 과자류에 사용될 수 있는 보존료로, 사용량이 1.0g/kg 이하로 제한되어 있습니다. 따라서 과자류에 사용 시 이 기준을 준수해야 합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0045",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window24",
+              "score": 0.515093327,
+              "text_preview": "안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 1.0g/kg 이하)<br>11. 발효음료류(살균한것은 제외) : 0.05g/kg 이하.<br>12. 과실주, 탁주, 약주 : 0.2g/kg 이하<br>13. 마가린：2..."
+            }
+          ]
+        },
+        "latency_ms": 8781.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g067",
+      "description": "조건부 가열 — 안식향산 + is_heated=F",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": true,
+          "verdict": "수입 가능",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "안식향산은 보존료로 사용될 수 있으며, 사용량에 대한 제한이 명시되어 있습니다. 과채음료에 사용 시 1.0g/kg 이하로 제한되므로, 해당 조건을 준수해야 합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0045",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window24",
+              "score": 0.48927933,
+              "text_preview": "안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 1.0g/kg 이하)<br>11. 발효음료류(살균한것은 제외) : 0.05g/kg 이하.<br>12. 과실주, 탁주, 약주 : 0.2g/kg 이하<br>13. 마가린：2..."
+            },
+            {
+              "chunk_id": "additive_general_0068",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window47",
+              "score": 0.478664637,
+              "text_preview": "에 겔 건강기능식품 성분의 배합비율을 적용)∶0.5g/kg 이하(소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 소브산으로서의 사용량은 1.0g/kg 이하)<br>6. 잼류∶1.0g/kg 이하(소브산, 소브산칼륨, 소브산칼슘, 파라옥시안식향산메틸, 파라옥시안식향산..."
+            }
+          ]
+        },
+        "latency_ms": 5953.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g068",
+      "description": "조건부 가열 — 안식향산나트륨 + is_heated=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "안식향산나트륨은 보존료로 사용될 수 있으며, 청량음료에 사용 시 농도 제한이 있습니다. 따라서 사용 조건을 준수해야 합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0499",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_1003",
+              "score": 0.583183885,
+              "text_preview": "함 량 이 품목은 건조한 다음 정량할 때, 아질산나트륨(NaNO2) 97.0% 이상을 함유한다.\n성 상 이 품목은 백～엷은 황색의 결정성 분말, 알맹이 또는 막대기 모양의 덩어리이다.\n확인시험 이 품목은 확인시험법 중 아질산염 및 나트륨염의 반응을 나타낸다.\n순도시험\n(1) 용상 : 이 품목 1g을 물 20mL에 녹일 때, 그 탁도는 거의 징명 이하이어야 ..."
+            },
+            {
+              "chunk_id": "fct-61",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.467707455,
+              "text_preview": "(7) 보존료(g/kg)∶다음에서 정하는 것 이외의 보존료가 검출되어서는 아니 된다.\n\n| 안식향산<br>안식향산나트륨<br>안식향산칼륨<br>안식향산칼슘 | 0.6 이하(안식향산으로서, 다만, 농축과즙의 경우 소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 1.0 이하이어야 하며, 그 중 안식향산으로..."
+            }
+          ]
+        },
+        "latency_ms": 2438.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g069",
+      "description": "조건부 가열 — 프로피온산 + is_heated=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "프로피온산은 빵류에 사용 시 2.5g/kg 이하로 제한되어 있으며, 이는 사용 조건이 명시된 것으로 해석됩니다. 따라서 해당 원료는 제한적으로 사용이 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0104",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window83",
+              "score": 0.530054927,
+              "text_preview": " Kurrol salt |  | 451(ii), 452(ii)/<br>68956-75-2,<br>7790-53-6 | II. 2. 1)의 규정에 따라 사용하여야 한다. | 산도조절제<br>팽창제 |\n| 푸마르산<br>Fumaric Acid<br>이명 : (E)-Butenedioic acid; trans-1,2- Ethylenedicarboxylic acid..."
+            }
+          ]
+        },
+        "latency_ms": 4156.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g070",
+      "description": "조건부 가열 — 황색4호 + is_heated=T (타르색소)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": true,
+          "verdict": "수입 가능",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "식용색소 황색4호는 과자류에 사용될 수 있으며, 사용량이 0.2g/kg 이하로 제한되어 있습니다. 따라서, 해당 원료는 규정에 따라 사용 가능하나, 사용량 준수가 필요합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0060",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window39",
+              "score": 0.508555055,
+              "text_preview": "� 식용유지가공품 : 0.3g/kg 이하<br>23. 건강기능식품(정제의 제피 또는 캡슐에 한함), 캡슐류 : 0.3g/kg 이하(색소의 사용량은 총 중량 기준으로 적용)<br>24. 아이스크림류, 아이스크림믹스류 : 0.15g/kg 이하<br>25. 커피(표면장식에 한함) : 0.1 g/kg 이하(식용색소적색제3호, 식용색소적색제40호, 식용색소청색제1호..."
+            }
+          ]
+        },
+        "latency_ms": 8969.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g071",
+      "description": "조건부 가열 — 잔탄검 + is_heated=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 기준치 초과",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "잔탄검은 다당류로서 식품첨가물로 사용될 수 있는 원료입니다. 법령 청크에서 잔탄검의 정의와 성상에 대한 설명이 포함되어 있어, 음료류에 사용이 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0802",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_1627",
+              "score": 0.524650693,
+              "text_preview": "정 의 이 품목은 콩과 타라(Caesalpinia spinosa Kuntze)의 종자에서 얻어지는 것으로서 주성분은 다당류이다.\n성 상 이 품목은 백～엷은 황색의 분말로 거의 냄새가 없다.\n확인시험\n(1) 이 품목의 수용액에 소량의 붕산나트륨을 가할 때, 겔상으로 된다.\n(2) 이 품목 2g을 400mL 비이커에 취하여 이소프로필알콜 약 4mL로 완전히 적..."
+            }
+          ]
+        },
+        "latency_ms": 6047.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g072",
+      "description": "조건부 발효 — Lactobacillus acidophilus + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "Lactobacillus acidophilus는 유가공품의 일반 원료로 식품공전상 허용됩니다. 유산균은 건강기능식품 및 유가공품에서 널리 사용되는 원료입니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0199",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.520089865,
+              "text_preview": "|  | 종 류(학 명) |\n| --- | --- |\n| Lactobacillus | L.acidophilus, L.gasseri, L.delbrueckii ssp. bulgaricus, L.helveticus |\n| Lacticaseibacillus | L.casei, L.paracasei, L.rhamnosus |\n| Limosilactobacillus..."
+            },
+            {
+              "chunk_id": "health_food_text_0200",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.461802095,
+              "text_preview": "(2) 제조방법\n\n(가)(1)의 원재료를 이용하여 배양하거나 배양 ･ 건조하여 제조하여야 하며, 배양하여 제조하는 경우에는 「식품의 기준 및 규격」의 발효유류(발효유분말 제외)의 제조 ･ 가공기준 및 규격(대장균군, 살모넬라, 리스테리아모노사이토제네스, 황색포도상구균만 해당한다)에 적합하여야 함\n\n(나)Enterococcus 속 균주는 항생제 내성 유전자 ..."
+            }
+          ]
+        },
+        "latency_ms": 7391.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g073",
+      "description": "조건부 발효 — Bifidobacterium + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "Bifidobacterium은 건강기능식품의 기능성 원료로 명시되어 있으며, 관련 법령에 따라 허용된 원료입니다. 따라서 건강기능식품으로의 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0199",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.503521919,
+              "text_preview": "|  | 종 류(학 명) |\n| --- | --- |\n| Lactobacillus | L.acidophilus, L.gasseri, L.delbrueckii ssp. bulgaricus, L.helveticus |\n| Lacticaseibacillus | L.casei, L.paracasei, L.rhamnosus |\n| Limosilactobacillus..."
+            }
+          ]
+        },
+        "latency_ms": 2719.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g074",
+      "description": "조건부 발효 — Saccharomyces cerevisiae + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "Saccharomyces cerevisiae는 효모로, 효모는 Saccharomyces sp.에 속하는 식용효모로 명시되어 있어 식품공전상 허용된 원료입니다. 발효주 제조에 적합한 원료로 사용될 수 있습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0126",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_12_window13",
+              "score": 0.443354487,
+              "text_preview": "의 규산알루미늄을 함유한다. | 553(iii)/<br>14807-96-6 | 탤크는 식품의 제조 또는 가공상 여과보조제(여과, 탈색, 탈취, 정제 등)로 사용하는 경우 최종식품 완성 전에 제거하여야 하며, 식품 중의 잔류량은 0.5%(규조토, 백도토, 벤토나이트, 산성백토, 탤크, 퍼라이트, 활성탄 등 다른 불용성 광물성물질과 병용할 때에는 전 잔류량의 ..."
+            }
+          ]
+        },
+        "latency_ms": 6578.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g075",
+      "description": "조건부 발효 — 효모 + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "효모는 Saccharomyces sp.에 속하는 식용효모로, 식품첨가물로서 빵류에 사용이 허용됩니다. 법령 청크에서 효모가 식용 효모로 명시되어 있어, 빵류 제조에 적합한 원료로 인정됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0110",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window89",
+              "score": 0.486834496,
+              "text_preview": "가공품 : 0.1g/kg 이하(황산알루미늄암모늄과 병용할 때에는 알루미늄의 합계가 0.1g/kg 이하)<br>3. 면류 및 이의 제조용 믹스, 기타 수산물가공품, 전분가공품, 만두피 : 0.2g/kg 이하(황산알루미늄암모늄과 병용할 때에는 알루미늄의 합계가 0.2g/kg 이하)<br>4. 절임식품 : 0.5g/kg 이하(황산알루미늄암모늄과 병용할 때에는 알..."
+            }
+          ]
+        },
+        "latency_ms": 8484.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g076",
+      "description": "조건부 발효 — 누룩 + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "누룩은 장류 제조에 사용되는 원료로, 법령 청크에서 누룩균을 배양하여 발효하는 과정이 명시되어 있습니다. 따라서 누룩은 식품공전상 허용된 원료로 판단됩니다.",
+          "law_citations": []
+        },
+        "latency_ms": 7735.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g077",
+      "description": "조건부 발효 — Streptococcus thermophilus + is_fermented=T",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "Streptococcus thermophilus는 유가공품의 일반 원료로 식품공전에서 허용되는 원료입니다. 따라서 해당 원료는 유가공품에 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0199",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.407809198,
+              "text_preview": "|  | 종 류(학 명) |\n| --- | --- |\n| Lactobacillus | L.acidophilus, L.gasseri, L.delbrueckii ssp. bulgaricus, L.helveticus |\n| Lacticaseibacillus | L.casei, L.paracasei, L.rhamnosus |\n| Limosilactobacillus..."
+            }
+          ]
+        },
+        "latency_ms": 4296.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g078",
+      "description": "조건부 도수 — 에탄올 5% (저도수)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "에탄올은 일반 식품 원료로서 식품공전에서 허용되는 원료입니다. 발효주와 같은 식품 유형에 사용될 수 있습니다.",
+          "law_citations": []
+        },
+        "latency_ms": 2672.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g079",
+      "description": "조건부 도수 — 에탄올 40% (증류주 표준)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "에탄올은 증류주 제조에 사용되는 원료로, 주세법에 따라 규정된 사용 조건이 존재합니다. 따라서 에탄올의 사용은 제한적이며, 주세법의 규정을 준수해야 합니다.",
+          "law_citations": []
+        },
+        "latency_ms": 3078.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g080",
+      "description": "조건부 복합 — 딸기잼 [딸기 [정제수]]",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 딸기잼 또는 잼류에 대한 언급이 없음. 따라서 해당 원료에 대한 판별이 불가능함.",
+          "law_citations": []
+        },
+        "latency_ms": 9672.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g081",
+      "description": "조건부 복합 — 시리얼 [귀리, 우유]",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "곡류가공품 카테고리에 시리얼이 포함될 수 있으며, 일반 식품 원료로서 식품공전에서 허용됩니다. 따라서 시리얼은 식품으로 사용이 가능합니다.",
+          "law_citations": []
+        },
+        "latency_ms": 2672.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g082",
+      "description": "조건부 복합 — 쿠키 [밀가루, 설탕, 버터]",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 쿠키 또는 과자류와 관련된 언급이 없음. 따라서 해당 원료에 대한 정보가 부족하여 판별할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 2985.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g083",
+      "description": "조건부 복합 — 빵 [밀가루, 우유, 설탕]",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "빵류는 곡분, 설탕, 달걀, 유제품 등을 주원료로 하여 가공한 식품으로, 법령 청크에서 빵류에 대한 정의가 명시되어 있습니다. 따라서 빵은 식품공전상 허용된 원료입니다.",
+          "law_citations": []
+        },
+        "latency_ms": 13500.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g084",
+      "description": "조건부 복합 — 요구르트 [우유, 유산균]",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "요구르트는 유가공품 카테고리에 속하며, 유가공품은 원유 또는 유가공품을 주원료로 하여 가공한 것으로 식품공전상 허용됩니다. 따라서 요구르트는 법적으로 허용된 원료입니다.",
+          "law_citations": []
+        },
+        "latency_ms": 9531.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g085",
+      "description": "조건부 복합 — 김치 [배추, 고추, 마늘]",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "김치는 절임류에 속하는 식품으로, 법령 청크에서 김치류의 정의와 제조 기준이 명시되어 있습니다. 따라서 김치는 식품공전상 허용된 원료로 판단됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-102",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.505878866,
+              "text_preview": "(6) 가공소금천일염, 재제소금, 태움･용융소금, 정제소금, 기타소금을 50% 이상 사용하여 식품 또는 식품첨가물을 가하여 가공한 소금을 말한다.\n5) 규격\n\n<table>\n<tr><th>유형<br>항목</th><th>천일염</th><th>재제소금</th><th>태움･용융소금</th><th>정제소금</th><th>기타소금</th><th>가공소금</th></..."
+            },
+            {
+              "chunk_id": "fct-103",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.459587485,
+              "text_preview": "(2) 김치배추 등 채소류를 주원료로 하여 절임, 양념혼합과정 등을 거쳐 그대로 또는 발효시킨 것이거나 이를 가공한 것을 말한다.\n5) 규격\n(1) 납(mg/kg)∶0.3 이하\n(2) 카드뮴(mg/kg)∶0.2 이하\n(3) 타르색소∶검출되어서는 아니 된다.\n(4) 보존료∶검출되어서는 아니 된다.\n(5) 대장균군∶n=5, c=1, m=0, M=10(살균제품에..."
+            }
+          ]
+        },
+        "latency_ms": 5547.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g086",
+      "description": "조건부 복합 — 초콜릿 [카카오, 설탕, 우유]",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "법령 청크에서 과자류는 곡분, 설탕, 달걀, 유제품 등을 주원료로 하여 가공한 것으로 정의되어 있으며, 초콜릿은 이러한 과자류의 한 종류로 포함될 수 있다. 따라서 초콜릿은 식품공전상 허용된 원료로 판단된다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-40",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.442005187,
+              "text_preview": "(3) 타르색소∶검출되어서는 아니 된다.\n\n3. 냉동식품\n\n“냉동식품”이라 함은 제조･가공 또는 조리한 식품을 장기보존할 목적으로 냉동처리, 냉동보관하는 것으로서 용기･포장에 넣은 식품을 말한다.\n(1) 가열하지 않고 섭취하는 냉동식품∶별도의 가열과정 없이 그대로 섭취할 수 있는 냉동식품을 말한다.\n(2) 가열하여 섭취하는 냉동식품∶섭취시 별도의 가열과정을..."
+            }
+          ]
+        },
+        "latency_ms": 3765.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g087",
+      "description": "조건부 복합 — 아이스크림 [우유, 설탕, 바닐라추출물]",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "빙과류 카테고리에 아이스크림이 포함되어 있으며, 원유와 유가공품을 원료로 하여 가공된 제품으로 식품공전상 허용됩니다. 따라서 아이스크림은 법적으로 허용된 원료입니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-43",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.569828451,
+              "text_preview": "(14) 납제8. 일반시험법 9.1 중금속에 따라 시험한다.\n\n2. 빙과류\n\n빙과류라 함은 원유, 유가공품, 먹는물에 다른 식품 또는 식품첨가물 등을 가한 후 냉동하여 섭취하는 아이스크림류, 빙과, 아이스크림믹스류, 식용얼음을 말한다.\n\n2-1 아이스크림류(*축산물가공품)\n1) 정의아이스크림류라 함은 원유, 유가공품을 원료로 하여 이에 다른 식품 또는 식품..."
+            }
+          ]
+        },
+        "latency_ms": 9110.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g088",
+      "description": "조건부 복합 — 건강기능식품 [유산균, 유당]",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "프로바이오틱스는 건강기능식품의 기능성 원료로 사용될 수 있으며, 관련 법령에서 건강기능식품의 기준 및 규격에 따라 제조 및 가공되어야 함이 명시되어 있습니다. 따라서 프로바이오틱스는 허용된 원료로 판단됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0200",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.479581207,
+              "text_preview": "(2) 제조방법\n\n(가)(1)의 원재료를 이용하여 배양하거나 배양 ･ 건조하여 제조하여야 하며, 배양하여 제조하는 경우에는 「식품의 기준 및 규격」의 발효유류(발효유분말 제외)의 제조 ･ 가공기준 및 규격(대장균군, 살모넬라, 리스테리아모노사이토제네스, 황색포도상구균만 해당한다)에 적합하여야 함\n\n(나)Enterococcus 속 균주는 항생제 내성 유전자 ..."
+            },
+            {
+              "chunk_id": "health_food_text_0013",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.467928171,
+              "text_preview": "1) 이 규정에 따른 건강기능식품은 인체에 보건 목적의 유용한 효과를 얻기 위한 기능성 원료 또는 성분의 섭취를 주된 목적으로, 정제 ･ 캡슐 ･ 환 ･ 과립 ･ 액상 ･분말 ･ 편상 ･ 페이스트상 ･ 시럽 ･ 겔 ･ 젤리 ･ 바 ･ 필름의 형태로 1회 섭취가 용이하게 제조 ･ 가공되어야 하며, 최종제품의 제조 시 기능성 원료의 특성이 변화될 수 있는 추출..."
+            }
+          ]
+        },
+        "latency_ms": 3156.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g089",
+      "description": "조건부 복합 — 위험 숨김 [무명원료 [대마초]]",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 '블렌드ABC' 또는 해당 카테고리에 대한 언급이 없음. 따라서 해당 원료의 적합성을 판단할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 9672.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g090",
+      "description": "복수 조합 — 설탕+구연산+물",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 3
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "설탕은 당류가공품 카테고리에 속하며, 식품공전에서 허용된 원료로 명시되어 있습니다. 따라서 음료류에 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0040",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window19",
+              "score": 0.528279364,
+              "text_preview": "의 식품에 사용하여서는 아니 된다.<br>1. 천연식품〔식육류, 어패류, 과일류, 채소류, 해조류, 콩류 등 및 그 단순가공품(탈피, 절단 등)〕<br>2. 다류<br>3. 커피<br>4. 고춧가루, 실고추<br>5. 김치류<br>6. 고추장, 조미고추장<br>7. 식초 | 착색료 |\n| 산성아황산나트륨<br>Sodium Bisulfite<br>아황산수소나..."
+            }
+          ]
+        },
+        "latency_ms": 2969.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g091",
+      "description": "복수 조합 — 소브산+안식향산+비타민C",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 3
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "소브산과 안식향산은 음료류에서 사용 시 각각의 사용량이 제한되어 있으며, 소브산은 0.6g/kg 이하로 사용해야 한다. 따라서 이 제품은 규정된 사용량을 준수해야 하므로 제한적 사용이 필요하다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0045",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window24",
+              "score": 0.605870545,
+              "text_preview": "안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 1.0g/kg 이하)<br>11. 발효음료류(살균한것은 제외) : 0.05g/kg 이하.<br>12. 과실주, 탁주, 약주 : 0.2g/kg 이하<br>13. 마가린：2..."
+            },
+            {
+              "chunk_id": "additive_general_0071",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window50",
+              "score": 0.551227808,
+              "text_preview": "소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 0.6g/kg 이하, 그 중 소브산으로서의 사용량은 0.5g/kg 이하)<br>3. 기타음료(분말제품 제외), 인삼․홍삼음료 ∶0.6g/kg 이하(파라옥시안식향산에틸 또는 파라옥시안식향산메틸과 병용할 때에는 안식향산으로서 사용량과 파라옥시안식향산으로서 사..."
+            }
+          ]
+        },
+        "latency_ms": 6562.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g092",
+      "description": "복수 조합 — 설탕+포도당+과당 (당 혼합)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 2
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "당류가공품 카테고리에 설탕, 포도당, 과당이 포함되어 있으며, 이들은 모두 식품공전에서 허용된 원료입니다. 따라서 이 원료들은 식품으로 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-49",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.495019197,
+              "text_preview": "(2) 기타과당전분을 당화, 여과, 정제, 농축하여 얻은 포도당을 이성화한 것 또는 설탕을 가수분해하여 얻은 것을 농축한 액상의 것과 이에 또는 과당에 식품 또는 식품첨가물을 가하여 혼합한 것을 말한다.\n5) 규격\n\n<table>\n<tr><th>유 형<br>항 목</th><th>과당</th><th>기타과당</th></tr>\n<tr><td>(1) 과당(%)<..."
+            },
+            {
+              "chunk_id": "fct-88",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.483298361,
+              "text_preview": "(7) 상기 (5) ∼ (6)에 해당하는 제품 중 특정 성·연령군 등 특정 인구군을 대상으로 하는 경우 해당 인구군의 한국인 영양소 섭취기준을 기준으로 할 수 있다. 이 경우 해당 인구군을 명시하여야 한다.\n(8) 열량 및 영양공급용 식품은 제품 1 mL(g)당 3 kcal이상의 열량이 되도록 제조하여야 한다.\n(9) 액상 식품에 첨가하여 점도를 증가시키는..."
+            }
+          ]
+        },
+        "latency_ms": 4750.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g093",
+      "description": "복수 조합 — 우유+설탕+카라기난",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 2
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "우유는 유가공품의 주원료로 명시되어 있으며, 설탕은 당류가공품으로 식품공전에서 허용된 원료입니다. 카라기난은 일반적으로 식품 첨가물로 사용되며, 법령 청크에서 직접적으로 언급되지는 않았지만, 유가공품의 제조에 적합한 원료로 간주됩니다.",
+          "law_citations": []
+        },
+        "latency_ms": 8656.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g094",
+      "description": "복수 조합 — 꿀+레몬+물",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 2,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "꿀은 벌꿀류 카테고리에 속하며, 음료류로 가공할 수 있는 원료로 허용됩니다. 레몬과 물 또한 일반적인 음료 원료로 사용이 가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0078",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window57",
+              "score": 0.50889194,
+              "text_preview": "류<br>5. 유가공품<br>6. 식육가공품(소시지류, 식육추출가공품 제외)<br>7. 알가공품<br>8. 어육가공품류(어육소시지 제외)<br>9. 두부류, 묵류<br>10. 식용유지류(모조치즈, 식물성크림, 기타 식용유지가공품 제외)<br>11. 면류<br>12. 다류<br>13. 커피<br>14. 과일·채소류음료(과·채음료 제외)<br>15. 두유류<b..."
+            }
+          ]
+        },
+        "latency_ms": 9485.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g095",
+      "description": "복수 조합 — 밀가루+설탕+계란 (베이킹)",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 2
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "빵류는 밀가루, 설탕, 계란 등을 주원료로 하여 가공한 식품으로, 법령 청크에서 빵류의 정의가 명시되어 있습니다. 따라서 해당 원료들은 식품공전상 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-41",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.467213035,
+              "text_preview": "(3) 캔디류의 표면에 신맛을 내기 위해 구연산, 사과산 등을 도포하여 제조하는 경우, 구연산, 사과산 등의 성분이 50% 미만(여러 가지 산(酸)을 혼합하는 경우는 그 합으로서)이 되도록 희석하여 도포하여야 한다.\n4) 식품유형\n(1) 과자곡분 등을 주원료로 하여 굽기, 팽화, 유탕 등의 공정을 거친 것이거나 이에 식품 또는 식품첨가물을 가한 것으로 비스..."
+            }
+          ]
+        },
+        "latency_ms": 10234.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g096",
+      "description": "복수 조합 — 소브산칼륨+과라나 (보존제+restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 2,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "소브산칼륨은 보존료로 사용될 수 있으며, 사용량에 대한 제한이 명시되어 있습니다. 과라나는 카페인 함유 원료로서 1일 섭취량 기준 관리가 필요합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0045",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window24",
+              "score": 0.587706923,
+              "text_preview": "안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 1.0g/kg 이하)<br>11. 발효음료류(살균한것은 제외) : 0.05g/kg 이하.<br>12. 과실주, 탁주, 약주 : 0.2g/kg 이하<br>13. 마가린：2..."
+            },
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.564775109,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            },
+            {
+              "chunk_id": "additive_general_0071",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window50",
+              "score": 0.557299495,
+              "text_preview": "소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 0.6g/kg 이하, 그 중 소브산으로서의 사용량은 0.5g/kg 이하)<br>3. 기타음료(분말제품 제외), 인삼․홍삼음료 ∶0.6g/kg 이하(파라옥시안식향산에틸 또는 파라옥시안식향산메틸과 병용할 때에는 안식향산으로서 사용량과 파라옥시안식향산으로서 사..."
+            }
+          ]
+        },
+        "latency_ms": 10266.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": true,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g097",
+      "description": "복수 조합 — 대마초+설탕 (Step 0 우선)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 78.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g098",
+      "description": "복수 조합 — 글리세린+PEG+향료 (가상)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 3
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "글리세린은 식품공전에서 허용된 원료로, 일반적으로 식품에 사용될 수 있는 성분입니다. PEG-40과 인공향료는 법령 청크에서 직접적으로 언급되지는 않지만, 일반적으로 식품 첨가물로 사용되는 성분입니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0026",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window5",
+              "score": 0.520630479,
+              "text_preview": "<br>껌기초제<br>안정제 |\n| 글리세린지방산에스테르<br>Glycerin Esters of Fatty Acids | 이 품목은 지방산과 글리세린의 에스테르 및 유도체이다. 이 품목에 포함되는 것은 다음과 같다. (품목별 성분규격 참조) | -/- | II. 2. 1)의 규정에 따라 사용하여야 한다. | 유화제<br>껌기초제<br>안정제<br>거품제거제..."
+            }
+          ]
+        },
+        "latency_ms": 13000.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g099",
+      "description": "복수 조합 — 에탄올+과당+유산균 (발효음료)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 3,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 3
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "에탄올은 일반 식품 원료로 식품공전에서 허용되는 원료입니다. 유산균 또한 유가공품의 일반 원료로 인정받고 있습니다. 과당은 당류가공품의 일종으로, 식품공전에서 허용됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_1012",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_2029_part0",
+              "score": 0.485678583,
+              "text_preview": "성 상 이 품목은 액체, 점조한 액체 또는 반고형상으로서 원료, 향신료, 특유의 맛과 향을 가진다.\n확인시험\n(1) 이 품목은 50mg을 취하여 에탄올 10mL에 녹인 후 필요하면 원심분리하여 이를 시험용액으로 한다. 별도로 캪사이신 1mg을 에탄올 10mL에 녹여 표준용액으로 한다. 시험용액 및 표준용액 10μL씩을 박층크로마토그래피용 실리카겔을 사용하여..."
+            },
+            {
+              "chunk_id": "additive_general_0143",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_18_window2",
+              "score": 0.464527875,
+              "text_preview": "양조제식품 : 8g/kg 이하 |\n|  | 5‘-이노신산<br>이나트륨* |  | 631/<br>4691-65-0 | II. 2. 1)의 규정에 따라 사용하여야 한다. |\n| 콜린 | 염화콜린 |  | 1001(iii)/<br>67-48-1 | II. 2. 1)의 규정에 따라 사용하여야 한다. |\n|  | 주석산수소콜린 |  | 1001(v)/<br>87-..."
+            }
+          ]
+        },
+        "latency_ms": 10984.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g100",
+      "description": "미등록 — 가상명 베르니움",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "법령 청크에 '베르니움'이라는 원료명이나 관련 카테고리가 언급되지 않음. 따라서 해당 원료에 대한 정보가 부족하여 판별할 수 없음.",
+          "law_citations": []
+        },
+        "latency_ms": 8719.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    }
+  ]
+}

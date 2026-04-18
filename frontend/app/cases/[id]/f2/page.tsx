@@ -19,7 +19,7 @@ export default function F2FoodTypePage() {
       <div className="mt-6 grid lg:grid-cols-3 gap-6">
         {/* 좌측: F2 식품유형 분류 본문 (아람 구현) */}
         <div className="lg:col-span-2">
-          <FoodClassificationPage />
+          <FoodClassificationPage caseId={caseId} />
         </div>
 
         {/* 우측: 케이스 요약 */}

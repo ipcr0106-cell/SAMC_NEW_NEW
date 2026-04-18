@@ -20,12 +20,17 @@ from db.supabase_client import get_supabase
 from schemas.upload import (
     DocType,
     ErrorResponse,
+    IngredientSearchRequest,
+    IngredientSearchResponse,
     ParseResponse,
     ParseStatus,
+    ProcessCodeSuggestRequest,
+    ProcessCodeSuggestResponse,
     UploadResponse,
 )
 from services.ocr_service import extract_text_from_file
-from services.parsing_service import parse_raw_texts_to_structured
+from services.parsing_service import parse_raw_texts_to_structured, suggest_process_codes
+from services.f0_search_service import search_ingredient_codes
 from services.label_image_service import process_label_image
 from services.export_service import build_docx, build_pdf
 
@@ -203,7 +208,7 @@ async def export_parsed_pdf(
     except ImportError as e:
         raise HTTPException(status_code=500, detail={
             "error": "PDF_DEP_MISSING",
-            "message": f"reportlab 미설치: {e}. 'pip install reportlab'",
+            "message": f"fpdf2 미설치: {e}. 'pip install fpdf2'",
         })
     except Exception as e:
         logger.error(f"PDF 생성 실패: {e}")
@@ -456,6 +461,50 @@ async def list_documents(case_id: str):
 # ─────────────────────────────────────────────
 # 상수
 # ─────────────────────────────────────────────
+
+# ─────────────────────────────────────────────
+# 성분코드 자동 조회 헬퍼
+# ─────────────────────────────────────────────
+
+async def _enrich_ingredient_codes(parsed_result) -> object:
+    """파싱 완료 후 각 IngredientItem의 ingredient_code를 자동 조회하여 채워넣는다.
+
+    - ingredient_code가 이미 채워져 있으면 스킵
+    - 성분명으로 Supabase ilike 검색 → 없으면 Pinecone 유사 검색 (auto 모드)
+    - 조회 실패 시 해당 성분만 스킵 (전체 파싱 결과에는 영향 없음)
+    """
+    async def _fill_code(item) -> object:
+        if item.ingredient_code:
+            return item  # 이미 있으면 스킵
+        if not item.name or not item.name.strip():
+            return item
+
+        try:
+            result = await search_ingredient_codes(
+                query=item.name.strip(),
+                top_k=1,
+                search_mode="auto",
+            )
+            if result.results:
+                best = result.results[0]
+                item.ingredient_code = best.code
+                item.ingredient_code_name = best.name_ko
+        except Exception as e:
+            logger.debug(f"성분코드 조회 스킵: {item.name} — {e}")
+
+        # sub_ingredients도 재귀 처리
+        filled_subs = []
+        for sub in item.sub_ingredients:
+            filled_subs.append(await _fill_code(sub))
+        item.sub_ingredients = filled_subs
+        return item
+
+    filled = []
+    for ing in parsed_result.ingredients:
+        filled.append(await _fill_code(ing))
+    parsed_result.ingredients = filled
+    return parsed_result
+
 
 ALLOWED_MIME_TYPES = {
     "application/pdf",
@@ -738,7 +787,7 @@ async def parse_documents(case_id: str, background_tasks: BackgroundTasks):
         logger.info(f"파일 다운로드 완료: {file_name} ({len(file_bytes)} bytes)")
 
         try:
-            text = await extract_text_from_file(file_bytes, file_name, mime_type)
+            text = await extract_text_from_file(file_bytes, file_name, mime_type, doc_type=doc_type)
         except Exception as e:
             err_msg = f"{file_name}: 텍스트 추출 실패 — {e}"
             logger.warning(err_msg)
@@ -782,6 +831,39 @@ async def parse_documents(case_id: str, background_tasks: BackgroundTasks):
             status=ParseStatus.ERROR,
             error_message=f"AI 파싱 중 오류가 발생했습니다: {str(e)}",
         )
+
+    # 4-1) 성분코드 자동 조회 — 각 ingredient에 ingredient_code 채워넣기
+    try:
+        parsed_result = await _enrich_ingredient_codes(parsed_result)
+    except Exception as e:
+        logger.warning(f"성분코드 자동 조회 실패 (무시하고 계속): {e}")
+
+    # 4-2) 추천 케이스 제목 생성 + cases.product_name 자동 업데이트
+    #   형식: 제품명_YYYYMMDD_케이스ID앞8자리 (예: TequilaDVT_20260417_a1b2c3d4)
+    import re as _re
+    suggested_title = ""
+    try:
+        _raw_product = (parsed_result.basic_info.product_name or "").strip()
+        if _raw_product:
+            # 파일명/제목에 쓸 수 없는 특수문자 제거
+            _safe_name = _re.sub(r'[/\\:*?"<>|\n\r\t]', "", _raw_product)
+            # 연속 공백·언더바 → 단일 언더바
+            _safe_name = _re.sub(r"[\s_]+", "_", _safe_name).strip("_")
+            _date_str = datetime.now().strftime("%Y%m%d")
+            _short_id = case_id.replace("-", "")[:8]
+            suggested_title = f"{_safe_name}_{_date_str}_{_short_id}"
+        else:
+            _date_str = datetime.now().strftime("%Y%m%d")
+            _short_id = case_id.replace("-", "")[:8]
+            suggested_title = f"검역건_{_date_str}_{_short_id}"
+
+        # cases.product_name을 추천 제목으로 업데이트
+        sb.table("cases") \
+            .update({"product_name": suggested_title}) \
+            .eq("id", case_id).execute()
+        logger.info(f"케이스 제목 자동 업데이트: case={case_id}, title={suggested_title!r}")
+    except Exception as e:
+        logger.warning(f"suggested_title 생성/저장 실패 (무시): {e}")
 
     # 5) 파싱 결과를 documents 테이블의 parsed_md에 저장
     for doc in documents:
@@ -853,7 +935,103 @@ async def parse_documents(case_id: str, background_tasks: BackgroundTasks):
         case_id=case_id,
         status=ParseStatus.COMPLETED,
         parsed_result=parsed_result,
+        suggested_title=suggested_title,
         raw_texts=raw_texts,
         extraction_errors=extraction_errors,
         parsed_at=datetime.now(timezone.utc),
     )
+
+
+# ─────────────────────────────────────────────
+# POST /f0/suggest-process-codes
+#   사용자가 직접 입력한 공정 설명 텍스트 → 식약처 공정 코드 추천
+#   is_incomplete=True인 건에서 사용자가 공정을 수동 입력할 때 호출
+# ─────────────────────────────────────────────
+
+@router.post(
+    "/f0/suggest-process-codes",
+    response_model=ProcessCodeSuggestResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="[f0] 공정 설명 텍스트 → 식약처 공정 코드 추천",
+    description=(
+        "사용자가 직접 입력한 제조공정 설명 텍스트를 분석하여 "
+        "식약처 공식 공정 코드를 추천합니다.\n\n"
+        "**주요 사용 케이스:**\n"
+        "- OCR 파싱 결과의 `process_info.is_incomplete=true`인 경우 사용자가 공정을 직접 입력\n"
+        "- 사용자가 공정 코드를 직접 검색/수정하고 싶을 때\n\n"
+        "**응답 구조:**\n"
+        "- `is_recommended=true`: AI 최종 추천 코드\n"
+        "- `is_recommended=false`: 유사/혼동 가능 코드 (참고용)"
+    ),
+)
+async def suggest_process_codes_endpoint(body: ProcessCodeSuggestRequest):
+    """사용자 입력 공정 설명 텍스트에서 식약처 공정 코드 추천."""
+    if not body.text or not body.text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "EMPTY_TEXT", "message": "공정 설명 텍스트를 입력해주세요.", "feature": 0},
+        )
+
+    try:
+        result = await suggest_process_codes(body.text.strip())
+    except Exception as e:
+        logger.error(f"공정 코드 추천 실패: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "SUGGEST_FAILED", "message": f"공정 코드 추천 중 오류가 발생했습니다: {e}", "feature": 0},
+        )
+
+    return result
+
+
+# ─────────────────────────────────────────────
+# POST /f0/search-ingredient-codes
+#   성분명(한글/영문) 또는 CAS 번호 → 식약처 성분 코드 검색
+# ─────────────────────────────────────────────
+
+@router.post(
+    "/f0/search-ingredient-codes",
+    response_model=IngredientSearchResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+    summary="[f0] 성분명 / CAS 번호 → 식약처 성분 코드 검색",
+    description=(
+        "성분명(한글/영문) 또는 CAS 번호로 식약처 성분 코드를 검색합니다.\n\n"
+        "**검색 전략 (2-Stage):**\n"
+        "1. Supabase 정확 매칭 (ilike) — 코드/한글명/영문명\n"
+        "2. Pinecone 유사 검색 (semantic) — 1단계 결과 부족 시 자동 fallback\n\n"
+        "**search_mode 옵션:**\n"
+        "- `auto` (기본): CAS 번호면 정확 매칭, 아니면 정확+유사 혼합\n"
+        "- `exact`: Supabase ilike만 사용\n"
+        "- `fuzzy`: Pinecone semantic만 사용\n\n"
+        "**CAS 번호 예시:** `64-17-5`, `9005-25-8`\n"
+        "**성분명 예시:** `사과농축`, `사과농축즙`, `apple concentrate`"
+    ),
+)
+async def search_ingredient_codes_endpoint(body: IngredientSearchRequest):
+    """성분명 또는 CAS 번호로 식약처 성분 코드 검색."""
+    if not body.query or not body.query.strip():
+        raise HTTPException(
+            status_code=400,
+            detail={"error": "EMPTY_QUERY", "message": "검색어를 입력해주세요.", "feature": 0},
+        )
+
+    try:
+        result = await search_ingredient_codes(
+            query=body.query.strip(),
+            top_k=body.top_k,
+            search_mode=body.search_mode,
+        )
+    except Exception as e:
+        logger.error(f"성분 코드 검색 실패: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={"error": "SEARCH_FAILED", "message": f"성분 코드 검색 중 오류가 발생했습니다: {e}", "feature": 0},
+        )
+
+    return result

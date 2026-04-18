@@ -132,10 +132,15 @@ export default function LabelPage() {
       setStep("generating_p1");
 
       // SSE 스트리밍
-      const url = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/cases/${caseId}/pipeline/feature/5/run`;
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const url = `${baseUrl}/cases/${caseId}/pipeline/feature/5/run`;
+      const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ food_type: foodType || null, stream: true }),
       });
 

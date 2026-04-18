@@ -118,6 +118,36 @@ export function useImportCheck(caseId: string) {
     setState((prev) => ({ ...prev, editReason: reason }));
   }, []);
 
+  // HITL 결정 (RagConflictPanel 에서 호출)
+  // DB 따르기 / RAG 따르기 / 수동 판정 3가지 경로 모두 이 핸들러로 수렴.
+  // 기존 updateImportCheckResult (PATCH /feature/1) 재사용.
+  const submitHITLDecision = useCallback(
+    async (verdict: Feature1Result["verdict"], reason: string) => {
+      if (!state.editedResult) return;
+      setState((prev) => ({ ...prev, isSaving: true, errorMessage: null }));
+      try {
+        const next: Feature1Result = {
+          ...state.editedResult,
+          verdict,
+          import_possible: verdict === "수입가능",
+        };
+        await updateImportCheckResult(caseId, {
+          final_result: next,
+          edit_reason: reason,
+        });
+        // 저장 후 재조회 (needs_review → waiting_review 로 status 전환 반영)
+        await fetchResult();
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          isSaving: false,
+          errorMessage: "HITL 결정 저장에 실패했습니다.",
+        }));
+      }
+    },
+    [caseId, state.editedResult, fetchResult],
+  );
+
   // 수정 저장 (PATCH)
   const saveEdit = useCallback(async () => {
     if (!state.editedResult) return;
@@ -193,5 +223,6 @@ export function useImportCheck(caseId: string) {
     saveEdit,
     confirm,
     handleDownloadPdf,
+    submitHITLDecision,
   };
 }
