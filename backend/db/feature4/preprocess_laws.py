@@ -820,13 +820,24 @@ def embed_chunks(model: SentenceTransformer, chunks: list[dict]) -> list[list[fl
 def _make_vector_id(law_name: str, chunk_index: int) -> str:
     """
     법령명 + 청크 순서로 결정적(deterministic) 벡터 ID 생성.
-
-    법령명만 사용하고 고시번호는 제외:
-    → 법령 개정(고시번호 변경) 시 같은 ID로 upsert → 자동 덮어쓰기
-    → 인덱스 삭제/재생성 없이 preprocess_laws.py 재실행으로 갱신 완료
+    법령명만 사용하고 고시번호는 제외 → 개정 시에도 동일 ID 체계 유지.
     """
     raw = f"{law_name}|{chunk_index:05d}"
     return hashlib.md5(raw.encode("utf-8")).hexdigest()
+
+
+def delete_law_vectors(index, law_name: str, total_chunks: int) -> int:
+    """
+    해당 법령의 Pinecone 벡터를 전부 삭제.
+    법령 개정 시 '삭제 → 재삽입' 방식으로 깨끗한 상태를 보장.
+    반환: 삭제된 벡터 수.
+    """
+    if total_chunks <= 0:
+        return 0
+    all_ids = [_make_vector_id(law_name, i) for i in range(total_chunks)]
+    for i in range(0, len(all_ids), 1000):
+        index.delete(ids=all_ids[i : i + 1000])
+    return len(all_ids)
 
 
 def upsert_to_pinecone(
@@ -970,6 +981,81 @@ def _extract_prohibition_hints(
 
 
 # =============================================================
+# PDF에서 고시번호 / 시행일 자동 추출
+# =============================================================
+
+# 고시번호 패턴: "제2025-79호", "제20826호", "제35734호" 등
+_NOTICE_NO_RE = re.compile(r"제[\d\-]+호")
+
+# 시행일 패턴: "2025. 12. 4." / "2025.12.04" / "2025-12-04"
+_ENFORCE_DATE_RE = re.compile(
+    r"(?:시행\s*)?(\d{4})\s*[.\-]\s*(\d{1,2})\s*[.\-]\s*(\d{1,2})"
+)
+
+
+def extract_notice_info_from_text(text: str) -> dict:
+    """
+    법령 본문 첫 부분에서 고시번호와 시행일을 자동 추출.
+    PDF/HWPX 텍스트 추출 후 호출.
+
+    반환: {"고시번호": str|None, "시행일": date|None}
+    """
+    # 첫 2000자만 검색 (법령 앞부분에 고시번호/시행일 기재)
+    header = text[:2000]
+
+    notice_no = None
+    match = _NOTICE_NO_RE.search(header)
+    if match:
+        notice_no = match.group()
+
+    enforce_date = None
+    match = _ENFORCE_DATE_RE.search(header)
+    if match:
+        try:
+            y, m, d = int(match.group(1)), int(match.group(2)), int(match.group(3))
+            enforce_date = date(y, m, d)
+        except (ValueError, TypeError):
+            pass
+
+    return {"고시번호": notice_no, "시행일": enforce_date}
+
+
+# =============================================================
+# Supabase is_updating 플래그 관리
+# =============================================================
+
+def set_law_updating(supabase_client, law_name: str, is_updating: bool) -> None:
+    """
+    법령의 is_updating 플래그를 설정.
+    True로 설정하면 F4 분석 요청 시 '업데이트 중' 안내를 반환.
+    """
+    existing = (
+        supabase_client.table("f4_law_documents")
+        .select("id")
+        .eq("law_name", law_name)
+        .execute()
+    )
+    if existing.data:
+        supabase_client.table("f4_law_documents").update(
+            {"is_updating": is_updating}
+        ).eq("id", existing.data[0]["id"]).execute()
+
+
+def check_any_law_updating(supabase_client) -> list[str]:
+    """
+    현재 업데이트 중인 법령 목록을 반환.
+    F4 분석 시 호출하여 업데이트 중이면 차단.
+    """
+    res = (
+        supabase_client.table("f4_law_documents")
+        .select("law_name")
+        .eq("is_updating", True)
+        .execute()
+    )
+    return [row["law_name"] for row in (res.data or [])]
+
+
+# =============================================================
 # Supabase 저장
 # =============================================================
 
@@ -1026,71 +1112,92 @@ def preprocess_single_law(
     단일 법령 파일(PDF 또는 HWPX)을 전처리하여 Pinecone + Supabase에 적재.
     관리자 업로드 API에서 호출됨.
 
+    [개정 처리 방식] 삭제 → 재삽입
+      1. is_updating=True 플래그 설정 (F4 분석 차단)
+      2. 기존 Pinecone 벡터 전부 삭제
+      3. 새 PDF 처리 → 새 벡터 삽입
+      4. Supabase 메타데이터 UPDATE (행 삭제 X → FK 보존)
+      5. is_updating=False 해제
+
     반환: {"law_doc_id": str, "total_chunks": int, "article_cnt": int, "table_cnt": int, "image_cnt": int}
     """
-    law_info = {
-        "law_name": law_name,
-        "고시번호": 고시번호,
-        "시행일":   시행일,
-        "file":     pdf_path.name,
-        "tier":     tier,
-        "category": category,
-    }
+    # 0. 업데이트 시작 플래그 설정
+    set_law_updating(supabase_client, law_name, True)
 
-    # 1. 본문 텍스트 추출 (PDF/HWPX 자동 분기)
-    text = _extract_text_auto(pdf_path)
+    try:
+        # 1. 본문 텍스트 추출 (PDF/HWPX 자동 분기)
+        text = _extract_text_auto(pdf_path)
 
-    # 2. 조문 단위 청킹
-    chunks = chunk_by_article(text, law_name, 고시번호, tier)
-    article_cnt = len(chunks)
+        # 1-a. 고시번호/시행일 자동 파싱 (Form 입력이 비어있으면 PDF에서 추출)
+        if not 고시번호 or not 시행일:
+            parsed = extract_notice_info_from_text(text)
+            if not 고시번호 and parsed["고시번호"]:
+                고시번호 = parsed["고시번호"]
+                print(f"  -> Auto-detected notice_no: {고시번호}")
+            if not 시행일 and parsed["시행일"]:
+                시행일 = parsed["시행일"]
+                print(f"  -> Auto-detected enforce_date: {시행일}")
+        if not 시행일:
+            시행일 = date.today()
 
-    # 3. 표 추출 (PDF: pymupdf / HWPX: XML <hp:tbl> 파싱)
-    table_texts = _extract_tables_auto(pdf_path)
-    _add_table_chunks(chunks, table_texts, law_name, 고시번호, tier)
+        law_info = {
+            "law_name": law_name,
+            "고시번호": 고시번호,
+            "시행일":   시행일,
+            "file":     pdf_path.name,
+            "tier":     tier,
+            "category": category,
+        }
 
-    # 4. 이미지 추출 (PDF: pymupdf 렌더링 / HWPX: BinData/ 추출)
-    image_texts = _extract_images_auto(pdf_path, claude_client)
-    for t in image_texts:
-        chunks.append(_make_chunk(t, "별표/도안", law_name, 고시번호, tier))
+        # 2. 조문 단위 청킹
+        chunks = chunk_by_article(text, law_name, 고시번호, tier)
+        article_cnt = len(chunks)
 
-    # 5. 기존 청크 수 조회 (Pinecone 고아 벡터 삭제용)
-    old_doc = (
-        supabase_client.table("f4_law_documents")
-        .select("total_chunks")
-        .eq("law_name", law_name)
-        .execute()
-    )
-    old_total = old_doc.data[0]["total_chunks"] if old_doc.data else 0
+        # 3. 표 추출 (PDF: pymupdf / HWPX: XML <hp:tbl> 파싱)
+        table_texts = _extract_tables_auto(pdf_path)
+        _add_table_chunks(chunks, table_texts, law_name, 고시번호, tier)
 
-    # 6. 임베딩
-    vectors = embed_chunks(model, chunks)
+        # 4. 이미지 추출 (PDF: pymupdf 렌더링 / HWPX: BinData/ 추출)
+        image_texts = _extract_images_auto(pdf_path, claude_client)
+        for t in image_texts:
+            chunks.append(_make_chunk(t, "별표/도안", law_name, 고시번호, tier))
 
-    # 7. 법령 고유 금지 마커 힌트 추출 (extract_prohibited_keywords에서 동적 로드용)
-    print(f"  → 법령 고유 금지 마커 힌트 추출 중...")
-    hint_patterns = _extract_prohibition_hints(chunks, law_name, claude_client)
-    print(f"  → 힌트 패턴 {len(hint_patterns)}개: {hint_patterns}")
+        # 5. 기존 Pinecone 벡터 전부 삭제 (깨끗한 재삽입 보장)
+        old_doc = (
+            supabase_client.table("f4_law_documents")
+            .select("total_chunks")
+            .eq("law_name", law_name)
+            .execute()
+        )
+        old_total = old_doc.data[0]["total_chunks"] if old_doc.data else 0
+        if old_total > 0:
+            deleted = delete_law_vectors(index, law_name, old_total)
+            print(f"  -> Deleted {deleted} old vectors from Pinecone")
 
-    # 8. Supabase 저장 (기존 법령이면 덮어씀)
-    law_doc_id = save_law_document(supabase_client, law_info, len(chunks), hint_patterns)
+        # 6. 임베딩
+        vectors = embed_chunks(model, chunks)
 
-    # 9. Pinecone 적재 (결정적 ID → 자동 덮어쓰기)
-    upsert_to_pinecone(index, chunks, vectors, law_doc_id)
+        # 7. 법령 고유 금지 마커 힌트 추출 (extract_prohibited_keywords에서 동적 로드용)
+        print(f"  -> Extracting prohibition hint patterns...")
+        hint_patterns = _extract_prohibition_hints(chunks, law_name, claude_client)
+        print(f"  -> {len(hint_patterns)} hint patterns found")
 
-    # 10. 고아 벡터 삭제 — 개정으로 청크 수가 줄었을 때 이전 벡터 제거
-    new_total = len(chunks)
-    if old_total > new_total:
-        orphan_ids = [_make_vector_id(law_name, i) for i in range(new_total, old_total)]
-        for i in range(0, len(orphan_ids), 1000):
-            index.delete(ids=orphan_ids[i : i + 1000])
-        print(f"  → 고아 벡터 {len(orphan_ids)}개 삭제 (청크 {old_total} → {new_total})")
+        # 8. Supabase 저장 (기존 법령이면 UPDATE — 행 삭제 X, FK 보존)
+        law_doc_id = save_law_document(supabase_client, law_info, len(chunks), hint_patterns)
 
-    return {
-        "law_doc_id":   law_doc_id,
-        "total_chunks": len(chunks),
-        "article_cnt":  article_cnt,
-        "table_cnt":    len(table_texts),
-        "image_cnt":    len(image_texts),
-    }
+        # 9. Pinecone 적재 (새 벡터 전체 삽입)
+        upsert_to_pinecone(index, chunks, vectors, law_doc_id)
+
+        return {
+            "law_doc_id":   law_doc_id,
+            "total_chunks": len(chunks),
+            "article_cnt":  article_cnt,
+            "table_cnt":    len(table_texts),
+            "image_cnt":    len(image_texts),
+        }
+    finally:
+        # 성공/실패 모두 is_updating 해제 (크래시 복구는 admin_laws.py에서 처리)
+        set_law_updating(supabase_client, law_name, False)
 
 
 # =============================================================

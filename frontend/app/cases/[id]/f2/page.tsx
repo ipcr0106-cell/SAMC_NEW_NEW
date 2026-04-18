@@ -19,7 +19,7 @@ export default function F2FoodTypePage() {
       <div className="mt-6 grid lg:grid-cols-3 gap-6">
         {/* 좌측: F2 식품유형 분류 본문 (아람 구현) */}
         <div className="lg:col-span-2">
-          <FoodClassificationPage />
+          <FoodClassificationPage caseId={caseId} />
         </div>
 
         {/* 우측: 케이스 요약 */}
@@ -31,7 +31,7 @@ export default function F2FoodTypePage() {
       {/* 하단 액션바 (f0 디자인 유지) */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="max-w-[1440px] mx-auto px-6">
-          <div className="bg-white/80 backdrop-blur-xl border-t border-slate-200/60 rounded-t-2xl shadow-lg shadow-slate-900/5 px-8 py-4 flex items-center justify-between">
+          <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
             <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f1`)}>
               이전: 수입판정
             </Button>
@@ -44,7 +44,6 @@ export default function F2FoodTypePage() {
                 size="lg"
                 icon={<ArrowRight size={18} />}
                 onClick={() => router.push(`/cases/${caseId}/f3`)}
-                className="shadow-lg shadow-blue-600/20"
               >
                 F3 필요서류로 이동
               </Button>

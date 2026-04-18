@@ -86,4 +86,4 @@ class RequiredDocsResponse(BaseModel):
     total_submit: int
     total_keep: int
     warnings: list[str]
-    match_confidence: Literal["high", "needs_review"] = "high"
+    match_confidence: Literal["high", "needs_review", "degraded"] = "high"

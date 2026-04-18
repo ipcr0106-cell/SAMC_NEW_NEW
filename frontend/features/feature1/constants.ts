@@ -12,6 +12,8 @@ export const API_PATHS = {
     `/cases/${caseId}/pipeline/feature/1`,
   confirm: (caseId: string) =>
     `/cases/${caseId}/pipeline/feature/1/confirm`,
+  report: (caseId: string) =>
+    `/cases/${caseId}/pipeline/feature/1/report`,
 } as const;
 
 // 판정 표시 라벨

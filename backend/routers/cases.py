@@ -33,6 +33,16 @@ router = APIRouter(prefix="/api/v1", tags=["cases"])
 class CaseCreateRequest(BaseModel):
     product_name: str = Field(description="제품명")
     importer_name: str = Field(default="", description="수입자명")
+    entry_step: Optional[str] = Field(
+        default=None,
+        description=(
+            "직접 진입할 단계 키. None이면 f0(업로드)부터 시작. "
+            "'1'~'6', 'A', 'B' 등을 지정하면 해당 기능으로 바로 진입. "
+            "예: 라벨 검토만 필요 → 'B', 서류 확인만 필요 → 'A'"
+        ),
+    )
+    export_country: str = Field(default="", description="수출국 — 중간 진입 시 직접 입력용")
+    food_type: str = Field(default="", description="식품유형 — 중간 진입 시 직접 입력용")
 
 
 class CaseUpdateRequest(BaseModel):
@@ -68,14 +78,23 @@ class CaseListResponse(BaseModel):
     summary="새 검역 건 생성",
 )
 async def create_case(body: CaseCreateRequest):
-    """새 검역 건을 생성하고 cases 테이블에 INSERT."""
+    """새 검역 건을 생성하고 cases 테이블에 INSERT.
+
+    entry_step이 지정된 경우 해당 단계로 바로 진입 (중간 진입 시나리오).
+    export_country / food_type은 중간 진입 시 pipeline_steps step_key='0'에
+    기본 ParsedResult로 미리 저장되어 F1~F5가 참조할 수 있도록 함.
+    """
     try:
         sb = get_supabase()
+
+        # entry_step이 없으면 '0'(f0 업로드)부터 시작
+        initial_step = body.entry_step if body.entry_step else "0"
+
         result = sb.table("cases").insert({
             "product_name": body.product_name,
             "importer_name": body.importer_name or "",
             "status": "processing",
-            "current_step": "0",
+            "current_step": initial_step,
         }).execute()
 
         if not result.data:
@@ -85,10 +104,34 @@ async def create_case(body: CaseCreateRequest):
             })
 
         row = result.data[0]
-        logger.info(f"케이스 생성: id={row['id']}, product={body.product_name}")
+        case_id = row["id"]
+        logger.info(f"케이스 생성: id={case_id}, product={body.product_name}, entry_step={initial_step}")
+
+        # 중간 진입 시: export_country / food_type을 기본 파싱 결과로 미리 저장
+        # F1~F5가 pipeline_steps step_key='0'에서 이 데이터를 참조할 수 있음
+        if body.entry_step and body.entry_step != "0":
+            try:
+                from schemas.upload import ParsedResult, BasicInfo
+                default_parsed = ParsedResult(
+                    basic_info=BasicInfo(
+                        product_name=body.product_name,
+                        export_country=body.export_country,
+                    ),
+                )
+                sb.table("pipeline_steps").upsert({
+                    "case_id": case_id,
+                    "step_key": "0",
+                    "step_name": "입력 및 OCR 파싱",
+                    "status": "skipped",
+                    "ai_result": default_parsed.model_dump(),
+                    "final_result": default_parsed.model_dump(),
+                }, on_conflict="case_id,step_key").execute()
+                logger.info(f"중간 진입 기본 파싱 결과 저장: case={case_id}, entry_step={body.entry_step}")
+            except Exception as e:
+                logger.warning(f"중간 진입 기본 결과 저장 실패(무시): {e}")
 
         return CaseResponse(
-            id=row["id"],
+            id=case_id,
             product_name=row["product_name"],
             importer_name=row["importer_name"],
             status=row["status"],

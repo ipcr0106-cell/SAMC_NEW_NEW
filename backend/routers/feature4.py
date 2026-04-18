@@ -1005,6 +1005,27 @@ async def analyze(case_id: str, req: AnalyzeRequest):
     """
     try:
         clients = _get_clients()
+
+        # 법령 업데이트 중 체크 — 업데이트 진행 중이면 분석 차단
+        try:
+            import sys
+            sys.path.insert(0, str(Path(__file__).parent.parent / "db" / "feature4"))
+            from preprocess_laws import check_any_law_updating
+            updating_laws = check_any_law_updating(clients["supabase"])
+            if updating_laws:
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error": "LAW_DB_UPDATING",
+                        "message": "Law DB is currently being updated. Please try again shortly.",
+                        "updating_laws": updating_laws,
+                    },
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # check failed — allow analysis to proceed
+
         ai_result = _run_analysis(req, clients, case_id=case_id)
 
         # f4_results 저장 (이미 있으면 갱신)
@@ -1023,6 +1044,8 @@ async def analyze(case_id: str, req: AnalyzeRequest):
 
         return {"case_id": case_id, "ai_result": ai_result}
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

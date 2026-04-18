@@ -13,10 +13,10 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
-import asyncpg
-
+from db.supabase_client import get_supabase
 from constants.condition_patterns import (classify_condition_type,
                                                   validate_part_restriction)
 from constants.thresholds_config import (EXACT_MATCH_CONFIDENCE,
@@ -35,43 +35,76 @@ _VERDICT_MAP: dict[str, IngredientVerdict] = {
 }
 
 
+def _normalize(s: str) -> str:
+    """Normalize for comparison: remove whitespace, lowercase."""
+    return re.sub(r"\s+", "", s).lower()
+
+
 # ============================================================
 # Step 0: forbidden 게이트
 # ============================================================
 
 
-async def check_forbidden_first(
-    db: asyncpg.Connection, ingredients: list[Ingredient]
+def check_forbidden_first(
+    ingredients: list[Ingredient]
 ) -> list[ForbiddenHit]:
-    """원재료 이름 중 하나라도 f1_forbidden_ingredients 에 매칭되면 hit 반환."""
-    names = [ing.name.strip() for ing in ingredients if ing.name]
+    """원재료 이름(sub_ingredients 재귀 포함) 중 하나라도 f1_forbidden_ingredients 에 매칭되면 hit 반환.
+
+    재귀 검사 근거: 복합원재료(예: "블렌드[무명원료[대마초]]")의 하위 깊은 성분도 검사하여
+    라벨 위장/숨김 방지. 재귀 없이 루트만 검사하면 g089 유형의 우회가 발생.
+    """
+    names: list[str] = []
+
+    def _collect(ings: list[Ingredient]) -> None:
+        for ing in ings:
+            if ing.name:
+                names.append(ing.name.strip())
+            if ing.sub_ingredients:
+                _collect(ing.sub_ingredients)
+
+    _collect(ingredients)
     if not names:
         return []
 
-    rows = await db.fetch(
-        """
-        SELECT DISTINCT name_ko, category, law_source, reason
-          FROM f1_forbidden_ingredients
-         WHERE is_verified = true
-           AND (
-                name_ko = ANY($1::text[])
-                OR EXISTS (
-                    SELECT 1 FROM unnest(aliases) a
-                     WHERE a = ANY($1::text[])
-                )
-           )
-        """,
-        names,
-    )
-    return [
-        ForbiddenHit(
-            name_ko=r["name_ko"],
-            category=r["category"],
-            law_source=r["law_source"],
-            reason=r["reason"],
-        )
-        for r in rows
-    ]
+    supabase = get_supabase()
+    # 전체 조회 후 Python에서 aliases 포함 필터링
+    # (forbidden 테이블은 소규모 <200행으로 오버헤드 무시 가능)
+    rows = supabase.table("f1_forbidden_ingredients") \
+        .select("name_ko, aliases, category, law_source, reason") \
+        .eq("is_verified", True) \
+        .execute().data
+
+    # normalize + bidirectional substring matching
+    # "마리화나 추출물" ↔ alias "마리화나" 양방향 포함 검사
+    names_norm = [_normalize(n) for n in names]
+
+    seen: set[str] = set()
+    result: list[ForbiddenHit] = []
+    for r in rows:
+        candidates = [r["name_ko"], r.get("name_en") or ""]
+        candidates.extend(r.get("aliases") or [])
+        candidates_norm = [_normalize(c) for c in candidates if c]
+
+        hit = False
+        for inp in names_norm:
+            if not inp:
+                continue
+            for c in candidates_norm:
+                if inp in c or c in inp:
+                    hit = True
+                    break
+            if hit:
+                break
+
+        if hit and r["name_ko"] not in seen:
+            seen.add(r["name_ko"])
+            result.append(ForbiddenHit(
+                name_ko=r["name_ko"],
+                category=r["category"],
+                law_source=r["law_source"],
+                reason=r["reason"],
+            ))
+    return result
 
 
 # ============================================================
@@ -81,24 +114,20 @@ async def check_forbidden_first(
 
 def _build_result(
     ing: Ingredient,
-    row: asyncpg.Record,
+    row: dict,
     method: str,
     confidence: float,
 ) -> IngredientMatchResult:
-    status = (
-        row.get("allowed_status", "permitted")
-        if hasattr(row, "get")
-        else row["allowed_status"]
-    )
+    status = row.get("allowed_status", "permitted")
     return IngredientMatchResult(
         ingredient=ing,
         verdict=_VERDICT_MAP.get(status, "unidentified"),
         match_method=method,  # type: ignore[arg-type]
         matched_db_id=str(row["id"]),
         confidence=confidence,
-        conditions=row["conditions"] if "conditions" in row else None,
+        conditions=row.get("conditions"),
         matched_name_ko=row["name_ko"],
-        law_source=row["law_source"] if "law_source" in row else None,
+        law_source=row.get("law_source"),
     )
 
 
@@ -112,76 +141,60 @@ def _unidentified(ing: Ingredient) -> IngredientMatchResult:
     )
 
 
-async def match_ingredient(
-    db: asyncpg.Connection, ing: Ingredient
-) -> IngredientMatchResult:
+def match_ingredient(ing: Ingredient) -> IngredientMatchResult:
     """5단계 순차 매칭 체인."""
+    supabase = get_supabase()
     name = (ing.name or "").strip()
     if not name:
         return _unidentified(ing)
 
     # ── 1단계: 정확 이름 매칭 ─────────────────────────────
-    row = await db.fetchrow(
-        """
-        SELECT id, name_ko, allowed_status, conditions, law_source
-          FROM f1_allowed_ingredients
-         WHERE name_ko = $1
-         LIMIT 1
-        """,
-        name,
-    )
-    if row:
-        return _build_result(ing, row, "exact_name", EXACT_MATCH_CONFIDENCE)
+    # 정규화된 이름으로 먼저 시도 ("비타민 C" → "비타민C"), 실패 시 원본으로 재시도
+    name_norm = _normalize(name)
+    for q in dict.fromkeys([name_norm, name]):  # dedupe, 정규화 우선
+        result = supabase.table("f1_allowed_ingredients") \
+            .select("id, name_ko, allowed_status, conditions, law_source") \
+            .eq("name_ko", q).limit(1).execute()
+        if result.data:
+            return _build_result(ing, result.data[0], "exact_name", EXACT_MATCH_CONFIDENCE)
 
     # ── 2단계: INS 번호 매칭 ──────────────────────────────
     if ing.ins:
-        row = await db.fetchrow(
-            """
-            SELECT id, name_ko, allowed_status, conditions, law_source
-              FROM f1_allowed_ingredients
-             WHERE ins_number = $1
-             LIMIT 1
-            """,
-            ing.ins,
-        )
-        if row:
-            return _build_result(ing, row, "ins_number", EXACT_MATCH_CONFIDENCE)
+        result = supabase.table("f1_allowed_ingredients") \
+            .select("id, name_ko, allowed_status, conditions, law_source") \
+            .eq("ins_number", ing.ins).limit(1).execute()
+        if result.data:
+            return _build_result(ing, result.data[0], "ins_number", EXACT_MATCH_CONFIDENCE)
 
     # ── 3단계: CAS 번호 매칭 ──────────────────────────────
     if ing.cas:
-        row = await db.fetchrow(
-            """
-            SELECT id, name_ko, allowed_status, conditions, law_source
-              FROM f1_allowed_ingredients
-             WHERE cas_number = $1
-             LIMIT 1
-            """,
-            ing.cas,
-        )
-        if row:
-            return _build_result(ing, row, "cas_number", EXACT_MATCH_CONFIDENCE)
+        result = supabase.table("f1_allowed_ingredients") \
+            .select("id, name_ko, allowed_status, conditions, law_source") \
+            .eq("cas_number", ing.cas).limit(1).execute()
+        if result.data:
+            return _build_result(ing, result.data[0], "cas_number", EXACT_MATCH_CONFIDENCE)
 
     # ── 4단계: 학명 매칭 (H10: 4자 이상일 때만 부분매칭, 짧은 한글 오탐 방지) ──
     if len(name) >= 4:
-        row = await db.fetchrow(
-            """
-            SELECT id, name_ko, allowed_status, conditions, law_source
-              FROM f1_allowed_ingredients
-             WHERE scientific_name ILIKE $1
-             LIMIT 1
-            """,
-            f"%{name}%",
-        )
-        if row:
-            return _build_result(ing, row, "scientific_name", EXACT_MATCH_CONFIDENCE)
+        result = supabase.table("f1_allowed_ingredients") \
+            .select("id, name_ko, allowed_status, conditions, law_source") \
+            .ilike("scientific_name", f"%{name}%").limit(1).execute()
+        if result.data:
+            return _build_result(ing, result.data[0], "scientific_name", EXACT_MATCH_CONFIDENCE)
 
     # ── 5단계: 퍼지 (trgm RPC) ────────────────────────────
-    row = await db.fetchrow(
-        "SELECT * FROM search_f1_ingredients_trgm($1, 1)",
-        name,
-    )
-    if row and float(row["similarity"]) >= FUZZY_SIMILARITY_THRESHOLD:
-        return _build_result(ing, row, "fuzzy", FUZZY_MATCH_CONFIDENCE)
+    # RPC 시그니처: search_f1_ingredients_trgm(q TEXT, k INTEGER DEFAULT 30)
+    # RPC failure → unidentified fallback (individual ingredient, not whole chain)
+    try:
+        result = supabase.rpc(
+            "search_f1_ingredients_trgm", {"q": name, "k": 1}
+        ).execute()
+        if result.data:
+            row = result.data[0]
+            if float(row["similarity"]) >= FUZZY_SIMILARITY_THRESHOLD:
+                return _build_result(ing, row, "fuzzy", FUZZY_MATCH_CONFIDENCE)
+    except Exception:
+        pass
 
     return _unidentified(ing)
 
@@ -191,8 +204,8 @@ async def match_ingredient(
 # ============================================================
 
 
-async def run_ingredient_match_chain(
-    db: asyncpg.Connection, ingredients: list[Ingredient]
+def run_ingredient_match_chain(
+    ingredients: list[Ingredient]
 ) -> AggregationResult:
     results: list[IngredientMatchResult] = []
     escalations: list[dict] = []
@@ -210,7 +223,7 @@ async def run_ingredient_match_chain(
             )
             continue
 
-        r = await match_ingredient(db, ing)
+        r = match_ingredient(ing)
         results.append(r)
 
         if r.verdict == "prohibited":
@@ -248,8 +261,8 @@ async def run_ingredient_match_chain(
 # ============================================================
 
 
-async def evaluate_compound_ingredients(
-    db: asyncpg.Connection, ingredients: list[Ingredient]
+def evaluate_compound_ingredients(
+    ingredients: list[Ingredient]
 ) -> tuple[list[IngredientMatchResult], list[dict]]:
     """sub_ingredients가 있는 원재료들을 재귀적으로 매칭 (다단계 중첩 지원).
 
@@ -277,7 +290,7 @@ async def evaluate_compound_ingredients(
             continue
         # 1단계: 이 ing 의 직계 sub_ingredients 매칭
         # (ing 자체는 호출부에서 이미 매칭 완료 상태)
-        sub_agg = await run_ingredient_match_chain(db, ing.sub_ingredients)
+        sub_agg = run_ingredient_match_chain(ing.sub_ingredients)
         all_sub_results.extend(sub_agg.results)
         escalations.extend(sub_agg.escalations)
 
@@ -294,11 +307,8 @@ async def evaluate_compound_ingredients(
             )
 
         # 2단계+: 재귀로 "sub 의 sub" 처리
-        # ing.sub_ingredients 를 인자로 넘기지만, 재귀 함수 내부에서
-        # `if not sub.sub_ingredients: continue` 로 단일 원료는 걸러지므로
-        # 이미 1단계에서 매칭한 것이 다시 매칭되지 않음.
-        deeper_results, deeper_escalations = await evaluate_compound_ingredients(
-            db, ing.sub_ingredients
+        deeper_results, deeper_escalations = evaluate_compound_ingredients(
+            ing.sub_ingredients
         )
         all_sub_results.extend(deeper_results)
         escalations.extend(deeper_escalations)
@@ -370,13 +380,12 @@ def evaluate_conditional_ingredients(
 # ============================================================
 
 
-async def run_step1(
-    db: asyncpg.Connection,
+def run_step1(
     ingredients: list[Ingredient],
 ) -> dict:
     """Step 0/1/1-A/1-B 통합 실행. Step 3(기준치)는 step3_standards 에서 별도."""
     # Step 0
-    forbidden_hits = await check_forbidden_first(db, ingredients)
+    forbidden_hits = check_forbidden_first(ingredients)
     if forbidden_hits:
         return {
             "import_possible": False,
@@ -386,10 +395,10 @@ async def run_step1(
         }
 
     # Step 1
-    aggregation = await run_ingredient_match_chain(db, ingredients)
+    aggregation = run_ingredient_match_chain(ingredients)
 
     # Step 1-A: 복합원재료
-    sub_results, sub_escalations = await evaluate_compound_ingredients(db, ingredients)
+    sub_results, sub_escalations = evaluate_compound_ingredients(ingredients)
 
     # Step 1-B: 조건부 평가
     conditional_evals = evaluate_conditional_ingredients(

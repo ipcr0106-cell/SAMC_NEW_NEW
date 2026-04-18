@@ -1,0 +1,371 @@
+{
+  "version": "v1",
+  "meta": {
+    "phase": "4-B-3",
+    "created": "2026-04-17",
+    "target_model": "gpt-4o-mini",
+    "target_top_k": 5,
+    "target_index": "samc-law-f1",
+    "total_planned": 30,
+    "distribution_planned": {
+      "permitted_db": 5,
+      "permitted_additive_rag": 5,
+      "prohibited_forbidden": 5,
+      "restricted_db_misc": 1,
+      "conditional_heated": 4,
+      "conditional_fermented": 4,
+      "conditional_alcohol": 3,
+      "unidentified_virtual": 3
+    },
+    "expected_conflict_distribution": {
+      "agreed": 9,
+      "rag_supplemented": 16,
+      "rag_skipped": 5,
+      "rag_unavailable": "런타임 관측",
+      "conflict": "런타임 관측"
+    },
+    "schema_fields": {
+      "case_id": "string — 케이스 ID (g001~g030)",
+      "description": "string — 한 줄 요약",
+      "ingredients": "array — [{name: string, percentage?: number, ins?: string, cas?: string, part?: string, sub_ingredients?: []}]",
+      "food_type": "string|null — 식품유형 (F2 확정치 가정)",
+      "process_conditions": "object — {is_heated?: bool, is_fermented?: bool, is_distilled?: bool, alcohol_percentage?: number}",
+      "expected_exact_verdict": "permitted|restricted|prohibited|unidentified — _derive_exact_verdict 기대값",
+      "expected_rag_verdict": "permitted|restricted|prohibited|unidentified|null — RAG 판정 기대값 (null=rag_skipped)",
+      "expected_conflict_status": "agreed|conflict|rag_supplemented|rag_unavailable|rag_skipped — 총괄 §2.7 HITL 매트릭스",
+      "notes": "string — 근거 (DB 시드 참조, 법령 근거 등)"
+    }
+  },
+  "cases": [
+    {
+      "case_id": "g001",
+      "description": "허용 원료 — 쌀 단일 (DB 정확명 매칭)",
+      "ingredients": [{"name": "쌀", "percentage": 99.0}],
+      "food_type": "곡류",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "permitted",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 01(별표1) 곡류 섹션 등록. Step 1 exact_name 정확 매칭 → permitted."
+    },
+    {
+      "case_id": "g002",
+      "description": "허용 원료 — 사과 단일 (DB 정확명 매칭)",
+      "ingredients": [{"name": "사과", "percentage": 90.0}],
+      "food_type": "과채가공품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "permitted",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 01 과일류 섹션 등록. Malus domestica."
+    },
+    {
+      "case_id": "g003",
+      "description": "허용 원료 — 우유 (기타 섹션)",
+      "ingredients": [{"name": "우유", "percentage": 100.0}],
+      "food_type": "유가공품",
+      "process_conditions": {"is_heated": true},
+      "expected_exact_verdict": "permitted",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 01 기타 섹션 등록. 가열처리는 은유적 공정 플래그."
+    },
+    {
+      "case_id": "g004",
+      "description": "허용 원료 — 꿀 (기타 섹션)",
+      "ingredients": [{"name": "꿀", "percentage": 100.0}],
+      "food_type": "당류가공품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "permitted",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 01 기타 섹션 등록."
+    },
+    {
+      "case_id": "g005",
+      "description": "허용 원료 — 인삼 단일",
+      "ingredients": [{"name": "인삼", "percentage": 5.0}],
+      "food_type": "건강기능식품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "permitted",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 01 기타 섹션 등록. Panax ginseng."
+    },
+    {
+      "case_id": "g006",
+      "description": "첨가물 허용 — 설탕 (RAG 보완)",
+      "ingredients": [{"name": "설탕", "percentage": 50.0}],
+      "food_type": "당류가공품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed_ingredients 미등록(가공당). f1_additive_limits에도 개별 등재 없음. RAG가 식품공전/첨가물공전에서 일반 허용 원료로 permitted 판정 기대."
+    },
+    {
+      "case_id": "g007",
+      "description": "첨가물 허용 — 포도당 (RAG 보완)",
+      "ingredients": [{"name": "포도당", "percentage": 30.0}],
+      "food_type": "당류가공품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed_ingredients 미등재. RAG가 식품공전 당류 섹션에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g008",
+      "description": "첨가물 허용 — 구연산 (INS 330, 첨가물공전)",
+      "ingredients": [{"name": "구연산", "percentage": 0.5, "ins": "330"}],
+      "food_type": "음료류",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed_ingredients 미등재. f1_additive_limits 시드 06에 '구연산' 전체 사용량 제한 없음 등재. RAG가 첨가물공전 청크에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g009",
+      "description": "첨가물 허용 — 아스코르브산 (INS 300)",
+      "ingredients": [{"name": "아스코르브산", "percentage": 0.1, "ins": "300"}],
+      "food_type": "음료류",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed_ingredients 미등재. f1_additive_limits 시드 06에 '아스코르빈산'(영문 이표기) 등재. 한글 표기 차이로 step1 실패 예상. RAG가 첨가물공전에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g010",
+      "description": "첨가물 허용 — 글리세린",
+      "ingredients": [{"name": "글리세린", "percentage": 2.0}],
+      "food_type": "기타가공품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed_ingredients 미등재. f1_additive_limits에도 개별 등재 없음. RAG가 첨가물공전/식품공전에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g011",
+      "description": "금지 원료 — 대마초 (Step 0 게이트)",
+      "ingredients": [{"name": "대마초", "percentage": 5.0}],
+      "food_type": "음료류",
+      "process_conditions": {},
+      "expected_exact_verdict": "prohibited",
+      "expected_rag_verdict": null,
+      "expected_conflict_status": "rag_skipped",
+      "notes": "f1_forbidden_ingredients 시드 04 drug 카테고리. 마약류 관리법 제2조. Step 0 적중 → RAG 미호출."
+    },
+    {
+      "case_id": "g012",
+      "description": "금지 원료 — 양귀비 (Step 0 게이트)",
+      "ingredients": [{"name": "양귀비", "percentage": 1.0}],
+      "food_type": "기타가공품",
+      "process_conditions": {},
+      "expected_exact_verdict": "prohibited",
+      "expected_rag_verdict": null,
+      "expected_conflict_status": "rag_skipped",
+      "notes": "f1_forbidden_ingredients 시드 04 drug 카테고리. 마약류 관리법상 식품원료 사용 금지."
+    },
+    {
+      "case_id": "g013",
+      "description": "금지 원료 — 코카잎 (Step 0 게이트)",
+      "ingredients": [{"name": "코카잎", "percentage": 2.0}],
+      "food_type": "음료류",
+      "process_conditions": {},
+      "expected_exact_verdict": "prohibited",
+      "expected_rag_verdict": null,
+      "expected_conflict_status": "rag_skipped",
+      "notes": "f1_forbidden_ingredients 시드 04 '코카 잎'(공백 포함). substring bidirectional matching으로 '코카잎' 입력도 alias '코카' 통해 매칭 예상."
+    },
+    {
+      "case_id": "g014",
+      "description": "금지 원료 — THC (대마초 alias 매칭)",
+      "ingredients": [{"name": "THC", "percentage": 0.1}],
+      "food_type": "건강기능식품",
+      "process_conditions": {},
+      "expected_exact_verdict": "prohibited",
+      "expected_rag_verdict": null,
+      "expected_conflict_status": "rag_skipped",
+      "notes": "f1_forbidden_ingredients '대마초' aliases=['대마','마리화나','THC','CBD오일','헴프시드오일']. 직접 THC 입력 → alias 적중."
+    },
+    {
+      "case_id": "g015",
+      "description": "금지 원료 — 카바카바 (Step 0 게이트)",
+      "ingredients": [{"name": "카바카바", "percentage": 3.0}],
+      "food_type": "건강기능식품",
+      "process_conditions": {},
+      "expected_exact_verdict": "prohibited",
+      "expected_rag_verdict": null,
+      "expected_conflict_status": "rag_skipped",
+      "notes": "f1_forbidden_ingredients 시드 04 unauthorized 카테고리. 식약처 고시 제2020-90호. 간 독성."
+    },
+    {
+      "case_id": "g016",
+      "description": "조건부 원료 — 과라나 (기타 조건부, DB restricted)",
+      "ingredients": [{"name": "과라나", "percentage": 3.0}],
+      "food_type": "음료류",
+      "process_conditions": {},
+      "expected_exact_verdict": "restricted",
+      "expected_rag_verdict": "restricted",
+      "expected_conflict_status": "agreed",
+      "notes": "f1_allowed_ingredients 시드 02(별표2) restricted. conditions='카페인 함유 원료, 1일 섭취량 기준 관리'. RAG도 별표2 청크에서 restricted 판정 기대."
+    },
+    {
+      "case_id": "g017",
+      "description": "조건부 가열 — 소브산 + is_heated=True",
+      "ingredients": [{"name": "소브산", "percentage": 0.1, "ins": "200"}],
+      "food_type": "빵류",
+      "process_conditions": {"is_heated": true},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed_ingredients 미등재. f1_additive_limits 시드 06 '소르빈산'(이표기)에 빵류 max_ppm=1000 등재. 가열 공정 포함. RAG가 첨가물공전 소브산류 기준에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g018",
+      "description": "조건부 가열 — 소브산 + is_heated=False",
+      "ingredients": [{"name": "소브산", "percentage": 0.1, "ins": "200"}],
+      "food_type": "잼류",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed 미등재. f1_additive_limits '소르빈산' 잼류 max_ppm=1000. 비가열 공정. RAG permitted 판정 기대."
+    },
+    {
+      "case_id": "g019",
+      "description": "조건부 가열 — 소브산칼륨 + is_heated=True",
+      "ingredients": [{"name": "소브산칼륨", "percentage": 0.05, "ins": "202"}],
+      "food_type": "빵류",
+      "process_conditions": {"is_heated": true},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed 미등재. f1_additive_limits '소르빈산칼륨' 빵류 max_ppm=1000, 환산계수 0.746. 가열 공정. RAG permitted 판정 기대."
+    },
+    {
+      "case_id": "g020",
+      "description": "조건부 가열 — 소브산칼륨 + is_heated=False",
+      "ingredients": [{"name": "소브산칼륨", "percentage": 0.05, "ins": "202"}],
+      "food_type": "어육가공품",
+      "process_conditions": {"is_heated": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed 미등재. f1_additive_limits 어육가공품 소르빈산 2000 ppm 등재. 비가열. RAG permitted 판정 기대."
+    },
+    {
+      "case_id": "g021",
+      "description": "조건부 발효 — 유산균 + is_fermented=True",
+      "ingredients": [{"name": "유산균", "percentage": 1.0}],
+      "food_type": "유가공품",
+      "process_conditions": {"is_fermented": true},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed 미등재. RAG가 식품공전 유가공품/건강기능식품 청크에서 permitted 판정 기대. 발효 공정 명시."
+    },
+    {
+      "case_id": "g022",
+      "description": "조건부 발효 — 유산균 + is_fermented=False",
+      "ingredients": [{"name": "유산균", "percentage": 1.0}],
+      "food_type": "건강기능식품",
+      "process_conditions": {"is_fermented": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "발효 미수행 분기 (원료 첨가). RAG가 기능성원료 청크에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g023",
+      "description": "조건부 발효 — Bacillus subtilis + is_fermented=True",
+      "ingredients": [{"name": "Bacillus subtilis", "percentage": 0.5}],
+      "food_type": "건강기능식품",
+      "process_conditions": {"is_fermented": true},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed 미등재 (학명). RAG가 건강기능식품 고시/식품공전 미생물 섹션 청크에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g024",
+      "description": "조건부 발효 — Bacillus subtilis + is_fermented=False",
+      "ingredients": [{"name": "Bacillus subtilis", "percentage": 0.5}],
+      "food_type": "기타가공품",
+      "process_conditions": {"is_fermented": false},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "발효 미수행. RAG가 미생물 원료 섹션 청크에서 permitted 판정 기대. 혹은 food_type이 기타가공품이라 RAG가 unidentified 낼 가능성도 있음."
+    },
+    {
+      "case_id": "g025",
+      "description": "조건부 도수 — 에탄올 15% (발효주 경계)",
+      "ingredients": [{"name": "에탄올", "percentage": 15.0}],
+      "food_type": "발효주",
+      "process_conditions": {"is_distilled": false, "alcohol_percentage": 15.0},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "f1_allowed 미등재 (safety_standards에 '에탄올(주정도)' 등록). 발효주 15%는 일반 범위. RAG가 주세법/식품공전 주류 청크에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g026",
+      "description": "조건부 도수 — 에탄올 19% (발효주 상한 부근)",
+      "ingredients": [{"name": "에탄올", "percentage": 19.0}],
+      "food_type": "발효주",
+      "process_conditions": {"is_distilled": false, "alcohol_percentage": 19.0},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "발효주 상한(~19%) 경계. RAG가 주세법 청크에서 발효주 허용 범위로 permitted 판정 기대."
+    },
+    {
+      "case_id": "g027",
+      "description": "조건부 도수 — 에탄올 25% (증류주 경계)",
+      "ingredients": [{"name": "에탄올", "percentage": 25.0}],
+      "food_type": "증류주",
+      "process_conditions": {"is_distilled": true, "alcohol_percentage": 25.0},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "permitted",
+      "expected_conflict_status": "rag_supplemented",
+      "notes": "증류주 표본. safety_standards에 증류주 40% 이하 기준 존재. RAG가 주세법 시행령 별표1/3 청크에서 permitted 판정 기대."
+    },
+    {
+      "case_id": "g028",
+      "description": "미등록 원료 — 가상명 제노스틴 (양측 unidentified)",
+      "ingredients": [{"name": "제노스틴", "percentage": 10.0}],
+      "food_type": "기타가공품",
+      "process_conditions": {},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "unidentified",
+      "expected_conflict_status": "agreed",
+      "notes": "실존하지 않는 가상명. step1 5단계 매칭 모두 실패. 법령 청크에도 전혀 등장하지 않으므로 RAG도 unidentified. 양측 합치로 agreed."
+    },
+    {
+      "case_id": "g029",
+      "description": "미등록 원료 — 가상명 크리오벨라",
+      "ingredients": [{"name": "크리오벨라", "percentage": 5.0}],
+      "food_type": "건강기능식품",
+      "process_conditions": {},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "unidentified",
+      "expected_conflict_status": "agreed",
+      "notes": "실존하지 않는 가상명. DB/법령 양측 미등재 예상."
+    },
+    {
+      "case_id": "g030",
+      "description": "미등록 원료 — 가상명 루미얀",
+      "ingredients": [{"name": "루미얀", "percentage": 3.0}],
+      "food_type": "음료류",
+      "process_conditions": {},
+      "expected_exact_verdict": "unidentified",
+      "expected_rag_verdict": "unidentified",
+      "expected_conflict_status": "agreed",
+      "notes": "실존하지 않는 가상명. DB/법령 양측 미등재 예상."
+    }
+  ]
+}
