@@ -29,3 +29,5 @@ pdfplumber==0.11.4
 tqdm>=4.66.0
 # F5: Voyage-3 임베딩
 voyageai>=0.3.0
+# F5: 법령 PDF 텍스트 추출 (임베딩 스크립트)
+pdfplumber>=0.11.0
