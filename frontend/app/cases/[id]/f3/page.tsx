@@ -31,7 +31,7 @@ export default function F3RequiredDocsPage() {
       {/* 하단 액션바 (f0 디자인 유지) */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="max-w-[1440px] mx-auto px-6">
-          <div className="bg-white/80 backdrop-blur-xl border-t border-slate-200/60 rounded-t-2xl shadow-lg shadow-slate-900/5 px-8 py-4 flex items-center justify-between">
+          <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
             <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f2`)}>
               이전: 유형분류
             </Button>
@@ -44,7 +44,6 @@ export default function F3RequiredDocsPage() {
                 size="lg"
                 icon={<ArrowRight size={18} />}
                 onClick={() => router.push(`/cases/${caseId}/f4`)}
-                className="shadow-lg shadow-blue-600/20"
               >
                 F4 라벨검토로 이동
               </Button>

@@ -356,7 +356,7 @@ export default function UploadPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex flex-col items-center gap-3">
           <Loader2 size={32} className="animate-spin text-blue-500" />
-          <span className="text-sm text-slate-500">데이터 불러오는 중...</span>
+          <span className="text-sm" style={{ color: "var(--ds-color-text-secondary)" }}>데이터 불러오는 중...</span>
         </div>
       </div>
     );
@@ -369,11 +369,11 @@ export default function UploadPage() {
 
       {/* 검역건 제목 입력 */}
       <div className="mt-4 mb-2 flex items-center gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 shrink-0">
-          <Package size={16} className="text-slate-500" />
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0" style={{ background: "var(--ds-color-surface)" }}>
+          <Package size={16} style={{ color: "var(--ds-color-text-secondary)" }} />
         </div>
         <div className="flex-1">
-          <label className="text-xs text-slate-400 mb-1 block">검역건 제품명</label>
+          <label className="text-xs mb-1 block" style={{ color: "var(--ds-color-text-tertiary)" }}>검역건 제품명</label>
           <div className="flex items-center gap-2">
             <input
               type="text"
@@ -386,10 +386,11 @@ export default function UploadPage() {
                 }
               }}
               placeholder="예: FJ 캡 프론티어 위스키"
-              className="flex-1 text-lg font-bold text-slate-900 bg-transparent border-b-2 border-transparent hover:border-slate-200 focus:border-blue-500 focus:outline-none transition-colors py-0.5 placeholder:text-slate-300 placeholder:font-normal"
+              className="flex-1 text-lg font-bold bg-transparent border-b-2 border-transparent focus:outline-none transition-colors py-0.5 placeholder:font-normal"
+              style={{ color: "var(--ds-color-text-heading)" }}
             />
             {savingName && (
-              <Loader2 size={14} className="animate-spin text-slate-400 shrink-0" />
+              <Loader2 size={14} className="animate-spin shrink-0" style={{ color: "var(--ds-color-text-tertiary)" }} />
             )}
           </div>
         </div>
@@ -413,15 +414,15 @@ export default function UploadPage() {
 
           {/* 업로드 에러 표시 */}
           {hasErrors && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)", border: "1px solid var(--ds-color-error-soft)" }}>
               <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle size={14} className="text-red-500" />
-                <span className="text-xs font-semibold text-red-600">
+                <AlertTriangle size={14} style={{ color: "var(--ds-color-error-text)" }} />
+                <span className="text-xs font-semibold" style={{ color: "var(--ds-color-error-text)" }}>
                   업로드 오류
                 </span>
               </div>
               {Object.entries(uploadErrors).map(([docType, msg]) => (
-                <p key={docType} className="text-xs text-red-500 ml-5">
+                <p key={docType} className="text-xs ml-5" style={{ color: "var(--ds-color-error-text)" }}>
                   {docType}: {msg}
                 </p>
               ))}
@@ -485,17 +486,18 @@ export default function UploadPage() {
 
           {/* 파싱 에러 표시 */}
           {parseStatus === "error" && parseError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)", border: "1px solid var(--ds-color-error-soft)" }}>
               <div className="flex items-center gap-2 mb-1">
-                <AlertTriangle size={14} className="text-red-500" />
-                <span className="text-xs font-semibold text-red-600">
+                <AlertTriangle size={14} style={{ color: "var(--ds-color-error-text)" }} />
+                <span className="text-xs font-semibold" style={{ color: "var(--ds-color-error-text)" }}>
                   분석 실패
                 </span>
               </div>
-              <p className="text-xs text-red-500 ml-5">{parseError}</p>
+              <p className="text-xs ml-5" style={{ color: "var(--ds-color-error-text)" }}>{parseError}</p>
               <button
                 onClick={handleParse}
-                className="mt-2 ml-5 text-xs font-medium text-red-600 hover:text-red-800 underline"
+                className="mt-2 ml-5 text-xs font-medium underline"
+                style={{ color: "var(--ds-color-error-text)" }}
               >
                 다시 시도
               </button>
@@ -520,20 +522,20 @@ export default function UploadPage() {
       {/* 하단 고정 액션바 */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="max-w-[1440px] mx-auto px-6">
-          <div className="bg-white/80 backdrop-blur-xl border-t border-slate-200/60 rounded-t-2xl shadow-lg shadow-slate-900/5 px-8 py-4 flex items-center justify-between">
+          <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div
-                className={`w-2 h-2 rounded-full ${
+                className={`ds-status-dot ${
                   parseStatus === "done"
-                    ? "bg-emerald-400 animate-pulse"
+                    ? "ds-status-dot-done animate-pulse"
                     : parseStatus === "parsing"
-                    ? "bg-blue-400 animate-pulse"
+                    ? "ds-status-dot-progress animate-pulse"
                     : parseStatus === "error"
-                    ? "bg-red-400"
-                    : "bg-slate-300"
+                    ? "ds-status-dot-error"
+                    : ""
                 }`}
               />
-              <span className="text-sm text-slate-500">
+              <span className="text-sm" style={{ color: "var(--ds-color-text-secondary)" }}>
                 {parseStatus === "done" && newUploadsSinceParse > 0
                   ? `${newUploadsSinceParse}개 새 파일 추가됨 · 재분석을 시작하세요`
                   : parseStatus === "done"
@@ -564,7 +566,6 @@ export default function UploadPage() {
                   }
                   onClick={handleParse}
                   disabled={parsing}
-                  className="shadow-lg shadow-emerald-600/20"
                 >
                   {parsing
                     ? "AI 분석 중..."
@@ -593,7 +594,6 @@ export default function UploadPage() {
                 size="lg"
                 icon={<ArrowRight size={18} />}
                 onClick={handleSubmit}
-                className="shadow-lg shadow-blue-600/20"
                 disabled={!parsedData}
               >
                 F1 수입판정으로 이동

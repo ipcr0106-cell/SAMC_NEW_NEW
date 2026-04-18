@@ -132,10 +132,15 @@ export default function LabelPage() {
       setStep("generating_p1");
 
       // SSE 스트리밍
-      const url = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}/cases/${caseId}/pipeline/feature/5/run`;
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const url = `${baseUrl}/cases/${caseId}/pipeline/feature/5/run`;
+      const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
       const response = await fetch(url, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({ food_type: foodType || null, stream: true }),
       });
 
@@ -273,7 +278,7 @@ export default function LabelPage() {
 
         {/* ── IDLE: 업로드 폼 ─────────────────────────────────────── */}
         {(step === "idle" || step === "error") && (
-          <div className="bg-white border border-slate-200 rounded-xl p-6 mb-4">
+          <div className="ds-surface-card p-6 mb-4">
             <h2 className="text-sm font-semibold text-slate-700 mb-4">
               성분표 PDF 업로드 후 2단계 교차검증 실행
             </h2>
@@ -327,7 +332,7 @@ export default function LabelPage() {
 
             {/* 오류 */}
             {errorMsg && (
-              <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 mb-4 text-sm text-red-700">
+              <div className="rounded-lg px-4 py-3 mb-4 text-sm ds-alert-error">
                 {errorMsg}
               </div>
             )}
@@ -360,7 +365,7 @@ export default function LabelPage() {
 
         {/* ── 진행 중 ─────────────────────────────────────────────── */}
         {(step === "uploading" || step === "generating_p1" || step === "generating_p2") && (
-          <div className="bg-white border border-slate-200 rounded-xl p-8 text-center">
+          <div className="ds-surface-card p-8 text-center">
             <div className="flex justify-center mb-4">
               <svg className="w-8 h-8 text-emerald-500 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0115.83-3.5M20 15a9 9 0 01-15.83 3.5"/>
@@ -381,8 +386,8 @@ export default function LabelPage() {
             {/* 종합 요약 */}
             <div className={`rounded-xl p-4 mb-5 border ${
               failCount + disagreeCount + errorCount > 0
-                ? "bg-amber-50 border-amber-200"
-                : "bg-emerald-50 border-emerald-200"
+                ? "ds-alert-warning"
+                : "ds-alert-success"
             }`}>
               <p className="text-sm font-semibold text-slate-800 mb-2">교차검증 종합 결과</p>
               <div className="flex flex-wrap gap-3 text-xs">
@@ -414,7 +419,7 @@ export default function LabelPage() {
 
             {/* 추가 발견 이슈 */}
             {issues.length > 0 && (
-              <div className="bg-white border border-slate-200 rounded-xl p-4 mb-4">
+              <div className="ds-surface-card p-4 mb-4">
                 <h2 className="text-sm font-semibold text-slate-700 mb-3">AI 추가 발견 이슈</h2>
                 <div className="space-y-2">
                   {issues.map((issue, i) => (
@@ -428,7 +433,7 @@ export default function LabelPage() {
 
             {/* 최종 시안 */}
             {result.phase2.draft && (
-              <div className="bg-white border border-slate-200 rounded-xl p-5 mb-4">
+              <div className="ds-surface-card p-5 mb-4">
                 <h2 className="text-sm font-semibold text-slate-700 mb-4">최종 한글표시사항 시안</h2>
                 <div className="divide-y divide-slate-100">
                   {Object.entries(result.phase2.draft).map(([key, val]) => (
@@ -444,7 +449,7 @@ export default function LabelPage() {
             )}
 
             {/* 확정 */}
-            <div className="bg-white border border-slate-200 rounded-xl p-5 mb-4">
+            <div className="ds-surface-card p-5 mb-4">
               <h2 className="text-sm font-semibold text-slate-700 mb-1">실무자 최종 확정</h2>
               <p className="text-xs text-slate-400 mb-4">
                 교차검증 결과를 검토한 후 확정자 이름을 입력하고 확정하세요.

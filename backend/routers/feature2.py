@@ -181,7 +181,7 @@ def _get_required_docs(food_type: str, clients: dict) -> list[dict]:
     # 특정 식품유형 서류
     specific = (
         sb.table("f2_required_documents")
-        .select("doc_name, condition, is_mandatory, law_source, food_type")
+        .select("doc_name, doc_description, condition, is_mandatory, law_source, food_type")
         .eq("food_type", food_type)
         .execute()
     )
@@ -189,7 +189,7 @@ def _get_required_docs(food_type: str, clients: dict) -> list[dict]:
     # 공통 서류 (food_type IS NULL)
     common = (
         sb.table("f2_required_documents")
-        .select("doc_name, condition, is_mandatory, law_source, food_type")
+        .select("doc_name, doc_description, condition, is_mandatory, law_source, food_type")
         .is_("food_type", "null")
         .execute()
     )
@@ -294,7 +294,7 @@ def _build_enriched_text(sb, case_id: str, fallback_parsed_md: str) -> str:
 
 
 @router.post("/{case_id}/pipeline/feature/2/run")
-async def run_feature2(case_id: str):
+def run_feature2(case_id: str):
     """
     기능2 실행: f0/F1 결과 + OCR 텍스트 → 식품유형 AI 분류 → pipeline_steps 저장
     """
@@ -304,7 +304,14 @@ async def run_feature2(case_id: str):
     # 1. 케이스 존재 확인
     case_res = sb.table("cases").select("id, product_name").eq("id", case_id).single().execute()
     if not case_res.data:
-        raise HTTPException(status_code=404, detail="케이스를 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error":   "CASE_NOT_FOUND",
+                "message": "케이스를 찾을 수 없습니다.",
+                "feature": 2,
+            },
+        )
 
     # 2. 파싱된 원재료 문서 조회 (fallback용)
     docs_res = (
@@ -316,17 +323,26 @@ async def run_feature2(case_id: str):
     docs = docs_res.data or []
 
     ingredient_docs = [d for d in docs if d["doc_type"] == "ingredients" and d.get("parsed_md")]
-    selected_doc    = ingredient_docs[0] if ingredient_docs else next(
-        (d for d in docs if d.get("parsed_md")), None
-    )
+    selected_doc = (
+        ingredient_docs[0]
+        if ingredient_docs
+        else next((d for d in docs if d.get("parsed_md")), None)
+    ) or {}
 
-    fallback_md = (selected_doc or {}).get("parsed_md", "")
+    fallback_md = selected_doc.get("parsed_md", "")
 
     # 3. f0 + F1 결과를 합쳐서 구조화된 텍스트 생성
     parsed_text = _build_enriched_text(sb, case_id, fallback_md)
 
     if not parsed_text.strip():
-        raise HTTPException(status_code=400, detail="분류에 사용할 데이터가 없습니다. 먼저 서류 업로드 및 파싱을 실행하세요.")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error":   "EMPTY_INPUT",
+                "message": "분류에 사용할 데이터가 없습니다. 먼저 서류 업로드 및 파싱을 실행하세요.",
+                "feature": 2,
+            },
+        )
 
     # 3. pipeline_steps 상태를 'running'으로 업데이트
     sb.table("pipeline_steps").upsert(
@@ -401,11 +417,18 @@ async def run_feature2(case_id: str):
             },
             on_conflict="case_id,step_key",
         ).execute()
-        raise HTTPException(status_code=500, detail=f"분류 실패: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error":   "CLASSIFICATION_FAILED",
+                "message": f"분류 실패: {exc}",
+                "feature": 2,
+            },
+        )
 
 
 @router.get("/{case_id}/pipeline/feature/2")
-async def get_feature2(case_id: str):
+def get_feature2(case_id: str):
     """기능2 결과 조회."""
     clients = _get_clients()
     sb      = clients["supabase"]
@@ -419,12 +442,19 @@ async def get_feature2(case_id: str):
         .execute()
     )
     if not res.data:
-        raise HTTPException(status_code=404, detail="기능2 결과가 없습니다. 먼저 /run을 실행하세요.")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error":   "F2_RESULT_NOT_FOUND",
+                "message": "기능2 결과가 없습니다. 먼저 /run을 실행하세요.",
+                "feature": 2,
+            },
+        )
     return res.data
 
 
 @router.patch("/{case_id}/pipeline/feature/2")
-async def patch_feature2(case_id: str, body: PatchFeature2Request):
+def patch_feature2(case_id: str, body: PatchFeature2Request):
     """담당자 결과 수정 + 사유 저장 → pipeline_steps.final_result 업데이트."""
     clients = _get_clients()
     sb      = clients["supabase"]
@@ -439,7 +469,14 @@ async def patch_feature2(case_id: str, body: PatchFeature2Request):
         .execute()
     )
     if not existing.data:
-        raise HTTPException(status_code=404, detail="기능2 결과가 없습니다.")
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error":   "F2_RESULT_NOT_FOUND",
+                "message": "기능2 결과가 없습니다.",
+                "feature": 2,
+            },
+        )
 
     res = (
         sb.table("pipeline_steps")
