@@ -330,6 +330,111 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
                 }
             )
 
+    # ── 레거시 FE 컴포넌트 재사용을 위한 _internal 매핑 ────────
+    # ImportCheckPage 의 기존 ForbiddenAlert / AggregationSummary / LawCitationList /
+    # EscalationAckList 는 _internal.forbidden_hits / aggregation / law_citations /
+    # escalations 를 기준으로 조건부 렌더한다. v2 path 에서도 이 필드들을 채워
+    # 별도 Step 패널 없이 기존 UI 자연 재사용.
+
+    # forbidden_hits: step_a.forbidden_hits → ForbiddenHitDetail
+    internal_forbidden: list[dict] = []
+    if step_a_data:
+        for h in step_a_data.get("forbidden_hits", []):
+            internal_forbidden.append(
+                {
+                    "name_ko": h.get("ingredient_name", ""),
+                    "category": "other",
+                    "law_source": h.get("law_ref"),
+                    "reason": h.get("reason"),
+                }
+            )
+
+    # aggregation: step_b.enriched_summary 집계
+    # v2 allow_verdict(allowed/restricted/prohibited/unidentified) →
+    # legacy verdict(permitted/restricted/prohibited/unidentified) 매핑
+    _VERDICT_LEGACY = {
+        "allowed": "permitted",
+        "restricted": "restricted",
+        "prohibited": "prohibited",
+        "unidentified": "unidentified",
+    }
+    internal_aggregation: Optional[dict] = None
+    if step_b_data:
+        enriched = step_b_data.get("enriched_summary", [])
+        counts = {"permitted": 0, "restricted": 0, "prohibited": 0, "unidentified": 0}
+        results_detail: list[dict] = []
+        for item in enriched:
+            v_legacy = _VERDICT_LEGACY.get(
+                item.get("allow_verdict") or "unidentified", "unidentified"
+            )
+            counts[v_legacy] = counts.get(v_legacy, 0) + 1
+            results_detail.append(
+                {
+                    "ingredient": {
+                        "name": item.get("name", ""),
+                        "percentage": item.get("percentage"),
+                        "ins": None,
+                        "cas": None,
+                        "part": None,
+                    },
+                    "verdict": v_legacy,
+                    "match_method": None,
+                    "matched_db_id": None,
+                    "confidence": 1.0 if v_legacy != "unidentified" else 0.0,
+                    "matched_name_ko": None,
+                    "law_source": None,
+                }
+            )
+        # step_b.unidentified (이름 목록) 도 별도 항목으로 추가 (enriched 에서 누락된 경우)
+        known_names = {item.get("name") for item in enriched}
+        for uname in step_b_data.get("unidentified", []):
+            if uname not in known_names:
+                counts["unidentified"] += 1
+                results_detail.append(
+                    {
+                        "ingredient": {"name": uname, "percentage": None},
+                        "verdict": "unidentified",
+                        "match_method": None,
+                        "matched_db_id": None,
+                        "confidence": 0.0,
+                        "matched_name_ko": None,
+                        "law_source": None,
+                    }
+                )
+        internal_aggregation = {
+            "total": sum(counts.values()),
+            **counts,
+            "results": results_detail,
+        }
+
+    # law_citations: F1Output.evidence_laws → LawCitation (FE 기대 shape)
+    internal_law_citations: list[dict] = []
+    for c in out.evidence_laws:
+        internal_law_citations.append(
+            {
+                "chunk_id": c.get("chunk_id", ""),
+                "namespace": c.get("namespace", ""),
+                "regulation_id": None,
+                "section_path": c.get("article_no"),
+                "text": c.get("text", ""),
+                "score": c.get("score", 0.0),
+            }
+        )
+
+    # escalations: warnings 를 EscalationDetail 형태로 파싱
+    # 예: "step_a_api_error:대두:TIMEOUT" → module_id="step_a_api_error", reason=전체 문자열
+    internal_escalations: list[dict] = []
+    for w in out.warnings:
+        module_id = w.split(":")[0] if ":" in w else w
+        internal_escalations.append(
+            {
+                "module_id": module_id,
+                "trigger_type": "warning",
+                "confidence_score": 0.0,
+                "reason": w,
+            }
+        )
+
     return {
         "ingredients": ingredients_slim,
         "verdict": verdict_ko,
@@ -342,6 +447,16 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
             "api_call_stats": out.api_call_stats,
             "unit_conversions": out.unit_conversions,
             "pipeline_version": "v2",
+            # ── 레거시 FE 컴포넌트 재사용용 매핑 ──
+            "forbidden_hits": internal_forbidden,
+            "aggregation": internal_aggregation,
+            "law_citations": internal_law_citations,
+            "escalations": internal_escalations,
+            "conditional_evaluations": [],
+            "law_refs": [],
+            "rag_verdict": None,
+            "rag_reasoning": None,
+            "conflict_status": "rag_skipped",
         },
     }
 
