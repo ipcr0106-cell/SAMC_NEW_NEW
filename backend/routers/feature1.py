@@ -27,11 +27,28 @@ from fastapi.responses import StreamingResponse
 from fpdf import FPDF
 from pydantic import BaseModel
 
+from config.feature_flags import F1_REQUIRE_HITL0_APPROVAL
 from db.supabase_client import get_supabase
+from models.f1_hitl import (
+    F0ApproveRequest,
+    F0ApproveResponse,
+    F0EditRequest,
+    F0EditResponse,
+    HITL1DecisionsRequest,
+    HITL1DecisionsResponse,
+    HITL2ConfirmRequest,
+    HITL2ConfirmResponse,
+)
 from models.f1_law_citation import RagJudgement
 from models.judgment import (Feature1Input, Feature1Output, Ingredient,
                                      ProcessConditions)
 from services.feature1 import run_feature1, run_feature1_with_rag
+from services.f1_hitl_service import (
+    apply_f0_edit,
+    approve_f0,
+    confirm_hitl2,
+    submit_hitl1_decisions,
+)
 
 router = APIRouter(
     prefix="/api/v1/cases",
@@ -342,6 +359,32 @@ def run_feature1_endpoint(
     ingredients = body.ingredients
     process_conditions = body.process_conditions
 
+    # HITL-0 게이트: F1_REQUIRE_HITL0_APPROVAL=true 시 F0 approved 상태 필수
+    if F1_REQUIRE_HITL0_APPROVAL:
+        supabase = get_supabase()
+        f0_row = (
+            supabase.table("pipeline_steps")
+            .select("status")
+            .eq("case_id", case_id)
+            .eq("step_key", "0")
+            .limit(1)
+            .execute()
+        )
+        f0_status = f0_row.data[0]["status"] if f0_row.data else None
+        if f0_status != "approved":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "F0_NOT_APPROVED",
+                    "message": (
+                        "F0 파싱 결과가 담당자 승인을 받지 않았습니다. "
+                        "먼저 /pipeline/feature/0/approve 를 호출하세요."
+                    ),
+                    "feature": 1,
+                    "f0_status": f0_status,
+                },
+            )
+
     # ingredients가 없으면 f0 파싱 결과에서 자동 추출
     if not ingredients:
         parsed = _fetch_f0_parsed_result(case_id)
@@ -445,12 +488,37 @@ def update_feature1(
 
 
 # ============================================================
-# POST /feature/1/confirm — 담당자 확인 완료
+# POST /feature/1/confirm — 담당자 확인 완료 (레거시 + HITL-2 통합)
+#
+# Wave 3 W3-BE: HITL2ConfirmRequest Body가 있으면 HITL-2 서비스로 위임.
+# Body 없는 레거시 호출(Body=None)은 기존 동작(status='completed') 유지.
 # ============================================================
 
 
-@router.post("/{case_id}/pipeline/feature/1/confirm")
-def confirm_feature1(case_id: str) -> dict:
+@router.post("/{case_id}/pipeline/feature/1/confirm", response_model=None)
+def confirm_feature1(
+    case_id: str,
+    body: Optional[HITL2ConfirmRequest] = None,
+) -> dict:
+    # HITL-2 Body 있으면 Wave 3 서비스로 위임
+    # code-review CRITICAL-1 fix: HITL2ConfirmResponse(BaseModel) 를 dict 로
+    # 직렬화하여 legacy dict 분기와 응답 shape 일관성 확보.
+    if body is not None:
+        try:
+            return confirm_hitl2(case_id, body).model_dump(mode="json")
+        except ValueError as exc:
+            error_msg = str(exc)
+            if "존재하지 않습니다" in error_msg:
+                raise HTTPException(
+                    status_code=404,
+                    detail={"error": "F1_STEP_NOT_FOUND", "message": error_msg},
+                )
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "HITL2_CONFIRM_FAILED", "message": error_msg},
+            )
+
+    # 레거시: Body 없는 단순 확인 완료
     row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
@@ -754,3 +822,96 @@ def download_feature1_report(case_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ============================================================
+# HITL 엔드포인트 (Wave 3 W3-BE 추가)
+# 05_HITL_플로우_설계.md §3-3, §4-3, §5-3
+# 기존 F1 엔드포인트는 건드리지 않음.
+# ============================================================
+
+
+@router.patch(
+    "/{case_id}/pipeline/feature/0",
+    response_model=F0EditResponse,
+    summary="HITL-0: F0 파싱 결과 편집",
+)
+def patch_f0_edit(case_id: str, body: F0EditRequest) -> F0EditResponse:
+    """F0 파싱 결과를 담당자가 편집한다.
+
+    - final_result 를 갱신하고 status 를 'completed' 로 강등한다.
+    - 편집 후에는 /approve 를 다시 호출해야 F1 실행 가능(flag on 기준).
+    - status='locked' 또는 'confirmed' 에서는 403 반환.
+    """
+    try:
+        return apply_f0_edit(case_id, body)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "F0_LOCKED",
+                "message": str(exc),
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "F0_STEP_NOT_FOUND",
+                "message": str(exc),
+            },
+        )
+
+
+@router.post(
+    "/{case_id}/pipeline/feature/0/approve",
+    response_model=F0ApproveResponse,
+    summary="HITL-0: F0 파싱 결과 승인",
+)
+def post_f0_approve(case_id: str, body: F0ApproveRequest) -> F0ApproveResponse:
+    """F0 파싱 결과를 담당자가 승인한다.
+
+    - pipeline_steps(step_key='0').status = 'approved' 로 전이.
+    - 이후 F1/F2/F3 실행 가능(F1_REQUIRE_HITL0_APPROVAL=true 기준).
+    """
+    try:
+        return approve_f0(case_id, body)
+    except ValueError as exc:
+        status_code = 404 if "존재하지 않습니다" in str(exc) else 400
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": "F0_APPROVE_FAILED",
+                "message": str(exc),
+            },
+        )
+
+
+@router.post(
+    "/{case_id}/pipeline/feature/1/hitl1-decisions",
+    response_model=HITL1DecisionsResponse,
+    summary="HITL-1: 불확실 원재료 / 자동 판정 불가 처리",
+)
+def post_hitl1_decisions(
+    case_id: str, body: HITL1DecisionsRequest
+) -> HITL1DecisionsResponse:
+    """HITL-1 담당자 결정을 제출한다.
+
+    - 모든 에스컬레이션에 ack 하면 status='waiting_review'.
+    - 일부만 ack 하면 status='needs_review' 유지.
+    - 모든 에스컬레이션 ack 후에만 HITL-2 confirm 가능.
+    """
+    try:
+        return submit_hitl1_decisions(case_id, body)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "F1_STEP_NOT_FOUND",
+                "message": str(exc),
+            },
+        )
+
+
+# NOTE: HITL-2 POST /feature/1/confirm 은 위 confirm_feature1 내부에서 처리됨.
+# (HITL2ConfirmRequest Body 존재 여부로 레거시/HITL-2 분기)

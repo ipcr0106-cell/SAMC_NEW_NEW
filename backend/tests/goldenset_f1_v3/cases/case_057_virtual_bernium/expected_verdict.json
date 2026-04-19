@@ -1,0 +1,11 @@
+{
+  "_comment": "담당자 최종 판정 정답 라벨. v2 라벨 기반 v3 F1Output.verdict 형식으로 변환.",
+  "verdict": "needs_review",
+  "v2_exact_verdict": "unidentified",
+  "v2_conflict_status": "agreed",
+  "is_forbidden_ingredient": false,
+  "hitl1_required": true,
+  "gmo_ingredients": [],
+  "category": "unidentified_virtual",
+  "notes": "실존하지 않는 가상명. 양측 unidentified."
+}

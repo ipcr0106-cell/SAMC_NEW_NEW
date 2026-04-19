@@ -1,0 +1,21 @@
+{
+  "_comment": "F0 파싱 결과 고정 픽스처. HITL-0 승인 후 run_feature1_v2 에 전달되는 형태.",
+  "v3_case_id": "v3_case_049_ethanol_40pct",
+  "v2_source_id": "g079",
+  "food_type": "증류주",
+  "process_conditions": {
+    "is_distilled": true,
+    "alcohol_percentage": 40.0
+  },
+  "ingredients": [
+    {
+      "name": "에탄올",
+      "percentage": 40.0
+    }
+  ],
+  "doc_types": [
+    "원재료_명세서",
+    "성분_분석표"
+  ],
+  "hitl0_approved": true
+}

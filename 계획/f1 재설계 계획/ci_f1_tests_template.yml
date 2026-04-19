@@ -1,0 +1,224 @@
+name: F1 Tests
+
+# 트리거:
+#   - PR: unit + integration(gated) + goldenset mini
+#   - release: 위 모두 + goldenset full
+#   - push to feature/f1-*: unit만
+on:
+  pull_request:
+    branches: [main, develope, "feature/f1-*"]
+    paths:
+      - "backend/services/f1_step_*.py"
+      - "backend/services/feature1.py"
+      - "backend/services/data_go_kr/**"
+      - "backend/tests/**"
+      - "backend/scripts/f1_run_goldenset_v3.py"
+      - ".github/workflows/f1_tests.yml"
+  push:
+    branches: ["feature/f1-*"]
+    paths:
+      - "backend/**"
+  release:
+    types: [published]
+
+env:
+  PYTHON_VERSION: "3.11"
+  WORKING_DIR: backend
+
+jobs:
+  # ================================================================
+  # Job 1: 단위 테스트 (모든 Wave 1/2/3 pytest)
+  # ================================================================
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run unit tests (Wave 1 + 2 + 3)
+        run: |
+          pytest tests/ \
+            --ignore=tests/goldenset_f1_v3 \
+            -v \
+            --tb=short \
+            --cov=services \
+            --cov=utils \
+            --cov=models \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            -m "not integration and not e2e" \
+            2>&1
+        env:
+          MOCK_API: "1"
+          # Supabase mock — 단위 테스트는 실 연결 불필요
+          SUPABASE_URL: "https://mock.supabase.co"
+          SUPABASE_SERVICE_KEY: "mock-service-key"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-unit
+          path: backend/coverage.xml
+
+  # ================================================================
+  # Job 2: 통합 테스트 (unit 통과 시에만)
+  # ================================================================
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit
+    if: github.event_name == 'pull_request' || github.event_name == 'release'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run integration tests (I-01 ~ I-08)
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            -m "integration" \
+            2>&1
+        env:
+          SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_KEY }}
+          F1_DATA_GO_KR_API_KEY: ${{ secrets.F1_DATA_GO_KR_TEST_KEY }}
+          F1_OPENAI_API_KEY: ${{ secrets.F1_OPENAI_API_KEY }}
+          F1_PINECONE_API_KEY: ${{ secrets.F1_PINECONE_API_KEY }}
+          F1_PINECONE_INDEX: samc-law-f1-test
+
+  # ================================================================
+  # Job 3: 골든셋 mini (매 PR — 5건, mock 모드)
+  # ================================================================
+  goldenset-mini:
+    name: Goldenset Mini (5 cases)
+    runs-on: ubuntu-latest
+    needs: unit
+    if: github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run goldenset mini (mock mode)
+        run: |
+          python scripts/f1_run_goldenset_v3.py \
+            --subset mini \
+            --mock \
+            --output tests/goldenset_run_v3_ci_mini.json
+        env:
+          MOCK_API: "1"
+          SUPABASE_URL: "https://mock.supabase.co"
+          SUPABASE_SERVICE_KEY: "mock-service-key"
+        # mock 모드에서는 임계치 미달이 예상되므로 실패 허용
+        # 실 API 환경에서는 아래 continue-on-error 를 제거
+        continue-on-error: true
+
+      - name: Upload goldenset mini result
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: goldenset-mini-result
+          path: backend/tests/goldenset_run_v3_ci_mini.json
+
+  # ================================================================
+  # Job 4: 골든셋 full (매 release — 실 API)
+  # ================================================================
+  goldenset-full:
+    name: Goldenset Full (57 cases)
+    runs-on: ubuntu-latest
+    needs: [unit, integration]
+    if: github.event_name == 'release'
+    defaults:
+      run:
+        working-directory: ${{ env.WORKING_DIR }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run goldenset full (real API — cache활용)
+        run: |
+          python scripts/f1_run_goldenset_v3.py \
+            --subset full \
+            --output tests/goldenset_run_v3_release.json
+        env:
+          SUPABASE_URL: ${{ secrets.TEST_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.TEST_SUPABASE_SERVICE_KEY }}
+          F1_DATA_GO_KR_API_KEY: ${{ secrets.F1_DATA_GO_KR_TEST_KEY }}
+          F1_OPENAI_API_KEY: ${{ secrets.F1_OPENAI_API_KEY }}
+          F1_PINECONE_API_KEY: ${{ secrets.F1_PINECONE_API_KEY }}
+          F1_PINECONE_INDEX: samc-law-f1
+
+      - name: Upload goldenset full result
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: goldenset-full-result
+          path: backend/tests/goldenset_run_v3_release.json
+
+      - name: Assert thresholds (full)
+        run: |
+          python - << 'EOF'
+          import json, sys
+          with open("tests/goldenset_run_v3_release.json") as f:
+              data = json.load(f)
+          summary = data["summary"]
+          m = summary["metrics"]
+          t = summary["thresholds"]
+          print(f"verdict_accuracy   = {m['verdict_accuracy']*100:.1f}% (>=80%)")
+          print(f"forbidden_recall   = {(m['forbidden_recall'] or 0)*100:.1f}% (=100%)")
+          print(f"false_positive_rate= {m['false_positive_rate']*100:.1f}% (<=5%)")
+          print(f"standards_accuracy = {(m['standards_accuracy'] or 0)*100:.1f}% (>=90%)")
+          print(f"hitl1_rate         = {m['hitl1_rate']*100:.1f}% (<=30%)")
+          failures = [k for k, v in t.items() if not v]
+          if failures:
+              print(f"THRESHOLD FAIL: {failures}", file=sys.stderr)
+              sys.exit(1)
+          print("ALL THRESHOLDS PASS")
+          EOF
