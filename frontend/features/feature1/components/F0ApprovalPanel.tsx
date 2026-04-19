@@ -55,6 +55,7 @@ function BasicInfoEditor({ value, onChange, disabled }: BasicInfoEditorProps) {
           </label>
           <input
             type="text"
+            data-testid="f0-product-name"
             value={value.product_name ?? ""}
             onChange={(e) => onChange({ ...value, product_name: e.target.value })}
             disabled={disabled}
@@ -164,7 +165,7 @@ function IngredientEditor({ rows, onChange, disabled }: IngredientEditorProps) {
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3" data-testid="f0-ingredient-table">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-semibold text-gray-700">
           원재료 목록
@@ -353,6 +354,9 @@ export default function F0ApprovalPanel({
   const [isApproving, setIsApproving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  // 승인 확인 모달
+  const [showApproveModal, setShowApproveModal] = useState(false);
+
   const buildFinal = (): Record<string, unknown> => ({
     ...parsedResult,
     basic_info: basicInfo,
@@ -376,7 +380,12 @@ export default function F0ApprovalPanel({
     }
   };
 
-  const handleApprove = async () => {
+  const handleApprove = () => {
+    setShowApproveModal(true);
+  };
+
+  const handleApproveConfirm = async () => {
+    setShowApproveModal(false);
     setIsApproving(true);
     setSaveError(null);
     try {
@@ -564,11 +573,44 @@ export default function F0ApprovalPanel({
             onClick={handleApprove}
             disabled={isSaving || isApproving}
             className="flex items-center gap-1.5 rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-            data-testid="approve-button"
+            data-testid="f0-approve-btn"
           >
             <CheckCircle2 className="h-4 w-4" />
             {isApproving ? "승인 중..." : "F0 승인 → F1 실행 허용"}
           </button>
+        </div>
+      )}
+
+      {/* 승인 확인 모달 */}
+      {showApproveModal && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        >
+          <div className="w-80 rounded-lg bg-white p-5 shadow-lg">
+            <h4 className="mb-2 font-semibold text-gray-900">F0 승인 확인</h4>
+            <p className="mb-4 text-sm text-gray-600">
+              F0 파싱 결과를 승인하고 F1 분석을 시작합니까?
+            </p>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowApproveModal(false)}
+                className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                data-testid="confirm-approve-btn"
+                onClick={handleApproveConfirm}
+                className="rounded bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
+              >
+                승인 확인
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>

@@ -84,7 +84,7 @@ def _query_db_forbidden(
     supabase = get_supabase()
     rows = (
         supabase.table("f1_forbidden_ingredients")
-        .select("name_ko, reason, law_ref")
+        .select("name_ko, reason, law_source")
         .execute()
         .data
     )
@@ -276,7 +276,7 @@ async def run_step_a(
                 matched_name=db_name_ko,
                 source="db",
                 reason=row.get("reason") or "금지원료 DB 등재",
-                law_ref=row.get("law_ref"),
+                law_ref=row.get("law_source"),  # DB 실제 컬럼명: law_source
             )
         )
 
