@@ -309,10 +309,12 @@ test.describe("E-01: F1 전체 플로우 스모크", () => {
     // 확정 확인 모달
     await page.click('[data-testid="confirm-verdict-btn"]');
 
-    // 확정 상태 확인 (locked)
-    await expect(
-      page.locator('[data-testid="f1-status-badge"][data-status="locked"]')
-    ).toBeVisible({ timeout: TIMEOUT.hitl });
+    // 확정 상태 확인 — Wave 3: 'confirmed' 또는 'locked' 모두 허용
+    // (code-review HIGH-1: unlock 정책이 Wave 4 에서 확정될 때까지 두 값 공존)
+    const badge = page.locator('[data-testid="f1-status-badge"]');
+    await expect(badge).toBeVisible({ timeout: TIMEOUT.hitl });
+    const status = await badge.getAttribute("data-status");
+    expect(["confirmed", "locked"]).toContain(status);
   });
 
   test("8-2. HITL-2 확정 후 수정 시도 → 잠금 안내 표시", async ({ page }) => {

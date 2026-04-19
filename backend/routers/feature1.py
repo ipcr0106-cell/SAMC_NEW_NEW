@@ -501,9 +501,11 @@ def confirm_feature1(
     body: Optional[HITL2ConfirmRequest] = None,
 ) -> dict:
     # HITL-2 Body 있으면 Wave 3 서비스로 위임
+    # code-review CRITICAL-1 fix: HITL2ConfirmResponse(BaseModel) 를 dict 로
+    # 직렬화하여 legacy dict 분기와 응답 shape 일관성 확보.
     if body is not None:
         try:
-            return confirm_hitl2(case_id, body)
+            return confirm_hitl2(case_id, body).model_dump(mode="json")
         except ValueError as exc:
             error_msg = str(exc)
             if "존재하지 않습니다" in error_msg:

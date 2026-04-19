@@ -595,6 +595,21 @@ async def async_main(subset: str, output_path: Path, use_mock: bool) -> int:
     with open(output_path, "w", encoding="utf-8") as fh:
         json.dump(output, fh, ensure_ascii=False, indent=2)
     print(f"[INFO] 결과 저장: {output_path}")
+
+    # code-review BLOCKER-1 fix: --mock 모드에서는 verdict_accuracy / standards_accuracy /
+    # hitl1_rate 3 지표가 실 API·DB 없으면 자연 미달. 실행 가능성만 검증하도록 임계치 체크
+    # SKIP 하고 exit 0 반환. 실 지표 검증은 CI 의 goldenset-full job (실 API 환경) 에서만.
+    if effective_mock:
+        print(
+            "[INFO] --mock 모드 — verdict/standards/hitl1 임계치 체크 SKIP "
+            "(실 API 환경에서만 enforce). Recall/오탐률만 유효."
+        )
+        # Recall / false_positive_rate 는 mock 에서도 유효하므로 이 둘만 fail 처리
+        mock_gate_pass = (
+            summary["thresholds"]["forbidden_recall_pass"]
+            and summary["thresholds"]["false_positive_rate_pass"]
+        )
+        return 0 if mock_gate_pass else 1
     return 0 if summary["all_thresholds_pass"] else 1
 
 
