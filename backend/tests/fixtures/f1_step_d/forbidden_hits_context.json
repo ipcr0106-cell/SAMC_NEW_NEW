@@ -1,0 +1,17 @@
+{
+  "query_context": {
+    "food_type": "과자류",
+    "forbidden_hits": [
+      {
+        "ingredient_name": "마황",
+        "matched_name": "마황(Ephedra sinica)",
+        "source": "db",
+        "reason": "식품에 사용할 수 없는 원료 (별표1)",
+        "law_ref": "food_code_별표1"
+      }
+    ],
+    "restricted_ingredients": [],
+    "failed_standards": []
+  },
+  "expected_query_contains": ["수입 금지 원료", "마황", "식품유형 과자류"]
+}

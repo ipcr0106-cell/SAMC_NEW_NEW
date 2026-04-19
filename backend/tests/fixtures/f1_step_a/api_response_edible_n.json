@@ -1,0 +1,30 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 10,
+      "totalCount": 1,
+      "items": {
+        "item": [
+          {
+            "INGD_SN": "88888",
+            "INGD_NM": "금지원료B",
+            "NKNM_NM": null,
+            "SCNNM_NM": null,
+            "DRNM": null,
+            "EDIBLE_INFO": null,
+            "EDIBLE_Y": null,
+            "EDIBLE_N": "o",
+            "EDIBLE_USE_CONT": null,
+            "CHRTR_INFO_CONT": null,
+            "ANML_INFO": null
+          }
+        ]
+      }
+    }
+  }
+}

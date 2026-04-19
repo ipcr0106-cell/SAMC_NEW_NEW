@@ -1,0 +1,9 @@
+{
+  "query_context": {
+    "food_type": null,
+    "forbidden_hits": [],
+    "restricted_ingredients": [],
+    "failed_standards": []
+  },
+  "expected_query": "수입식품 일반"
+}

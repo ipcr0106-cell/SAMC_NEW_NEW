@@ -147,3 +147,175 @@ class F1Output(BaseModel):
 # 명시적 경로를 쓸 때만 유효.
 # ------------------------------------------------------------------
 Feature1Output = F1Output
+
+
+# ==================================================================
+# Wave 2 Day 0 — Step A/B/C/D 결과 타입 (시그니처 동결)
+# 설계 참조: 계획/f1 재설계 계획/01~04_Step_*_설계.md
+# W2-A/B/C/D 각 트랙은 아래 Result 타입의 **필드 이름/타입을 유지**한 채
+# 본체만 구현한다. 필드 추가는 허용, 이름·타입 변경 금지.
+# ==================================================================
+
+
+class ForbiddenHit(BaseModel):
+    """Step A 금지원료 매칭 결과 1건 (01번 §2)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    ingredient_name: str = Field(..., description="F0 입력 원재료명")
+    matched_name: str = Field(..., description="DB/API 상의 금지원료명")
+    source: Literal["db", "api"] = Field(..., description="매칭 출처")
+    reason: str = Field(..., description="금지 사유 (법령·조문 요약)")
+    law_ref: Optional[str] = Field(None, description="근거 법령 식별자")
+
+
+class StepAResult(BaseModel):
+    """Step A 금지원료 체크 결과 (01번 §2)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    forbidden_hits: list[ForbiddenHit] = Field(
+        default_factory=list,
+        description="매칭된 금지원료 (DB + API 합집합)",
+    )
+    stopped: bool = Field(
+        False,
+        description="True → 파이프라인 즉시 종료 (Step B/C/D skip)",
+    )
+    law_refs: list[str] = Field(
+        default_factory=list,
+        description="금지 근거 법령 식별자 목록",
+    )
+    api_errors: list[str] = Field(
+        default_factory=list,
+        description="15111777 API 호출 실패 기록 (차단 없음)",
+    )
+
+
+class StepBResult(BaseModel):
+    """Step B 원재료 허용여부 + 성분코드 + GMO 결과 (02번 §2).
+
+    `enriched_ingredients` 는 `models.judgment.Ingredient` 인스턴스 리스트.
+    순환 import 회피를 위해 `arbitrary_types_allowed=True` 로 선언한다.
+    """
+
+    model_config = ConfigDict(extra="ignore", arbitrary_types_allowed=True)
+
+    enriched_ingredients: list[Any] = Field(
+        default_factory=list,
+        description="allow_verdict·component_code·is_gmo 가 채워진 Ingredient 목록",
+    )
+    unidentified: list[str] = Field(
+        default_factory=list,
+        description="API 매칭 실패 원재료명 (HITL-1 대상)",
+    )
+    conditional: list[Any] = Field(
+        default_factory=list,
+        description="restricted 원재료 (HITL-1 표시)",
+    )
+    gmo_ingredients: list[str] = Field(
+        default_factory=list,
+        description="GMO=Y 판정 원재료명 (F3 전달)",
+    )
+    api_call_stats: dict[str, int] = Field(
+        default_factory=dict,
+        description="endpoint_id별 호출 건수 (감사)",
+    )
+    stopped: bool = Field(
+        False,
+        description=(
+            "True → prohibited 검출로 호출자(`run_feature1_v2`)가 Step C skip. "
+            "02번 §9 조기 종료 조건."
+        ),
+    )
+
+
+class MeasuredValue(BaseModel):
+    """Step C 실측값 입력 단위 (03번 §2).
+
+    F4 라벨 OCR 또는 HITL-0 담당자 입력에서 채워진다.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    value: float = Field(..., description="원본 수치")
+    unit: str = Field(..., description="원본 단위 (예: '%', 'mg/kg')")
+    source: str = Field(
+        ...,
+        description="입력 경로: 'label_ocr' / 'hitl_input' / 'manual' 등",
+    )
+
+
+class StepCResult(BaseModel):
+    """Step C 기준규격 수치 비교 결과 (03번 §2)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    checks: list[StandardCheck] = Field(
+        default_factory=list,
+        description="원재료 × 시험항목 조합별 StandardCheck 목록",
+    )
+    overall_status: Literal["pass", "fail", "review_needed", "no_data"] = Field(
+        "no_data",
+        description="전체 Step C 판정: 모든 pass → pass, 하나라도 fail → fail",
+    )
+    review_reasons: list[str] = Field(
+        default_factory=list,
+        description="review_needed 사유 (qualitative·자동 판정 불가 등)",
+    )
+
+
+class LawCitation(BaseModel):
+    """Step D 법령 인용 1건 (04번 §3).
+
+    원문 인용만 — LLM 해석·판정 주도 금지.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    chunk_id: str = Field(..., description="Pinecone 청크 id")
+    law_name: str = Field(..., description="법령명 (예: 식품위생법)")
+    article_no: Optional[str] = Field(None, description="조·항 번호 (예: 제27조)")
+    text: str = Field(..., description="원문 텍스트 (편집 금지)")
+    score: float = Field(..., description="Pinecone 유사도 점수 0~1")
+    namespace: str = Field(
+        ...,
+        description=(
+            "Pinecone namespace: additive_code_text / food_code_text / "
+            "health_food_text / temporary_standard / functional_labeling"
+        ),
+    )
+
+
+class QueryContext(BaseModel):
+    """Step D Pinecone 검색 쿼리 컨텍스트 (04번 §4)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    food_type: Optional[str] = Field(None, description="F2 확정 식품유형")
+    forbidden_hits: list[ForbiddenHit] = Field(
+        default_factory=list,
+        description="Step A 결과",
+    )
+    restricted_ingredients: list[str] = Field(
+        default_factory=list,
+        description="Step B restricted 원재료명",
+    )
+    failed_standards: list[str] = Field(
+        default_factory=list,
+        description="Step C fail 항목 (원재료명 + 시험항목)",
+    )
+
+
+class StepDResult(BaseModel):
+    """Step D 법령 인용 결과 (04번 §3).
+
+    판정 주도 없음 — 프론트 `LawCitationList` 에 표시 전용.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    citations: list[LawCitation] = Field(
+        default_factory=list,
+        description="점수 상위 5건 법령 청크 (5 namespace 병렬 검색 후 merge)",
+    )

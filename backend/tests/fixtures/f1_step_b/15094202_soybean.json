@@ -1,0 +1,14 @@
+{
+  "items": [
+    {
+      "CPNT_CD": "A1000001000000",
+      "KOR_NM": "대두",
+      "ENG_NM": "SOYBEAN",
+      "NKNM_INFO_CONT": "콩 / Soybean",
+      "CPNT_LCLS_CD_NM": "식품원료",
+      "USE_DIVS_CD_NM": "사용가능"
+    }
+  ],
+  "total_count": 1,
+  "raw": {}
+}
