@@ -242,7 +242,7 @@ def generate_label_stream(
         get_client().table("pipeline_steps").upsert(
             {
                 "case_id": case_id,
-                "step_key": "6",
+                "step_key": "5",
                 "step_name": "한글표시사항",
                 "status": "waiting_review",
                 "ai_result": result,

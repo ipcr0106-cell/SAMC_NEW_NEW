@@ -20,7 +20,7 @@ from dotenv import load_dotenv
 from pinecone import Pinecone, ServerlessSpec
 
 # backend/ 기준으로 경로 설정
-ROOT = Path(__file__).parent.parent.parent  # SAMC_NEW/
+ROOT = Path(__file__).parent.parent.parent.parent  # SAMC/
 DB_DIR = ROOT / "DB_최신"
 
 load_dotenv(Path(__file__).parent.parent / ".env")

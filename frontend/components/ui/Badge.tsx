@@ -9,17 +9,17 @@ interface BadgeProps {
 }
 
 const variantStyles = {
-  blue: "bg-blue-50 text-blue-600",
-  green: "bg-emerald-50 text-emerald-600",
-  amber: "bg-amber-50 text-amber-600",
-  red: "bg-red-50 text-red-600",
-  slate: "bg-slate-100 text-slate-600",
-  purple: "bg-purple-50 text-purple-600",
+  blue: "ds-badge-blue",
+  green: "ds-badge-green",
+  amber: "ds-badge-amber",
+  red: "ds-badge-red",
+  slate: "ds-badge-slate",
+  purple: "ds-badge-purple",
 };
 
 const sizeStyles = {
-  sm: "px-2 py-0.5 text-xs",
-  md: "px-2.5 py-1 text-sm",
+  sm: "ds-badge-sm",
+  md: "ds-badge-md",
 };
 
 export default function Badge({
@@ -31,13 +31,14 @@ export default function Badge({
 }: BadgeProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1 font-medium rounded-full ${variantStyles[variant]} ${sizeStyles[size]}`}
+      className={`ds-badge ${variantStyles[variant]} ${sizeStyles[size]}`}
     >
       {children}
       {removable && (
         <button
           onClick={onRemove}
-          className="ml-0.5 hover:bg-black/5 rounded-full p-0.5 transition-colors"
+          className="ml-0.5 rounded-full p-0.5 transition-colors"
+          style={{ color: "currentColor" }}
           type="button"
         >
           <svg

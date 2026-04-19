@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import io
 from datetime import datetime
 from typing import Any, Optional
@@ -27,9 +28,10 @@ from fpdf import FPDF
 from pydantic import BaseModel
 
 from db.supabase_client import get_supabase
+from models.f1_law_citation import RagJudgement
 from models.judgment import (Feature1Input, Feature1Output, Ingredient,
                                      ProcessConditions)
-from services.feature1 import run_feature1
+from services.feature1 import run_feature1, run_feature1_with_rag
 
 router = APIRouter(
     prefix="/api/v1/cases",
@@ -77,12 +79,19 @@ def _upsert_pipeline_step(
     ).execute()
 
 
-def _to_pipeline_result(out: Feature1Output) -> dict:
+def _to_pipeline_result(
+    out: Feature1Output,
+    rag: Optional[RagJudgement] = None,
+    conflict_status: str = "rag_skipped",
+) -> dict:
     """백엔드 Feature1Output 을 팀 약속 Feature1Result (types/pipeline.ts) 형식으로 변환.
 
     약속 필드:
         ingredients[], verdict, import_possible, fail_reasons[], standards_check[]
     추가로 _internal 키에 상세 결과 포함 (프론트에서 선택 활용).
+
+    Phase 4-B (RAG + HITL):
+        rag, conflict_status default 유지로 기존 호출자(`run_feature1` 단독)는 후방 호환.
     """
     verdict_to_status = {
         "permitted": "allowed",
@@ -190,6 +199,13 @@ def _to_pipeline_result(out: Feature1Output) -> dict:
             "forbidden_hits": [h.model_dump() for h in out.forbidden_hits],
             "escalations": out.escalations,
             "law_refs": [r.model_dump() for r in out.law_refs],
+            # ── Phase 4-B: RAG + HITL ──
+            "rag_verdict": rag.rag_verdict if rag else None,
+            "rag_reasoning": rag.rag_reasoning if rag else None,
+            "law_citations": (
+                [c.model_dump() for c in rag.law_citations] if rag else []
+            ),
+            "conflict_status": conflict_status,
         },
     }
 
@@ -353,10 +369,18 @@ def run_feature1_endpoint(
             process_conditions = _convert_f0_to_process_conditions(parsed)
 
     try:
-        out = run_feature1(
-            ingredients=ingredients,
-            food_type=body.food_type,
-            process_conditions=process_conditions or ProcessConditions(),
+        # 옵션 B: f1_수정_요청_사항 §7 "async def 엔드포인트 금지" 룰 준수.
+        # 엔드포인트는 sync 로 유지하고, run_feature1_with_rag (async) 는 asyncio.run() 으로 호출.
+        out, rag, conflict_status = asyncio.run(
+            run_feature1_with_rag(
+                ingredients=ingredients,
+                food_type=body.food_type,
+                process_conditions=process_conditions or ProcessConditions(),
+                payload_for_rag={
+                    "ingredients": [i.name for i in ingredients],
+                    "food_type": body.food_type,
+                },
+            )
         )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
@@ -368,12 +392,21 @@ def run_feature1_endpoint(
             },
         )
 
-    ai_result = _to_pipeline_result(out)
-    _upsert_pipeline_step(case_id, "waiting_review", ai_result)
+    ai_result = _to_pipeline_result(out, rag, conflict_status)
+
+    # HITL status 결정 (총괄 §2.7 엄격)
+    #   - conflict / rag_supplemented → needs_review (사람 결정 필요)
+    #   - agreed / rag_unavailable / rag_skipped → waiting_review (기존 흐름)
+    new_status = (
+        "needs_review"
+        if conflict_status in ("conflict", "rag_supplemented")
+        else "waiting_review"
+    )
+    _upsert_pipeline_step(case_id, new_status, ai_result)
 
     return {
         "case_id": case_id,
-        "status": "waiting_review",
+        "status": new_status,
         "ai_result": ai_result,
     }
 
@@ -619,8 +652,77 @@ def _build_report_pdf(case_id: str, result: dict, row: dict) -> bytes:
             source = ref.get("law_source", "-")
             article = ref.get("law_article") or ""
             pdf.body_text(f"  - {source} {article}".strip())
+    pdf.ln(2)
 
-    # ── 6. Escalations ──
+    # ── 6. RAG 법령 인용 (Phase 4-B) ──
+    # rag_verdict 또는 law_citations 가 있으면 렌더 (rag_skipped 는 생략).
+    rag_verdict = internal.get("rag_verdict")
+    rag_reasoning = internal.get("rag_reasoning")
+    law_citations = internal.get("law_citations", [])
+    conflict_status = internal.get("conflict_status", "rag_skipped")
+
+    _CONFLICT_LABEL = {
+        "agreed": "DB·RAG 일치",
+        "conflict": "DB·RAG 충돌 (담당자 결정)",
+        "rag_supplemented": "RAG 보완 판정",
+        "rag_unavailable": "RAG 호출 실패",
+        "rag_skipped": "RAG 미호출",
+    }
+    _RAG_VERDICT_LABEL = {
+        "permitted": "허용",
+        "restricted": "조건부 허용",
+        "prohibited": "금지",
+        "unidentified": "불명확",
+        "error": "판정 오류",
+    }
+    _NS_LABEL = {
+        "additive_code_text": "식품첨가물공전",
+        "food_code_text": "식품공전",
+        "health_food_text": "건강기능식품공전",
+        "temporary_standard": "한시적 기준·규격",
+        "functional_labeling": "기능성표시 고시",
+    }
+
+    if rag_verdict or law_citations:
+        section_num += 1
+        pdf.section_title(f"{section_num}. RAG 법령 인용 (AI 판정 근거)")
+        pdf.kv_row(
+            "충돌 상태",
+            _CONFLICT_LABEL.get(conflict_status, conflict_status),
+        )
+        if rag_verdict:
+            pdf.kv_row(
+                "RAG 판정",
+                _RAG_VERDICT_LABEL.get(rag_verdict, rag_verdict),
+            )
+        if rag_reasoning:
+            pdf.kv_row("RAG 근거", rag_reasoning)
+
+        if law_citations:
+            pdf.ln(1)
+            pdf.sub_title(f"인용 청크 ({len(law_citations)}건)")
+            for i, c in enumerate(law_citations, 1):
+                ns = _NS_LABEL.get(c.get("namespace", ""), c.get("namespace", ""))
+                reg = c.get("regulation_id") or ""
+                sec = c.get("section_path") or ""
+                header = f"  [{i}] {ns}"
+                if reg:
+                    header += f" {reg}"
+                if sec:
+                    header += f" · {sec}"
+                pdf.body_text(header)
+                text = c.get("text", "")
+                # PDF 내 과도한 길이 방지 — 400자 이후 truncate
+                if len(text) > 400:
+                    text = text[:400] + "..."
+                pdf.body_text(f"     {text}")
+                score = c.get("score")
+                if isinstance(score, (int, float)):
+                    pdf.body_text(f"     (score: {score:.3f})")
+                pdf.ln(1)
+        pdf.ln(2)
+
+    # ── 7. Escalations ──
     if escalations:
         section_num += 1
         pdf.section_title(f"{section_num}. 에스컬레이션")

@@ -117,9 +117,20 @@ export function useForeignLabelCheck(caseId: string) {
         result: ai_result,
         editedResult: ai_result,
       }));
-    } catch (e) {
+    } catch (e: unknown) {
       setState((prev) => ({ ...prev, analysisStatus: "error" }));
-      setError("분석에 실패했습니다. 서버 연결을 확인해주세요.");
+
+      // 법령 DB 업데이트 중 (503) → 전용 안내 메시지
+      if (
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { status?: number } }).response?.status === 503
+      ) {
+        setError("현재 법령 DB가 업데이트 중입니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        setError("분석에 실패했습니다. 서버 연결을 확인해주세요.");
+      }
       console.error(e);
     }
   }, [caseId, form]);
