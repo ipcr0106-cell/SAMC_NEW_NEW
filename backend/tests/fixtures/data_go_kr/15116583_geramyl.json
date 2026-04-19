@@ -1,0 +1,87 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 50,
+      "totalCount": 4,
+      "items": [
+        {
+          "PC_KOR_NM": "개미산게라닐",
+          "PRDLST_CD": "D0100100000000",
+          "T_KOR_NM": "함량",
+          "FNPRT_ITM_NM": null,
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "85.0이상",
+          "SPEC_VAL_SUMUP": "이 품목은 85.0% 이상을 함유한다",
+          "MIMM_VAL": "85.0",
+          "MXMM_VAL": null,
+          "UNIT_NM": "%",
+          "INJRY_YN": "N",
+          "SORC": null,
+          "VALD_BEGN_DT": "20140101",
+          "VALD_END_DT": "99991231",
+          "UPDT_PRVNS": "최초등록",
+          "LAST_UPDT_DTM": "2020-12-04 10:46:20"
+        },
+        {
+          "PC_KOR_NM": "개미산게라닐",
+          "PRDLST_CD": "D0100100000000",
+          "T_KOR_NM": "성상",
+          "FNPRT_ITM_NM": null,
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "이 품목은 무색-담황색 액체이다",
+          "SPEC_VAL_SUMUP": "무색-담황색 액체",
+          "MIMM_VAL": null,
+          "MXMM_VAL": null,
+          "UNIT_NM": null,
+          "INJRY_YN": "N",
+          "SORC": null,
+          "VALD_BEGN_DT": "20140101",
+          "VALD_END_DT": "99991231",
+          "UPDT_PRVNS": "최초등록",
+          "LAST_UPDT_DTM": "2020-12-04 10:46:20"
+        },
+        {
+          "PC_KOR_NM": "개미산게라닐",
+          "PRDLST_CD": "D0100100000000",
+          "T_KOR_NM": "순도시험",
+          "FNPRT_ITM_NM": "굴절률",
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "1.454~1.461",
+          "SPEC_VAL_SUMUP": "n20D = 1.454~1.461",
+          "MIMM_VAL": "1.454",
+          "MXMM_VAL": "1.461",
+          "UNIT_NM": null,
+          "INJRY_YN": "N",
+          "SORC": null,
+          "VALD_BEGN_DT": "20140101",
+          "VALD_END_DT": "99991231",
+          "UPDT_PRVNS": "최초등록",
+          "LAST_UPDT_DTM": "2020-12-04 10:46:20"
+        },
+        {
+          "PC_KOR_NM": "개미산게라닐",
+          "PRDLST_CD": "D0100100000000",
+          "T_KOR_NM": "확인시험",
+          "FNPRT_ITM_NM": null,
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "적합",
+          "SPEC_VAL_SUMUP": "이 품목은 \"개미산게라닐의 확인시험법\"에 적합하다",
+          "MIMM_VAL": null,
+          "MXMM_VAL": null,
+          "UNIT_NM": null,
+          "INJRY_YN": "N",
+          "SORC": null,
+          "VALD_BEGN_DT": "20140101",
+          "VALD_END_DT": "99991231",
+          "UPDT_PRVNS": "최초등록",
+          "LAST_UPDT_DTM": "2020-12-04 10:46:20"
+        }
+      ]
+    }
+  }
+}
