@@ -5,7 +5,7 @@
  * UI 내부 상태 타입을 정의.
  */
 
-import type { Feature1Result } from "@/types/pipeline";
+import type { Feature1Result, PipelineStepStatus, HITL1DecisionsRequest } from "@/types/pipeline";
 
 // 백엔드 응답 래퍼 (ai_result + final_result + status)
 //
@@ -15,7 +15,8 @@ import type { Feature1Result } from "@/types/pipeline";
 //   - 담당자가 HITL-2 confirm 후 "confirmed" / "locked" 로 전이.
 export interface Feature1Response {
   case_id: string;
-  status: "pending" | "running" | "waiting_review" | "needs_review" | "completed" | "error";
+  /** code-review MEDIUM-6: PipelineStepStatus 로 교체 (Wave 4 P2) */
+  status: PipelineStepStatus;
   ai_result: (Feature1Result & { _internal?: Feature1Internal }) | null;
   final_result: (Feature1Result & { _internal?: Feature1Internal }) | null;
   edit_reason?: string | null;
@@ -41,6 +42,8 @@ export interface Feature1Internal {
   rag_reasoning: string | null;
   law_citations: LawCitation[];
   conflict_status: ConflictStatus;
+  // ── Wave 4 P2-BE: 파이프라인 버전 분기 (optional) ──
+  pipeline_version?: "v1" | "v2" | null;
 }
 
 // ── RAG 판정 결과 (backend/models/f1_law_citation.py 1:1 미러링) ──
@@ -132,7 +135,17 @@ export interface Feature1UiState {
   isSaving: boolean;
   isConfirming: boolean;
   errorMessage: string | null;
+  // ── Wave 4 P2: HITL-2 확장 필드 ──
+  hitl2FinalReason: string;
+  hitl2SignerId: string;
+  hitl2SelectedCitations: Set<string>;
+  // ── Wave 4 P2: HITL-1 decisions 임시 상태 ──
+  hitl1Decisions: HITL1DecisionsRequest | null;
 }
+
+// HITL-1/2 완료 상태 판별 헬퍼
+export const isConfirmedStatus = (status: PipelineStepStatus | undefined): boolean =>
+  status === "completed" || status === "confirmed" || status === "locked";
 
 // 금지 카테고리 라벨
 export const FORBIDDEN_CATEGORY_LABEL: Record<ForbiddenHitDetail["category"], string> = {
