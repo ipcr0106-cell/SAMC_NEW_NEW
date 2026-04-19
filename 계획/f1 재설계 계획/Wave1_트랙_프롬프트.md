@@ -32,10 +32,10 @@ F1 재설계 Wave 1 W1-A 트랙 담당 subagent.
 🎯 작업:
   - backend/services/data_go_kr/ 패키지 본체 구현
   - 4종 엔드포인트 클라이언트:
-      15111777 /getFoodRwmtInfo             (식품 원재료 / GMO)
+      15111913 /getFoodRwmtInfo             (식품 원재료 / GMO)
       15094202 /getIprtFoodCpntCdInfoFoodInq (수입식품 성분코드)
       15116583 /getFoodWStndStusList        (첨가물 기준)
-      15111913 /getIprtFoodIngdInfoService  (수입식품 원료)
+      15111777 /getIprtFoodIngdInfoService  (수입식품 원료)
   - 캐시 레이어 (Supabase f1_data_go_kr_cache), 재시도 (httpx + backoff)
   - W1-C가 제공할 circuit_breaker.py import 포인트만 준비 (mock 가능)
   - backend/db/migrations/016_f1_data_go_kr_infra.sql 작성
