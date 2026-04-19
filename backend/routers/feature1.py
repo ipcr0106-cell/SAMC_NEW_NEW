@@ -27,7 +27,7 @@ from fastapi.responses import StreamingResponse
 from fpdf import FPDF
 from pydantic import BaseModel
 
-from config.feature_flags import F1_REQUIRE_HITL0_APPROVAL
+from config.feature_flags import F1_REQUIRE_HITL0_APPROVAL, should_use_new_pipeline
 from db.supabase_client import get_supabase
 from models.f1_hitl import (
     F0ApproveRequest,
@@ -40,9 +40,10 @@ from models.f1_hitl import (
     HITL2ConfirmResponse,
 )
 from models.f1_law_citation import RagJudgement
+from models.f1_types import F1Output
 from models.judgment import (Feature1Input, Feature1Output, Ingredient,
                                      ProcessConditions)
-from services.feature1 import run_feature1, run_feature1_with_rag
+from services.feature1 import run_feature1, run_feature1_with_rag, run_feature1_v2
 from services.f1_hitl_service import (
     apply_f0_edit,
     approve_f0,
@@ -223,6 +224,124 @@ def _to_pipeline_result(
                 [c.model_dump() for c in rag.law_citations] if rag else []
             ),
             "conflict_status": conflict_status,
+        },
+    }
+
+
+def _f1output_to_pipeline_result(out: F1Output) -> dict:
+    """F1Output (신규 v2 파이프라인) → 팀 약속 Feature1Result (types/pipeline.ts) 형식 변환.
+
+    verdict 한글 변환:
+        permitted  → 수입가능
+        restricted → 수입가능 (조건부)
+        prohibited → 수입불가
+        needs_review, 기타 → 검토 필요
+
+    import_possible: verdict in ("permitted", "restricted") → True, 나머지 False.
+
+    ingredients[]: evidence_external_data step=B enriched_summary 에서 추출.
+    fail_reasons[]: warnings + step=A forbidden_hits.
+    standards_check[]: evidence_external_data step=C checks.
+    _internal: v2 전용 필드 + pipeline_version="v2".
+    """
+    _VERDICT_KO = {
+        "permitted": "수입가능",
+        "restricted": "수입가능 (조건부)",
+        "prohibited": "수입불가",
+        "needs_review": "검토 필요",
+    }
+    verdict_ko = _VERDICT_KO.get(out.verdict, "검토 필요")
+    import_possible = out.verdict in ("permitted", "restricted")
+
+    # ── ingredients: step=B enriched_summary ──────────────────
+    ingredients_slim: list[dict] = []
+    step_b_data: Optional[dict] = None
+    step_a_data: Optional[dict] = None
+    step_c_data: Optional[dict] = None
+    for ev in out.evidence_external_data:
+        if ev.get("step") == "B":
+            step_b_data = ev
+        elif ev.get("step") == "A":
+            step_a_data = ev
+        elif ev.get("step") == "C":
+            step_c_data = ev
+
+    if step_b_data:
+        for item in step_b_data.get("enriched_summary", []):
+            allow_v = item.get("allow_verdict", "unidentified")
+            # allow_verdict: "allowed"→"허용", "restricted"→"조건부", "prohibited"→"금지", "unidentified"→"미확인"
+            status_map = {
+                "allowed": "allowed",
+                "restricted": "allowed",
+                "prohibited": "not_found",
+                "unidentified": "not_found",
+            }
+            ingredients_slim.append(
+                {
+                    "name": item.get("name", ""),
+                    "percentage": None,
+                    "status": status_map.get(allow_v, "not_found"),
+                    "law_ref": None,
+                }
+            )
+
+    # ── fail_reasons: warnings + step A forbidden_hits ────────
+    fail_reasons: list[str] = []
+    for w in out.warnings:
+        fail_reasons.append(w)
+    if step_a_data:
+        for h in step_a_data.get("forbidden_hits", []):
+            reason = h.get("reason") or h.get("matched_name", "")
+            if reason:
+                fail_reasons.append(f"금지원료: {h.get('ingredient_name', '')} — {reason}")
+
+    # ── standards_check: step=C checks ────────────────────────
+    standards_slim: list[dict] = []
+    if step_c_data:
+        for ch in step_c_data.get("checks", []):
+            actual: Optional[float] = None
+            actual_raw = ch.get("actual_value")
+            if actual_raw:
+                try:
+                    actual = float(str(actual_raw).split()[0])
+                except (ValueError, IndexError):
+                    actual = None
+
+            threshold: Optional[float] = ch.get("threshold_value")
+            unit = ch.get("unit_normalized") or ch.get("unit_original") or ""
+            spec_raw = ch.get("spec_raw") or ""
+
+            status_raw = ch.get("status", "no_data")
+            status_map_c = {
+                "pass": "pass",
+                "fail": "fail",
+                "review_needed": "no_threshold",
+                "no_data": "no_threshold",
+            }
+            standards_slim.append(
+                {
+                    "ingredient_name": ch.get("ingredient_name", ""),
+                    "actual_value": actual,
+                    "unit": unit,
+                    "threshold_value": threshold,
+                    "threshold_text": spec_raw,
+                    "status": status_map_c.get(status_raw, "no_threshold"),
+                    "law_ref": ch.get("law_ref"),
+                }
+            )
+
+    return {
+        "ingredients": ingredients_slim,
+        "verdict": verdict_ko,
+        "import_possible": import_possible,
+        "fail_reasons": fail_reasons,
+        "standards_check": standards_slim,
+        "_internal": {
+            "evidence_laws": out.evidence_laws,
+            "gmo_ingredients": out.gmo_ingredients,
+            "api_call_stats": out.api_call_stats,
+            "unit_conversions": out.unit_conversions,
+            "pipeline_version": "v2",
         },
     }
 
@@ -413,18 +532,46 @@ def run_feature1_endpoint(
 
     try:
         # 옵션 B: f1_수정_요청_사항 §7 "async def 엔드포인트 금지" 룰 준수.
-        # 엔드포인트는 sync 로 유지하고, run_feature1_with_rag (async) 는 asyncio.run() 으로 호출.
-        out, rag, conflict_status = asyncio.run(
-            run_feature1_with_rag(
-                ingredients=ingredients,
-                food_type=body.food_type,
-                process_conditions=process_conditions or ProcessConditions(),
-                payload_for_rag={
-                    "ingredients": [i.name for i in ingredients],
-                    "food_type": body.food_type,
-                },
+        # 엔드포인트는 sync 로 유지하고, async 서비스는 asyncio.run() 으로 호출.
+        if should_use_new_pipeline(case_id):
+            # ── 신규 v2 파이프라인 경로 ──────────────────────────────
+            v2_out: F1Output = asyncio.run(
+                run_feature1_v2(
+                    ingredients=ingredients,
+                    food_type=body.food_type,
+                    food_type_hierarchy=None,
+                    process_conditions=process_conditions or ProcessConditions(),
+                )
             )
-        )
+            ai_result = _f1output_to_pipeline_result(v2_out)
+            # v2 verdict 기반 HITL status 결정
+            new_status = (
+                "needs_review"
+                if v2_out.verdict in ("needs_review", "prohibited")
+                else "waiting_review"
+            )
+        else:
+            # ── 레거시 RAG 경로 (기본) ────────────────────────────────
+            out, rag, conflict_status = asyncio.run(
+                run_feature1_with_rag(
+                    ingredients=ingredients,
+                    food_type=body.food_type,
+                    process_conditions=process_conditions or ProcessConditions(),
+                    payload_for_rag={
+                        "ingredients": [i.name for i in ingredients],
+                        "food_type": body.food_type,
+                    },
+                )
+            )
+            ai_result = _to_pipeline_result(out, rag, conflict_status)
+            # HITL status 결정 (총괄 §2.7 엄격)
+            #   - conflict / rag_supplemented → needs_review (사람 결정 필요)
+            #   - agreed / rag_unavailable / rag_skipped → waiting_review (기존 흐름)
+            new_status = (
+                "needs_review"
+                if conflict_status in ("conflict", "rag_supplemented")
+                else "waiting_review"
+            )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=500,
@@ -435,16 +582,6 @@ def run_feature1_endpoint(
             },
         )
 
-    ai_result = _to_pipeline_result(out, rag, conflict_status)
-
-    # HITL status 결정 (총괄 §2.7 엄격)
-    #   - conflict / rag_supplemented → needs_review (사람 결정 필요)
-    #   - agreed / rag_unavailable / rag_skipped → waiting_review (기존 흐름)
-    new_status = (
-        "needs_review"
-        if conflict_status in ("conflict", "rag_supplemented")
-        else "waiting_review"
-    )
     _upsert_pipeline_step(case_id, new_status, ai_result)
 
     return {
