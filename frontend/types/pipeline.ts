@@ -45,6 +45,25 @@ export interface Ingredient {
   message?: string;       // 경고/안내 메시지
 }
 
+/**
+ * F1 재설계(Wave 1 W1-B) 신규 원재료 타입 — 07번 §4 기준.
+ * 기존 Ingredient 는 레거시 렌더 경로에서 그대로 유지.
+ * 신규 F1 파이프라인은 이 타입을 사용한다.
+ * optional 처리로 기존 pipeline_steps.ai_result 역호환 보장.
+ */
+export interface F1Ingredient {
+  name: string;                                                          // 원재료명
+  percentage?: number | null;                                            // 배합비율 (%)
+  component_code?: string | null;                                        // 성분코드 CPNT_CD (신규)
+  allow_verdict: "allowed" | "restricted" | "prohibited" | "unidentified"; // Step B 판정 (신규)
+  restriction_condition?: string | null;                                 // 조건부 허용 조건 (신규)
+  edible_parts?: string | null;                                          // 식용 부위 (신규)
+  is_gmo?: boolean | null;                                               // GMO 여부 (신규)
+  source_api?: string | null;                                            // 매칭 API id (신규)
+  law_ref?: string | null;                                               // 허용 근거 법령 (기존 유지)
+  message?: string | null;                                               // 경고/안내 메시지 (기존 유지)
+}
+
 export interface Feature1Result {
   ingredients: Ingredient[];          // 원재료 전체 목록
   verdict: "수입가능" | "수입불가";
@@ -53,14 +72,25 @@ export interface Feature1Result {
   standards_check: StandardCheck[];  // 기준규격 수치 비교 결과
 }
 
+/**
+ * StandardCheck — W1-B 필드 정비 (07번 §2-4).
+ * 신규 필드는 optional 처리하여 기존 렌더 역호환 유지.
+ */
 export interface StandardCheck {
   ingredient_name: string;
-  actual_value: number;
+  actual_value: number | string | null;                    // 문자열 값도 허용 (spec_raw 대응)
   unit: string;
   threshold_value: number | null;
-  status: "pass" | "fail" | "no_threshold";
-  condition?: string;   // 예: "가열제품에 한함"
-  law_ref?: string;
+  status: "pass" | "fail" | "review_needed" | "no_data" | "no_threshold"; // no_threshold 하위호환
+  condition?: string;                                      // 예: "가열제품에 한함"
+  law_ref?: string | null;
+  // W1-B 신규 필드 (07번 §2-4)
+  test_category?: string | null;                           // T_KOR_NM 값 ('함량', '성상' 등)
+  spec_raw?: string | null;                                // SPEC_VAL 원본
+  spec_summary?: string | null;                            // SPEC_VAL_SUMUP
+  unit_original?: string | null;                           // 원본 단위
+  unit_normalized?: string | null;                         // 정규화 단위
+  is_dangerous?: boolean | null;                           // INJRY_YN 매핑
 }
 
 // ──────────────────────────────────────────────────
