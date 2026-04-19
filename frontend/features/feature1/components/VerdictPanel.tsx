@@ -89,7 +89,10 @@ export default function VerdictPanel({
       {/* AI 1차 판정 */}
       <div className="mb-4 rounded bg-gray-50 p-3">
         <div className="text-xs text-gray-500">AI 1차 판정</div>
-        <div className={`mt-1 text-lg font-semibold ${VERDICT_COLOR[aiVerdict]}`}>
+        <div
+          data-testid="ai-recommended-verdict"
+          className={`mt-1 text-lg font-semibold ${VERDICT_COLOR[aiVerdict]}`}
+        >
           {VERDICT_LABEL[aiVerdict]}
         </div>
         {failReasons.length > 0 && (

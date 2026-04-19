@@ -80,6 +80,9 @@ export default function ImportCheckPage({ caseId }: Props) {
   const [conditionalResolutions, setConditionalResolutions] = useLocalState<readonly ConditionalResolution[]>([]);
   const [escalationAcks, setEscalationAcks] = useLocalState<readonly string[]>([]);
 
+  // ── HITL-2 확정 확인 모달 ──────────────────────────────────────────
+  const [showHitl2Modal, setShowHitl2Modal] = useLocalState(false);
+
   // ── HITL-1 제출 핸들러 ──────────────────────────────────────────────
   const handleHitl1Submit = useCallback(async () => {
     await submitHitl1({
@@ -95,8 +98,14 @@ export default function ImportCheckPage({ caseId }: Props) {
     });
   }, [submitHitl1, ingredientDecisions, conditionalResolutions, escalationAcks, state.hitl2SignerId]);
 
-  // ── HITL-2 제출 핸들러 ──────────────────────────────────────────────
-  const handleHitl2Confirm = useCallback(async () => {
+  // ── HITL-2 제출 핸들러 (모달 1단계) ────────────────────────────────
+  const handleHitl2Confirm = useCallback(() => {
+    setShowHitl2Modal(true);
+  }, [setShowHitl2Modal]);
+
+  // ── HITL-2 확정 실행 (모달 확인 2단계) ─────────────────────────────
+  const handleHitl2ConfirmExecute = useCallback(async () => {
+    setShowHitl2Modal(false);
     if (!state.userVerdict) return;
     await confirmHitl2Result({
       user_verdict: state.userVerdict,
@@ -249,7 +258,7 @@ export default function ImportCheckPage({ caseId }: Props) {
 
         {/* ── HITL-1: needs_review ── */}
         {currentStatus === "needs_review" && (
-          <div className="space-y-4">
+          <div data-testid="hitl1-panel" className="space-y-4">
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
               <b>HITL-1:</b> 아래 항목을 검토하고 결정을 제출하세요.
             </div>
@@ -284,7 +293,7 @@ export default function ImportCheckPage({ caseId }: Props) {
             <div className="flex justify-end">
               <button
                 type="button"
-                data-testid="hitl1-submit-button"
+                data-testid="hitl1-submit-btn"
                 onClick={handleHitl1Submit}
                 disabled={state.isSaving}
                 className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
@@ -349,7 +358,7 @@ export default function ImportCheckPage({ caseId }: Props) {
         {(currentStatus === "confirmed" || currentStatus === "locked") && (
           <div className="space-y-4">
             <div
-              data-testid="confirmed-banner"
+              data-testid="locked-banner"
               className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 p-4 text-sm font-medium text-green-800"
             >
               {currentStatus === "locked" ? (
@@ -386,6 +395,39 @@ export default function ImportCheckPage({ caseId }: Props) {
               onConfirm={confirm}
               onDownloadPdf={handleDownloadPdf}
             />
+          </div>
+        )}
+
+        {/* ── HITL-2 확정 확인 모달 ── */}
+        {showHitl2Modal && (
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          >
+            <div className="w-80 rounded-lg bg-white p-5 shadow-lg">
+              <h4 className="mb-2 font-semibold text-gray-900">최종 판정 확정</h4>
+              <p className="mb-4 text-sm text-gray-600">
+                판정을 확정합니다. 확정 후에는 수정이 불가합니다.
+              </p>
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowHitl2Modal(false)}
+                  className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                >
+                  취소
+                </button>
+                <button
+                  type="button"
+                  data-testid="confirm-verdict-btn"
+                  onClick={handleHitl2ConfirmExecute}
+                  className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                >
+                  확정
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </main>
