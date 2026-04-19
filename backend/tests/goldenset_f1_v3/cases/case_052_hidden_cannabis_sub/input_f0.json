@@ -1,0 +1,34 @@
+{
+  "_comment": "F0 파싱 결과 고정 픽스처. HITL-0 승인 후 run_feature1_v2 에 전달되는 형태.",
+  "v3_case_id": "v3_case_052_hidden_cannabis_sub",
+  "v2_source_id": "g089",
+  "food_type": "기타가공품",
+  "process_conditions": {},
+  "ingredients": [
+    {
+      "name": "블렌드ABC",
+      "percentage": 100.0,
+      "sub_ingredients": [
+        {
+          "name": "무명원료",
+          "percentage": 50.0,
+          "sub_ingredients": [
+            {
+              "name": "대마초",
+              "percentage": 20.0
+            }
+          ]
+        },
+        {
+          "name": "설탕",
+          "percentage": 50.0
+        }
+      ]
+    }
+  ],
+  "doc_types": [
+    "원재료_명세서",
+    "성분_분석표"
+  ],
+  "hitl0_approved": true
+}
