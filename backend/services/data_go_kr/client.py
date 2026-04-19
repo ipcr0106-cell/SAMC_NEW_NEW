@@ -105,7 +105,34 @@ class DataGoKrClient:
         self._cache: ResponseCache = cache or InMemoryResponseCache()
         self._breaker: CircuitBreakerLike = breaker or NoOpBreaker()
         self._external_http_client = http_client
+        self._owned_client: Optional[httpx.AsyncClient] = None
         self._call_logger = call_logger
+
+    # ------------------------------------------------------------------
+    # Life-cycle (HIGH-1 fix: AsyncClient 재사용으로 커넥션 풀 누수 방지)
+    # ------------------------------------------------------------------
+
+    async def aclose(self) -> None:
+        """내부 소유 AsyncClient를 정리. 외부 주입 client는 호출자가 관리."""
+        if self._owned_client is not None:
+            await self._owned_client.aclose()
+            self._owned_client = None
+
+    async def __aenter__(self) -> "DataGoKrClient":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.aclose()
+
+    # ------------------------------------------------------------------
+    # HIGH-2 fix: api_key 마스킹 헬퍼
+    # ------------------------------------------------------------------
+
+    def _sanitize(self, text: str) -> str:
+        """예외 메시지·로그로 유출될 수 있는 serviceKey 값을 마스킹."""
+        if not text or not self.api_key:
+            return text
+        return text.replace(self.api_key, "***")
 
     # ------------------------------------------------------------------
     # 공개 메서드 (Day 0 시그니처 유지)
@@ -344,7 +371,8 @@ class DataGoKrClient:
                 last_exc = exc
                 if attempt >= self.max_retries:
                     raise DataGoKrTimeoutError(
-                        f"timeout after {self.max_retries + 1} attempts: {exc}",
+                        f"timeout after {self.max_retries + 1} attempts: "
+                        f"{self._sanitize(str(exc))}",
                         endpoint=endpoint.id,
                         timeout_s=self.timeout_s,
                     ) from exc
@@ -353,7 +381,8 @@ class DataGoKrClient:
                 last_exc = exc
                 if attempt >= self.max_retries:
                     raise DataGoKrError(
-                        f"network error after {self.max_retries + 1} attempts: {exc}",
+                        f"network error after {self.max_retries + 1} attempts: "
+                        f"{self._sanitize(str(exc))}",
                         endpoint=endpoint.id,
                     ) from exc
                 await asyncio.sleep(_RETRY_BACKOFF_NETWORK)
@@ -372,76 +401,72 @@ class DataGoKrClient:
         endpoint: Endpoint,
         params: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """단일 HTTP GET. 응답 상태·resultCode 검증 후 dict 반환."""
+        """단일 HTTP GET. 응답 상태·resultCode 검증 후 dict 반환.
+
+        HIGH-1 fix: 외부 주입 client가 없으면 `self._owned_client` 를 1회 생성하여
+        재사용 — 매 호출마다 새 AsyncClient 생성하던 커넥션 풀 누수 방지.
+        """
         client = self._external_http_client
-        owns_client = False
         if client is None:
-            client = httpx.AsyncClient(timeout=self.timeout_s)
-            owns_client = True
+            if self._owned_client is None:
+                self._owned_client = httpx.AsyncClient(timeout=self.timeout_s)
+            client = self._owned_client
 
+        resp = await client.get(endpoint.url, params=params)
+
+        status = resp.status_code
+        if status == 429:
+            retry_after_raw = resp.headers.get("Retry-After")
+            retry_after: Optional[int]
+            try:
+                retry_after = int(retry_after_raw) if retry_after_raw else None
+            except ValueError:
+                retry_after = None
+            raise DataGoKrRateLimitError(
+                "data.go.kr rate limit exceeded",
+                endpoint=endpoint.id,
+                retry_after=retry_after,
+            )
+        if status in (500, 502, 503, 504):
+            raise DataGoKrError(
+                f"data.go.kr upstream {status}",
+                endpoint=endpoint.id,
+                status_code=status,
+            )
+        if status == 404:
+            raise DataGoKrInvalidResponseError(
+                f"endpoint not found (404): {endpoint.url}",
+                endpoint=endpoint.id,
+                status_code=404,
+            )
+        if status >= 400:
+            # HIGH-2 fix: 응답 본문에 serviceKey 가 echo 될 가능성 차단
+            raise DataGoKrError(
+                f"data.go.kr HTTP {status}: {self._sanitize(resp.text[:200])}",
+                endpoint=endpoint.id,
+                status_code=status,
+            )
+
+        # 2xx — JSON 파싱
         try:
-            try:
-                resp = await client.get(endpoint.url, params=params)
-            except httpx.TimeoutException:
-                raise
-            except httpx.HTTPError:
-                raise
+            body = resp.json()
+        except Exception as exc:
+            raise DataGoKrInvalidResponseError(
+                f"JSON decode failed: {self._sanitize(str(exc))}",
+                endpoint=endpoint.id,
+                status_code=status,
+            ) from exc
 
-            status = resp.status_code
-            if status == 429:
-                retry_after_raw = resp.headers.get("Retry-After")
-                retry_after: Optional[int]
-                try:
-                    retry_after = int(retry_after_raw) if retry_after_raw else None
-                except ValueError:
-                    retry_after = None
-                raise DataGoKrRateLimitError(
-                    "data.go.kr rate limit exceeded",
-                    endpoint=endpoint.id,
-                    retry_after=retry_after,
-                )
-            if status in (500, 502, 503, 504):
-                raise DataGoKrError(
-                    f"data.go.kr upstream {status}",
-                    endpoint=endpoint.id,
-                    status_code=status,
-                )
-            if status == 404:
-                raise DataGoKrInvalidResponseError(
-                    f"endpoint not found (404): {endpoint.url}",
-                    endpoint=endpoint.id,
-                    status_code=404,
-                )
-            if status >= 400:
-                raise DataGoKrError(
-                    f"data.go.kr HTTP {status}: {resp.text[:200]}",
-                    endpoint=endpoint.id,
-                    status_code=status,
-                )
-
-            # 2xx — JSON 파싱
-            try:
-                body = resp.json()
-            except Exception as exc:
-                raise DataGoKrInvalidResponseError(
-                    f"JSON decode failed: {exc}",
-                    endpoint=endpoint.id,
-                    status_code=status,
-                ) from exc
-
-            result_code = self._extract_result_code(body)
-            if result_code not in ("00", "0", None):
-                # None 허용 — 일부 엔드포인트는 header 누락 가능. "00"/"0" 외는 에러
-                raise DataGoKrInvalidResponseError(
-                    f"resultCode={result_code}: {self._extract_result_msg(body)}",
-                    endpoint=endpoint.id,
-                    result_code=str(result_code) if result_code is not None else None,
-                    status_code=status,
-                )
-            return body
-        finally:
-            if owns_client:
-                await client.aclose()
+        result_code = self._extract_result_code(body)
+        if result_code not in ("00", "0", None):
+            # None 허용 — 일부 엔드포인트는 header 누락 가능. "00"/"0" 외는 에러
+            raise DataGoKrInvalidResponseError(
+                f"resultCode={result_code}: {self._extract_result_msg(body)}",
+                endpoint=endpoint.id,
+                result_code=str(result_code) if result_code is not None else None,
+                status_code=status,
+            )
+        return body
 
     # ------------------------------------------------------------------
     # Helpers

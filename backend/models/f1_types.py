@@ -1,12 +1,17 @@
 """F1 재설계 신규 타입 정의 (Pydantic v2) — Wave 1 W1-B 확장.
 
-본 파일의 `Feature1Output` 핵심 필드와 `DataGoKrEndpoint` Enum은 **Wave 1 Day 0에
+본 파일의 `F1Output` 핵심 필드와 `DataGoKrEndpoint` Enum은 **Wave 1 Day 0에
 동결**되었다. W1-A/B/C/D 4 트랙이 공통 참조한다. 필드 추가는 허용되나 **기존 필드
 이름/타입 변경은 금지**한다.
 
+⚠️  네이밍 이관 (code-review MEDIUM-5): Day 0 클래스명은 `Feature1Output` 이었으나
+`models/judgment.py` 의 레거시 `Feature1Output` 과 **이름 충돌** 발생. Wave 1 내에서
+`F1Output` 으로 rename 하고 하위 호환을 위해 `Feature1Output = F1Output` alias 를
+유지한다. Wave 2 이후 alias 제거 예정.
+
 W1-B 확장 (Wave 1):
     - `StandardCheck` 신규 모델 (07번 §2-4)
-    - `Feature1Output` 확장 필드 3종 (07번 §2-3)
+    - `F1Output` 확장 필드 3종 (07번 §2-3)
     - `Ingredient` 신규 필드 6종 → judgment.py 에 추가됨 (본 파일 미포함)
 
 참조:
@@ -74,7 +79,7 @@ class StandardCheck(BaseModel):
     law_ref: Optional[str] = Field(None, description="근거 법령 참조")
 
 
-class Feature1Output(BaseModel):
+class F1Output(BaseModel):
     """F1 (수입판정) 최종 출력 — Day 0 핵심 필드 동결 + W1-B 확장 필드.
 
     Day 0 동결 필드 6종 (이름·타입 변경 금지):
@@ -83,6 +88,9 @@ class Feature1Output(BaseModel):
 
     W1-B 추가 필드 3종 (07번 §2-3):
         gmo_ingredients, api_call_stats, data_source_versions
+
+    네임 이관: Day 0 클래스명 `Feature1Output` 에서 rename (judgment.py 레거시와
+    충돌 회피). 아래 `Feature1Output = F1Output` alias 로 하위 호환 유지.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -129,3 +137,13 @@ class Feature1Output(BaseModel):
             "값은 LAST_UPDT_DTM 또는 해시"
         ),
     )
+
+
+# ------------------------------------------------------------------
+# Deprecated alias — Day 0 호환 유지 (code-review MEDIUM-5 대응)
+# Wave 2 이후 제거 예정. 신규 코드는 `F1Output` 을 사용할 것.
+# `models.judgment.Feature1Output` (레거시) 와 이름이 충돌하므로 본 alias 를
+# import 해 사용하는 경로는 `from models.f1_types import Feature1Output` 로
+# 명시적 경로를 쓸 때만 유효.
+# ------------------------------------------------------------------
+Feature1Output = F1Output

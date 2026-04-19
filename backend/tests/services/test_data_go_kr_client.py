@@ -1037,3 +1037,165 @@ class TestSupabaseResponseCache:
         cache = SupabaseResponseCache(client=_MockClient())
         got = await cache.get("k1")
         assert got == {"a": 1}
+
+
+# ============================================================
+# code-review HIGH-1 / HIGH-2 회귀 방어 테스트
+# ============================================================
+
+
+class TestConnectionPoolReuse:
+    """HIGH-1 회귀 방어 — 외부 주입 client 없을 때 owned AsyncClient 재사용 확인."""
+
+    @pytest.mark.asyncio
+    async def test_owned_client_is_lazy_and_reused(self) -> None:
+        """생성자에서는 owned_client를 만들지 않음(lazy), 첫 호출 시 생성 후 재사용."""
+        from services.data_go_kr.client import DataGoKrClient
+
+        with respx.mock(
+            base_url="https://apis.data.go.kr",
+            assert_all_called=False,
+        ) as mocker:
+            mocker.get(
+                url__regex=r"^https://apis\.data\.go\.kr/1471000/FoodRwmtInfo/.*$"
+            ).mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "response": {
+                            "header": {"resultCode": "00", "resultMsg": "NORMAL"},
+                            "body": {"totalCount": 0, "items": []},
+                        }
+                    },
+                )
+            )
+
+            client = DataGoKrClient(api_key="test-key")
+            assert client._owned_client is None, (
+                "Day 0 생성자에서 client를 만들지 않아야 함"
+            )
+
+            await client.get_food_raw_material("대두")
+            first_client = client._owned_client
+            assert first_client is not None, "첫 호출 후 owned_client 생성되어야 함"
+
+            await client.get_food_raw_material("대두")
+            assert client._owned_client is first_client, (
+                "두 번째 호출에서 같은 AsyncClient를 재사용해야 함"
+            )
+
+            await client.aclose()
+            assert client._owned_client is None, "aclose 후 owned_client=None"
+
+    @pytest.mark.asyncio
+    async def test_external_http_client_not_owned(self) -> None:
+        """외부 주입 client는 aclose에서 닫지 않는다 (호출자 관리)."""
+        from services.data_go_kr.client import DataGoKrClient
+
+        ext = httpx.AsyncClient()
+        try:
+            client = DataGoKrClient(api_key="test-key", http_client=ext)
+            assert client._owned_client is None
+            await client.aclose()
+            assert not ext.is_closed
+        finally:
+            await ext.aclose()
+
+    @pytest.mark.asyncio
+    async def test_async_context_manager(self) -> None:
+        """async with 진입/퇴장 시 owned_client 생성/정리."""
+        from services.data_go_kr.client import DataGoKrClient
+
+        with respx.mock(
+            base_url="https://apis.data.go.kr",
+            assert_all_called=False,
+        ) as mocker:
+            mocker.get(
+                url__regex=r"^https://apis\.data\.go\.kr/1471000/FoodRwmtInfo/.*$"
+            ).mock(
+                return_value=httpx.Response(
+                    200,
+                    json={
+                        "response": {
+                            "header": {"resultCode": "00", "resultMsg": "NORMAL"},
+                            "body": {"totalCount": 0, "items": []},
+                        }
+                    },
+                )
+            )
+            async with DataGoKrClient(api_key="test-key") as client:
+                await client.get_food_raw_material("대두")
+                assert client._owned_client is not None
+            assert client._owned_client is None
+
+
+class TestApiKeyMasking:
+    """HIGH-2 회귀 방어 — 예외 메시지에 serviceKey 값이 노출되지 않아야 함."""
+
+    @pytest.mark.asyncio
+    async def test_api_key_not_in_http_error_message(self) -> None:
+        """4xx 에러 응답에 serviceKey가 echo 되어도 예외 메시지에서는 마스킹."""
+        from services.data_go_kr.client import DataGoKrClient
+
+        secret_key = "SUPER_SECRET_API_KEY_abc123"
+        evil_body = (
+            f"<html>error: invalid request serviceKey={secret_key}&type=json</html>"
+        )
+
+        with respx.mock(
+            base_url="https://apis.data.go.kr",
+            assert_all_called=False,
+        ) as mocker:
+            mocker.get(
+                url__regex=r"^https://apis\.data\.go\.kr/1471000/FoodRwmtInfo/.*$"
+            ).mock(return_value=httpx.Response(400, text=evil_body))
+
+            async with DataGoKrClient(
+                api_key=secret_key, max_retries=0
+            ) as client:
+                with pytest.raises(DataGoKrError) as exc_info:
+                    await client.get_food_raw_material("대두")
+
+        assert secret_key not in str(exc_info.value), (
+            f"api_key가 예외 메시지에 노출됨: {exc_info.value}"
+        )
+        assert "***" in str(exc_info.value), "sanitize 치환 마커가 있어야 함"
+
+    @pytest.mark.asyncio
+    async def test_api_key_not_in_timeout_message(self) -> None:
+        """Timeout 예외 메시지에도 api_key 비노출."""
+        from services.data_go_kr.client import DataGoKrClient
+
+        secret_key = "TIMEOUT_SECRET_xyz789"
+
+        with respx.mock(
+            base_url="https://apis.data.go.kr",
+            assert_all_called=False,
+        ) as mocker:
+            mocker.get(
+                url__regex=r"^https://apis\.data\.go\.kr/1471000/FoodRwmtInfo/.*$"
+            ).mock(
+                side_effect=httpx.TimeoutException(
+                    f"Request timeout for serviceKey={secret_key}"
+                )
+            )
+
+            async with DataGoKrClient(
+                api_key=secret_key, timeout_s=0.1, max_retries=0
+            ) as client:
+                with pytest.raises(DataGoKrTimeoutError) as exc_info:
+                    await client.get_food_raw_material("대두")
+
+        assert secret_key not in str(exc_info.value), (
+            f"api_key가 timeout 메시지에 노출됨: {exc_info.value}"
+        )
+
+    def test_sanitize_helper(self) -> None:
+        """_sanitize는 api_key를 *** 로 치환한다."""
+        from services.data_go_kr.client import DataGoKrClient
+
+        c = DataGoKrClient(api_key="MY_KEY_XYZ")
+        text = "error: serviceKey=MY_KEY_XYZ&type=json"
+        result = c._sanitize(text)
+        assert "MY_KEY_XYZ" not in result
+        assert "***" in result
