@@ -572,6 +572,9 @@ def run_feature1_endpoint(
                 if conflict_status in ("conflict", "rag_supplemented")
                 else "waiting_review"
             )
+    except HTTPException:
+        # code-review MEDIUM-1: HITL-0 400 등 의미 있는 HTTPException 은 원본 그대로 전파.
+        raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=500,
