@@ -18,14 +18,19 @@
 
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any, Optional
 
 from models.f1_law_citation import ConflictStatus, RagJudgement
+from models.f1_types import F1Output, MeasuredValue, QueryContext
 from models.judgment import (Feature1Output, Ingredient, LawReference,
                                      ProcessConditions)
 from services import f1_rag_judge
 from services.step1_ingredients_check import run_step1
 from services.step3_standards import run_step3
+
+logger = logging.getLogger(__name__)
 
 
 def run_feature1(
@@ -279,35 +284,237 @@ async def run_feature1_v2(
     food_type: Optional[str] = None,
     food_type_hierarchy: Any = None,
     process_conditions: Optional[ProcessConditions] = None,
-    measured_values: Optional[dict[str, Any]] = None,
-) -> Any:
-    """F1 재설계 파이프라인 v2 (Wave 2 골격).
+    measured_values: Optional[dict[str, MeasuredValue]] = None,
+    *,
+    client: Any = None,
+) -> F1Output:
+    """F1 재설계 파이프라인 v2 (Wave 2 실본체).
 
     흐름 (설계 문서 01~04):
         1. Step A: f1_forbidden_ingredients + 15111777 2중 안전망
-           └ forbidden hit → 즉시 종료 (Step B/C/D skip)
+           └ forbidden hit → 즉시 종료 (Step B/C skip), Step D 만 법령 인용용 실행
         2. Step B: 15111777 + 15094202 + 15111913 병렬 → allow_verdict·GMO
-           └ prohibited → Step C/D skip, verdict="prohibited"
-           └ restricted → HITL-1 표시 후 Step C 진행
+           └ prohibited → Step C skip, Step D 법령 인용 후 verdict=prohibited
+           └ restricted → HITL-1 대상 누적 후 Step C 진행
         3. Step C: 15116583 원재료당 조회 → T_KOR_NM별 집계 + 수치 비교
-           └ fail → verdict 확정하되 Step D 는 계속 (법령 인용용)
+           └ fail → verdict=prohibited (Step D 계속)
+           └ review_needed → verdict=needs_review
         4. Step D: Pinecone 5 namespace 검색 → 법령 인용 (판정 주도 없음)
-        5. `F1Output` 합성 → pipeline_steps.ai_result 저장
+        5. F1Output 합성 → pipeline_steps.ai_result 저장
 
     Args:
         ingredients: F0 원재료 목록 (sub_ingredients 포함).
-        food_type: F2 확정 식품유형.
-        food_type_hierarchy: F2 계층 정보 (Any — F2 타입 결합 회피).
-        process_conditions: 가열·발효·증류·도수 플래그.
-        measured_values: 원재료명 → MeasuredValue. None 이면 Step C 수치 비교 스킵.
+        food_type: F2 확정 식품유형 문자열.
+        food_type_hierarchy: F2 계층 객체 (Any — 속성/dict 양쪽 허용).
+        process_conditions: 가열·발효·증류·도수 플래그 (현재 v2 로직에서 미사용,
+            Wave 3 HITL-1 에스컬레이션 규칙 확정 후 통합 예정).
+        measured_values: 원재료명 → MeasuredValue 매핑. None 이면 Step C 수치 비교 스킵.
+        client: 테스트 주입용 DataGoKrClient. None 이면 env 키로 Step A/C 내부 생성.
 
     Returns:
-        `models.f1_types.F1Output` — Day 0 동결 6 필드 + W1-B 확장 3 필드.
+        F1Output — Day 0 동결 6 필드 + W1-B 확장 3 필드.
 
-    Day 0 스켈레톤: 부모 세션이 Wave 2 종료 시점에 실제 Step A~D 호출로 채운다.
-    W2-A/B/C/D 4 트랙 완료 직후 `from services import f1_step_a, f1_step_b,
-    f1_step_c, f1_step_d` import 하여 순차 호출 + 조기 종료 조건 구현.
+    Verdict 매핑:
+        - prohibited:
+            · Step A forbidden hit (confidence 0.95)
+            · Step B prohibited verdict (0.85)
+            · Step C overall_status=fail (0.90)
+        - needs_review:
+            · Step C overall_status=review_needed (0.40)
+            · Step B unidentified + 다른 이슈 (0.40)
+            · Step C no_data + 제한·금지 없음 (0.50)
+        - restricted:
+            · Step B 에 restricted 원재료 있고 Step C pass/no_data (0.70~0.75)
+        - permitted:
+            · 모두 clean + Step C pass (0.90)
     """
-    raise NotImplementedError(
-        "Wave 2 종료 시점에 부모 세션이 Step A~D 호출로 채운다"
-    )
+    from services import f1_step_a, f1_step_b, f1_step_c, f1_step_d
+    from services.data_go_kr import DataGoKrClient
+
+    warnings: list[str] = []
+    evidence_external_data: list[dict[str, Any]] = []
+    unit_conversions: list[dict[str, Any]] = []
+    gmo_ingredients: list[str] = []
+    api_call_stats: dict[str, int] = {}
+
+    # DataGoKrClient 1회 생성 — Step A/C 공유 (Wave 1 HIGH-1 커넥션 풀 재사용)
+    owned_client = False
+    if client is None:
+        api_key = os.environ.get("F1_DATA_GO_KR_API_KEY", "")
+        if api_key:
+            client = DataGoKrClient(api_key=api_key)
+            owned_client = True
+
+    try:
+        # ── Step A ────────────────────────────────────────────
+        step_a = await f1_step_a.run_step_a(ingredients, client=client)
+        if step_a.api_errors:
+            warnings.extend(f"step_a_api_error:{e}" for e in step_a.api_errors)
+        if step_a.forbidden_hits:
+            evidence_external_data.append(
+                {
+                    "step": "A",
+                    "source": "f1_forbidden_ingredients + 15111777",
+                    "forbidden_hits": [h.model_dump() for h in step_a.forbidden_hits],
+                }
+            )
+
+        # Step A forbidden → 조기 종료 (Step D 만 실행하여 법령 인용)
+        if step_a.stopped:
+            query_ctx = QueryContext(
+                food_type=food_type,
+                forbidden_hits=step_a.forbidden_hits,
+            )
+            step_d = await f1_step_d.run_step_d(query_ctx)
+            return F1Output(
+                verdict="prohibited",
+                confidence=0.95,
+                evidence_laws=[c.model_dump() for c in step_d.citations],
+                evidence_external_data=evidence_external_data,
+                unit_conversions=[],
+                warnings=warnings,
+                gmo_ingredients=[],
+                api_call_stats={},
+                data_source_versions={},
+            )
+
+        # ── Step B ────────────────────────────────────────────
+        step_b = await f1_step_b.run_step_b(ingredients)
+        gmo_ingredients = list(step_b.gmo_ingredients)
+        api_call_stats = dict(step_b.api_call_stats)
+        if step_b.unidentified:
+            warnings.extend(f"step_b_unidentified:{n}" for n in step_b.unidentified)
+
+        enriched = step_b.enriched_ingredients or list(ingredients)
+
+        has_prohibited = any(
+            getattr(i, "allow_verdict", None) == "prohibited" for i in enriched
+        )
+        restricted_names = [
+            getattr(i, "name", "")
+            for i in enriched
+            if getattr(i, "allow_verdict", None) == "restricted"
+        ]
+
+        evidence_external_data.append(
+            {
+                "step": "B",
+                "source": "15111777 + 15094202 + 15111913",
+                "enriched_summary": [
+                    {
+                        "name": getattr(i, "name", ""),
+                        "allow_verdict": getattr(i, "allow_verdict", None),
+                        "component_code": getattr(i, "component_code", None),
+                        "is_gmo": getattr(i, "is_gmo", None),
+                    }
+                    for i in enriched
+                ],
+                "unidentified": list(step_b.unidentified),
+                "conditional": [
+                    getattr(i, "name", "") for i in step_b.conditional
+                ],
+                "gmo_ingredients": list(step_b.gmo_ingredients),
+            }
+        )
+
+        if has_prohibited:
+            query_ctx = QueryContext(
+                food_type=food_type,
+                forbidden_hits=step_a.forbidden_hits,
+                restricted_ingredients=restricted_names,
+            )
+            step_d = await f1_step_d.run_step_d(query_ctx)
+            return F1Output(
+                verdict="prohibited",
+                confidence=0.85,
+                evidence_laws=[c.model_dump() for c in step_d.citations],
+                evidence_external_data=evidence_external_data,
+                unit_conversions=[],
+                warnings=warnings,
+                gmo_ingredients=gmo_ingredients,
+                api_call_stats=api_call_stats,
+                data_source_versions={},
+            )
+
+        # ── Step C ────────────────────────────────────────────
+        step_c = await f1_step_c.run_step_c(
+            enriched,
+            food_type_hierarchy=food_type_hierarchy,
+            measured_values=measured_values,
+            client=client,
+        )
+        warnings.extend(f"step_c_review:{r}" for r in step_c.review_reasons)
+
+        for ch in step_c.checks:
+            if ch.unit_original or ch.unit_normalized:
+                unit_conversions.append(
+                    {
+                        "ingredient": ch.ingredient_name,
+                        "test_category": ch.test_category,
+                        "unit_original": ch.unit_original,
+                        "unit_normalized": ch.unit_normalized,
+                        "actual_value": ch.actual_value,
+                        "threshold_value": ch.threshold_value,
+                        "status": ch.status,
+                    }
+                )
+        evidence_external_data.append(
+            {
+                "step": "C",
+                "source": "15116583",
+                "overall_status": step_c.overall_status,
+                "checks": [ch.model_dump() for ch in step_c.checks],
+                "review_reasons": list(step_c.review_reasons),
+            }
+        )
+
+        failed_standards = [
+            f"{ch.ingredient_name}:{ch.test_category}"
+            for ch in step_c.checks
+            if ch.status == "fail"
+        ]
+
+        # ── Step D (항상 실행, 법령 인용용) ────────────────────
+        query_ctx = QueryContext(
+            food_type=food_type,
+            forbidden_hits=[],
+            restricted_ingredients=restricted_names,
+            failed_standards=failed_standards,
+        )
+        step_d = await f1_step_d.run_step_d(query_ctx)
+        evidence_laws = [c.model_dump() for c in step_d.citations]
+
+        # ── Verdict 결정 ──────────────────────────────────────
+        if step_c.overall_status == "fail":
+            verdict, confidence = "prohibited", 0.90
+        elif step_c.overall_status == "review_needed":
+            verdict, confidence = "needs_review", 0.40
+        elif step_b.unidentified:
+            verdict, confidence = "needs_review", 0.45
+        elif step_c.overall_status == "no_data":
+            if restricted_names:
+                verdict, confidence = "restricted", 0.70
+            else:
+                verdict, confidence = "needs_review", 0.50
+        elif restricted_names:
+            verdict, confidence = "restricted", 0.75
+        else:
+            verdict, confidence = "permitted", 0.90
+
+        return F1Output(
+            verdict=verdict,
+            confidence=confidence,
+            evidence_laws=evidence_laws,
+            evidence_external_data=evidence_external_data,
+            unit_conversions=unit_conversions,
+            warnings=warnings,
+            gmo_ingredients=gmo_ingredients,
+            api_call_stats=api_call_stats,
+            data_source_versions={},
+        )
+    finally:
+        if owned_client and client is not None:
+            try:
+                await client.aclose()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("DataGoKrClient aclose 실패: %s", exc)
