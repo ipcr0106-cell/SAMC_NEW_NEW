@@ -73,8 +73,16 @@ F1_CANARY_PERCENTAGE: int = env_int("F1_CANARY_PERCENTAGE", default=0)
 def should_use_new_pipeline(case_id: str) -> bool:
     """case_id 해시 기반으로 신규 파이프라인 적용 여부를 결정한다.
 
-    MD5 해시를 100으로 모듈로 연산 → F1_CANARY_PERCENTAGE 미만이면 True.
+    조건:
+        1. F1_USE_DATA_GO_KR_API=false 면 무조건 False (Canary 무시).
+        2. F1_USE_DATA_GO_KR_API=true + F1_CANARY_PERCENTAGE=100 이면 항상 True.
+        3. F1_USE_DATA_GO_KR_API=true + 0 < CANARY_PERCENTAGE < 100 이면
+           MD5 해시를 100으로 모듈로 연산 → CANARY_PERCENTAGE 미만이면 True.
+
     결정론적이므로 동일 case_id에 대해 항상 같은 결과를 반환한다.
+    10번 §3 Canary 로직 준수.
     """
+    if not F1_USE_DATA_GO_KR_API:
+        return False
     h = int(hashlib.md5(case_id.encode()).hexdigest(), 16) % 100
     return h < F1_CANARY_PERCENTAGE
