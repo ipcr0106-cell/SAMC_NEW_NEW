@@ -19,7 +19,7 @@
 
 "use client";
 
-import { useCallback, useMemo, useState as useLocalState } from "react";
+import { useCallback, useEffect, useMemo, useState as useLocalState } from "react";
 import { useImportCheck } from "./hooks/useImportCheck";
 import Button from "@/components/ui/Button";
 import ForbiddenAlert from "./components/ForbiddenAlert";
@@ -35,10 +35,13 @@ import F0ApprovalPanel from "./components/F0ApprovalPanel";
 import UnidentifiedIngredientReview from "./components/UnidentifiedIngredientReview";
 import ConditionalResolutionPanel from "./components/ConditionalResolutionPanel";
 import EscalationAckList from "./components/EscalationAckList";
-import type { IngredientDecision } from "@/types/pipeline";
+import FoodTypeSection from "./components/FoodTypeSection";
+import FoodTypeEditDialog from "./components/FoodTypeEditDialog";
+import type { IngredientDecision, FoodTypeHierarchy } from "@/types/pipeline";
 import type { ConditionalResolution } from "./components/ConditionalResolutionPanel";
 import type { EscalationItem } from "./components/EscalationAckList";
 import { isConfirmedStatus } from "./types";
+import { getFeature2 } from "@/lib/api";
 
 interface Props {
   caseId: string;
@@ -74,6 +77,28 @@ export default function ImportCheckPage({ caseId }: Props) {
   const isConfirmed = isV2
     ? isConfirmedStatus(currentStatus)
     : currentStatus === "completed";
+
+  // ── F2 식품유형 분류 state (f1f2 병합) ───────────────────────────────
+  const [foodTypeHierarchy, setFoodTypeHierarchy] = useLocalState<FoodTypeHierarchy | null>(null);
+  const [showFoodTypeEdit, setShowFoodTypeEdit] = useLocalState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const row = await getFeature2(caseId) as {
+          ai_result: FoodTypeHierarchy | null;
+          final_result: FoodTypeHierarchy | null;
+        };
+        if (cancelled) return;
+        const picked = row.final_result ?? row.ai_result;
+        if (picked) setFoodTypeHierarchy(picked);
+      } catch {
+        // F2 미실행 상태 → null 유지 (오류 표시 없음)
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [caseId]);
 
   // ── HITL-1 로컬 결정 상태 ──────────────────────────────────────────
   const [ingredientDecisions, setIngredientDecisions] = useLocalState<readonly IngredientDecision[]>([]);
@@ -224,6 +249,24 @@ export default function ImportCheckPage({ caseId }: Props) {
     return (
       <main className="mx-auto max-w-5xl space-y-4 p-6">
         {PageHeader}
+
+        {/* ── F2 식품유형 분류 섹션 (f1f2 병합) ── */}
+        <FoodTypeSection
+          hierarchy={foodTypeHierarchy}
+          onEdit={() => setShowFoodTypeEdit(true)}
+          isEditable={!isConfirmed}
+        />
+        {showFoodTypeEdit && foodTypeHierarchy && (
+          <FoodTypeEditDialog
+            caseId={caseId}
+            initial={foodTypeHierarchy}
+            onClose={() => setShowFoodTypeEdit(false)}
+            onSaved={(updated) => {
+              setFoodTypeHierarchy(updated);
+              setShowFoodTypeEdit(false);
+            }}
+          />
+        )}
 
         {/* 오류 메시지 */}
         {state.errorMessage && (
@@ -440,6 +483,24 @@ export default function ImportCheckPage({ caseId }: Props) {
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
       {PageHeader}
+
+      {/* ── F2 식품유형 분류 섹션 (f1f2 병합) ── */}
+      <FoodTypeSection
+        hierarchy={foodTypeHierarchy}
+        onEdit={() => setShowFoodTypeEdit(true)}
+        isEditable={!isConfirmed}
+      />
+      {showFoodTypeEdit && foodTypeHierarchy && (
+        <FoodTypeEditDialog
+          caseId={caseId}
+          initial={foodTypeHierarchy}
+          onClose={() => setShowFoodTypeEdit(false)}
+          onSaved={(updated) => {
+            setFoodTypeHierarchy(updated);
+            setShowFoodTypeEdit(false);
+          }}
+        />
+      )}
 
       {internal?.forbidden_hits && internal.forbidden_hits.length > 0 && (
         <ForbiddenAlert hits={internal.forbidden_hits} />

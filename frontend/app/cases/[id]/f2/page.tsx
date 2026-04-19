@@ -1,56 +1,28 @@
+/**
+ * F2 페이지 — /f1#food-type 리다이렉트
+ *
+ * f1f2 병합으로 F2 식품유형 분류가 F1 ImportCheckPage에 통합됨.
+ * /f2 접속 시 즉시 /f1#food-type 으로 이동.
+ */
 "use client";
 
+import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { ArrowRight, Save } from "lucide-react";
-import StepNavigation from "@/components/layout/StepNavigation";
-import CaseSummaryPanel from "@/components/layout/CaseSummaryPanel";
-import Button from "@/components/ui/Button";
-import FoodClassificationPage from "@/features/feature2/FoodClassificationPage";
 
-export default function F2FoodTypePage() {
+export default function F2RedirectPage() {
   const router = useRouter();
   const params = useParams();
   const caseId = params?.id as string;
 
+  useEffect(() => {
+    if (caseId) {
+      router.replace(`/cases/${caseId}/f1#food-type`);
+    }
+  }, [caseId, router]);
+
   return (
-    <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
-      <StepNavigation currentStep="F2" completedSteps={["upload", "F1"]} />
-
-      <div className="mt-6 grid lg:grid-cols-3 gap-6">
-        {/* 좌측: F2 식품유형 분류 본문 (아람 구현) */}
-        <div className="lg:col-span-2">
-          <FoodClassificationPage caseId={caseId} />
-        </div>
-
-        {/* 우측: 케이스 요약 */}
-        <div className="space-y-4">
-          <CaseSummaryPanel caseId={caseId} />
-        </div>
-      </div>
-
-      {/* 하단 액션바 (f0 디자인 유지) */}
-      <div className="fixed bottom-0 left-0 right-0 z-50">
-        <div className="max-w-[1440px] mx-auto px-6">
-          <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
-            <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f1`)}>
-              이전: 수입판정
-            </Button>
-            <div className="flex items-center gap-3">
-              <Button variant="secondary" size="md" icon={<Save size={16} />}>
-                임시 저장
-              </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                icon={<ArrowRight size={18} />}
-                onClick={() => router.push(`/cases/${caseId}/f3`)}
-              >
-                F3 필요서류로 이동
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="flex items-center justify-center min-h-screen">
+      <p className="text-sm text-slate-500">식품유형 분류 페이지로 이동 중...</p>
     </div>
   );
 }
