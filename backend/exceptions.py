@@ -5,6 +5,10 @@ W1-A `DataGoKrClient`, W1-C 에러 핸들러가 공통 참조한다. 속성·키
 Wave 1 4 트랙 모두를 블로킹하므로 금지하며, 변경 필요 시 부모 세션 재협상이
 필요하다.
 
+W1-C 추가 (차단성 에러 계층):
+    - F0NotCompletedError, F0NotApprovedError, NoIngredientsError
+    - FoodTypeMissingError, ConfigError
+
 참조: 계획/f1 재설계 계획/08_에러_처리_설계.md §3
 """
 
@@ -129,3 +133,59 @@ class CircuitBreakerOpenError(F1PipelineError):
         super().__init__(message)
         self.endpoint = endpoint
         self.reopen_at = reopen_at
+
+
+# ============================================================
+# ① 차단성 에러 계층 (W1-C 추가, 08_에러_처리_설계.md §3)
+# Day 0 스켈레톤 클래스들과 동일 파일에 유지 (transient=False)
+# ============================================================
+
+
+class F0NotCompletedError(F1PipelineError):
+    """F0(식품유형 분류) 단계가 완료되지 않아 F1 실행 불가.
+
+    HTTP 400 으로 매핑된다.
+    """
+
+    code = "F0_NOT_COMPLETED"
+    transient = False
+
+
+class F0NotApprovedError(F1PipelineError):
+    """F0 결과가 담당자(HITL-0)의 승인을 받지 않아 F1 실행 불가.
+
+    HTTP 400 으로 매핑된다.
+    """
+
+    code = "F0_NOT_APPROVED"
+    transient = False
+
+
+class NoIngredientsError(F1PipelineError):
+    """원재료 목록이 비어 있어 F1 파이프라인 진행 불가.
+
+    HTTP 400 으로 매핑된다.
+    """
+
+    code = "NO_INGREDIENTS"
+    transient = False
+
+
+class FoodTypeMissingError(F1PipelineError):
+    """식품유형(food_type) 정보가 누락되어 F1 실행 불가.
+
+    HTTP 400 으로 매핑된다.
+    """
+
+    code = "FOOD_TYPE_MISSING"
+    transient = False
+
+
+class ConfigError(F1PipelineError):
+    """환경 설정 오류 (엔드포인트 URL·API 키 누락 등).
+
+    HTTP 500 으로 매핑된다. transient=False — 재시도해도 해결 불가.
+    """
+
+    code = "CONFIG_ERROR"
+    transient = False
