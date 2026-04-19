@@ -221,6 +221,13 @@ class StepBResult(BaseModel):
         default_factory=dict,
         description="endpoint_id별 호출 건수 (감사)",
     )
+    stopped: bool = Field(
+        False,
+        description=(
+            "True → prohibited 검출로 호출자(`run_feature1_v2`)가 Step C skip. "
+            "02번 §9 조기 종료 조건."
+        ),
+    )
 
 
 class MeasuredValue(BaseModel):

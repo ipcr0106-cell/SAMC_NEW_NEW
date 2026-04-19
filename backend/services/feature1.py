@@ -387,9 +387,9 @@ async def run_feature1_v2(
 
         enriched = step_b.enriched_ingredients or list(ingredients)
 
-        has_prohibited = any(
-            getattr(i, "allow_verdict", None) == "prohibited" for i in enriched
-        )
+        # code-review 🟡-4 fix: `StepBResult.stopped` 필드를 직접 사용 (02번 §9).
+        # 과거에는 enriched 를 순회하며 재계산 — Step B 구현과의 drift 제거.
+        has_prohibited = step_b.stopped
         restricted_names = [
             getattr(i, "name", "")
             for i in enriched

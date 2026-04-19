@@ -356,6 +356,7 @@ class TestStepBProhibitedSkipsC:
                 unidentified=[],
                 conditional=[],
                 gmo_ingredients=[],
+                stopped=True,  # 🟡-4 fix: Step B prohibited 조기 종료 시그널
             ),
             c_result=StepCResult(),  # 호출되지 않아야 함
             d_result=StepDResult(citations=[]),

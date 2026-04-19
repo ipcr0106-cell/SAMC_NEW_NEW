@@ -569,20 +569,15 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
 
         enriched.append(ing)
 
-    # StepBResult 는 Pydantic 모델 — extra="ignore" 이므로 stopped 는 model_extra
-    # 로 들어가지 않는다. 확장 필드 저장을 위해 model_config.extra 를 "allow" 로
-    # 바꾸지 않고, 대신 결과에 stopped 를 호출자가 알 수 있도록 API 는 다음과 같다:
-    #   - 호출자는 `any(i.allow_verdict == "prohibited" for i in result.enriched_ingredients)`
-    #     으로 조기 종료 여부 판정 가능 (02번 §9).
-    #   - 추가로 편의를 위해 `conditional`/`unidentified`/`gmo_ingredients` 제공.
-    _ = stopped  # verdict 필드로 판정 가능 (위 주석 참조)
-
+    # code-review 🟡-4 fix: `StepBResult.stopped` 필드로 prohibited 조기 종료
+    # 여부를 명시 반환 (02번 §9). 호출자는 재계산 없이 `result.stopped` 로 판정.
     return StepBResult(
         enriched_ingredients=enriched,
         unidentified=unidentified,
         conditional=conditional,
         gmo_ingredients=gmo_ingredients,
         api_call_stats=api_stats,
+        stopped=stopped,
     )
 
 

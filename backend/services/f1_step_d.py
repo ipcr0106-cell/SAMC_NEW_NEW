@@ -152,8 +152,10 @@ async def run_step_d(
     logger.debug("Step D 쿼리: %s", query_text)
 
     # ── 2. 임베딩 ────────────────────────────────────────────
+    # code-review 🔴-1 fix: `get_event_loop()` 은 Python 3.14+ 에서 제거 예정.
+    # `get_running_loop()` 이 async 함수 내부에서 정확·안전.
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         vectors = await loop.run_in_executor(
             None, f1_openai_client.embed, [query_text]
         )
