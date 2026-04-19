@@ -38,6 +38,7 @@ interface Result {
     additional_issues: AdditionalIssue[];
     draft: Draft;
   };
+  rag_failed?: boolean;
 }
 
 type Step = "idle" | "generating_p1" | "generating_p2" | "done" | "error";
@@ -58,6 +59,7 @@ interface LawSearchResponse {
   results: LawChunk[];
   count: number;
   context_window?: number;
+  law_name_hint?: string | null;
 }
 
 interface LawModalState {
@@ -65,6 +67,7 @@ interface LawModalState {
   loading: boolean;
   query: string;
   lawRef: string;
+  hint: string | null;     // 사용된 힌트 (디버깅/표시용)
   results: LawChunk[];
   errorMsg: string;
 }
@@ -109,6 +112,49 @@ const MULTILINE_FIELDS = new Set<string>([
   "manufacturer",
   "importer",
 ]);
+
+// 법령 검색 시 제외할 불용어
+const LAW_QUERY_STOPWORDS = new Set<string>([
+  "해야", "한다", "하며", "하고", "하는", "하지", "한다는",
+  "있어야", "없어야", "되어야", "해당하는", "해당한다",
+  "경우에는", "때에는", "있으며", "있고", "있어", "없음",
+  "다음", "각호", "해당", "관련", "따른", "이와", "그러나",
+  "또는", "다만", "한편", "이를", "이러한", "이상", "이하",
+  "이와", "또는", "이상의", "이내", "이후",
+  "사항", "내용", "기준", "규정", "적용", "표시", "기재",
+  "방법", "모든", "사람", "때에", "부분", "일부", "전체",
+  "이다", "있다", "없다", "된다", "하다",
+]);
+
+// law_ref 에서 법령 키워드 식별을 위한 패턴 매핑
+// (등록 순서대로 검사 — 더 구체적인 것이 먼저 와야 함)
+const LAW_NAME_PATTERNS: Array<{ pattern: RegExp; hint: string }> = [
+  // 시행규칙/시행령은 매우 구체적 (먼저 체크)
+  { pattern: /시행규칙/,       hint: "시행규칙" },
+  { pattern: /시행령/,         hint: "시행령" },
+
+  // 유전자변형 관련
+  { pattern: /유전자변형|GMO|gmo/i,  hint: "유전자변형" },
+
+  // OEM / 기구용기
+  { pattern: /OEM|oem/i,       hint: "OEM" },
+  { pattern: /기구용기/,       hint: "기구용기" },
+
+  // 한시적 기준
+  { pattern: /한시적/,         hint: "한시적" },
+
+  // 기능성 표시
+  { pattern: /기능성/,         hint: "기능성" },
+
+  // 부당한 표시/광고
+  { pattern: /부당한\s*(표시|광고)/, hint: "부당한" },
+
+  // 표시ㆍ광고 (시행규칙/시행령이 아닌 본법)
+  { pattern: /표시\s*ㆍ\s*광고|표시\s*·\s*광고|표시광고/, hint: "표시ㆍ광고" },
+
+  // 표시기준 (가장 흔한 케이스 — 이것만 마지막에)
+  { pattern: /표시기준/,       hint: "표시기준" },
+];
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
 
@@ -158,41 +204,81 @@ function triggerBlobDownload(blob: Blob, filename: string) {
   window.URL.revokeObjectURL(url);
 }
 
-function buildLawQuery(lawRef: string, lawRequirement: string): string {
-  const parts = [lawRef, lawRequirement].filter((p) => p && p.trim());
-  return parts.join(" ").slice(0, 500);
+/**
+ * law_ref 문자열에서 법령 식별 힌트 추출.
+ *
+ * 예시:
+ *   "식품 등의 표시기준 제4조 제1항"          → "표시기준"
+ *   "식품 등의 표시·광고에 관한 법률"           → "표시ㆍ광고"
+ *   "식품 등의 표시·광고에 관한 법률 시행규칙"  → "시행규칙"
+ *   "유전자변형식품등의 표시기준"               → "유전자변형"
+ *   "식품위생법 제10조"                         → null  (매칭 실패)
+ *
+ * 매칭 실패 시 null 반환 → 백엔드에서 전체 법령 대상 검색 (fallback).
+ */
+function extractLawNameHint(lawRef: string): string | null {
+  if (!lawRef) return null;
+
+  for (const { pattern, hint } of LAW_NAME_PATTERNS) {
+    if (pattern.test(lawRef)) {
+      return hint;
+    }
+  }
+
+  return null;
 }
 
-// 🅑 가독성 후처리 — 청킹된 원문을 사람이 읽기 편하게 정리
+function normalizeLawQuery(text: string): string {
+  if (!text) return "";
+  return text
+    .replace(/식품\s+등의/g, "식품등의")
+    .replace(/·/g, "ㆍ")
+    .replace(/제\s*(\d+)\s*조/g, "제$1조")
+    .replace(/제\s*(\d+)\s*항/g, "제$1항")
+    .replace(/제\s*(\d+)\s*호/g, "제$1호")
+    .replace(/[\s\t]+/g, " ")
+    .trim();
+}
+
+function extractKeyNouns(text: string, maxCount: number = 5): string[] {
+  if (!text) return [];
+  const words = text.match(/[가-힣]{2,8}/g) || [];
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const w of words) {
+    if (LAW_QUERY_STOPWORDS.has(w)) continue;
+    if (seen.has(w)) continue;
+    seen.add(w);
+    result.push(w);
+    if (result.length >= maxCount) break;
+  }
+  return result;
+}
+
+function buildLawQuery(lawRef: string, lawRequirement: string): string {
+  const refPart = normalizeLawQuery(lawRef);
+  const keyNouns = extractKeyNouns(lawRequirement, 3);
+  const parts = [refPart, ...keyNouns].filter(Boolean);
+  return parts.join(" ").slice(0, 150);
+}
+
 function prettifyLawContent(raw: string): string {
   if (!raw) return "";
-
   let text = raw;
-
-  // 조항 번호(제N조, 제N조의M) 앞에 빈 줄 삽입
   text = text.replace(
     /([가-힣a-zA-Z0-9.!?\)])\s*(제\d+조(?:의\d+)?)/g,
     "$1\n\n$2"
   );
-
-  // 항 번호(제N항) 앞에 줄바꿈
   text = text.replace(
     /([가-힣a-zA-Z0-9.!?\)])\s*(제\d+항)/g,
     "$1\n$2"
   );
-
-  // 호(아라비아 숫자 + 마침표 + 공백) 앞에 줄바꿈
   text = text.replace(
     /([가-힣]{2,})\s+(\d+\.\s+[가-힣])/g,
     "$1\n$2"
   );
-
-  // 연속된 공백(탭 포함) 정리
   text = text.replace(/[ \t]{2,}/g, " ");
-
-  // 연속된 줄바꿈 3개 이상 → 2개로 축소
   text = text.replace(/\n{3,}/g, "\n\n");
-
   return text.trim();
 }
 
@@ -222,16 +308,15 @@ export default function LabelPage() {
     loading: false,
     query: "",
     lawRef: "",
+    hint: null,
     results: [],
     errorMsg: "",
   });
 
-  // 🅐 모달 내 펼침 상태
   const [expandedChunks, setExpandedChunks] = useState<Set<number>>(new Set());
-
-  // 🅔 복사 피드백
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
+  // 캐시 키는 query + hint 조합 (같은 쿼리라도 hint 가 다르면 결과 다름)
   const lawCacheRef = useRef<Map<string, LawChunk[]>>(new Map());
   const additionalIssuesRef = useRef<HTMLDivElement>(null);
 
@@ -264,6 +349,8 @@ export default function LabelPage() {
   const unclearCount = p1Items.filter((i) => i.status === "unclear").length;
   const disagreeCount = p2Items.filter((v) => v.cross_result === "disagree").length;
   const errorCount = issues.filter((i) => i.severity === "error").length;
+
+  const ragFailed = result?.rag_failed === true;
 
   const filteredItems = p1Items.filter((item) => {
     if (activeFilter === "all") return true;
@@ -301,22 +388,24 @@ export default function LabelPage() {
     setEditedDraft({ ...originalDraftStr });
   }
 
-  // ── 법령 원문 모달 열기 ───────────────────────────────────────────────────
   async function openLawModal(lawRef: string, lawRequirement: string) {
     const query = buildLawQuery(lawRef, lawRequirement);
+    const hint = extractLawNameHint(lawRef);
     if (!query) return;
 
-    // 🅐 첫 번째 결과만 펼친 상태로 시작
     setExpandedChunks(new Set([0]));
     setCopiedIdx(null);
 
-    const cached = lawCacheRef.current.get(query);
+    // 캐시 키: query + hint
+    const cacheKey = `${hint ?? ""}::${query}`;
+    const cached = lawCacheRef.current.get(cacheKey);
     if (cached) {
       setLawModal({
         isOpen: true,
         loading: false,
         query,
         lawRef,
+        hint,
         results: cached,
         errorMsg: "",
       });
@@ -328,6 +417,7 @@ export default function LabelPage() {
       loading: true,
       query,
       lawRef,
+      hint,
       results: [],
       errorMsg: "",
     });
@@ -347,6 +437,7 @@ export default function LabelPage() {
           query,
           match_count: 3,
           context_window: 1,
+          law_name_hint: hint,   // ← 신규
         }),
       });
 
@@ -361,13 +452,14 @@ export default function LabelPage() {
 
       const data: LawSearchResponse = await response.json();
 
-      lawCacheRef.current.set(query, data.results);
+      lawCacheRef.current.set(cacheKey, data.results);
 
       setLawModal({
         isOpen: true,
         loading: false,
         query,
         lawRef,
+        hint,
         results: data.results,
         errorMsg: "",
       });
@@ -377,6 +469,7 @@ export default function LabelPage() {
         loading: false,
         query,
         lawRef,
+        hint,
         results: [],
         errorMsg: e instanceof Error ? e.message : "법령 검색 중 오류가 발생했습니다.",
       });
@@ -387,7 +480,6 @@ export default function LabelPage() {
     setLawModal((prev) => ({ ...prev, isOpen: false }));
   }
 
-  // 🅐 결과 접기/펼치기 토글
   function toggleChunkExpanded(idx: number) {
     setExpandedChunks((prev) => {
       const next = new Set(prev);
@@ -400,7 +492,6 @@ export default function LabelPage() {
     });
   }
 
-  // 🅔 클립보드 복사
   async function copyChunk(idx: number, chunk: LawChunk) {
     const plain = prettifyLawContent(chunk.content);
     const text = `[${chunk.law_name}]\n\n${plain}`;
@@ -408,7 +499,6 @@ export default function LabelPage() {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
       } else {
-        // fallback
         const ta = document.createElement("textarea");
         ta.value = text;
         ta.style.position = "fixed";
@@ -423,11 +513,10 @@ export default function LabelPage() {
         setCopiedIdx((current) => (current === idx ? null : current));
       }, 2000);
     } catch {
-      /* 복사 실패 조용히 무시 */
+      /* */
     }
   }
 
-  // ── 리포트 다운로드 ──────────────────────────────────────────────────────
   async function handleDownloadReport(format: ReportFormat) {
     if (!confirmed) return;
     setErrorMsg("");
@@ -467,7 +556,6 @@ export default function LabelPage() {
     }
   }
 
-  // ── 시안 생성 ─────────────────────────────────────────────────────────────
   async function handleRun() {
     setErrorMsg("");
 
@@ -597,7 +685,7 @@ export default function LabelPage() {
                       openLawModal(item.law_ref, item.law_requirement);
                     }}
                     className="text-[11px] font-semibold text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
-                    title="Pinecone 에서 법령 원문 검색 (주변 청크 확장)"
+                    title="Pinecone 에서 법령 원문 검색 (법령명 필터 + 주변 청크 확장)"
                   >
                     📖 원문 보기
                   </button>
@@ -695,7 +783,6 @@ export default function LabelPage() {
     );
   }
 
-  // ── 법령 원문 모달 ───────────────────────────────────────────────────────
   function renderLawModal() {
     if (!lawModal.isOpen) return null;
 
@@ -709,13 +796,25 @@ export default function LabelPage() {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-xs text-slate-400 mb-0.5">법령 원문 검색 결과</p>
               <h3 className="text-sm font-semibold text-slate-800">{lawModal.lawRef}</h3>
+              <div className="flex flex-wrap gap-2 mt-1 items-center">
+                {lawModal.hint && (
+                  <span className="text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full">
+                    🎯 법령 필터: {lawModal.hint}
+                  </span>
+                )}
+                {lawModal.query && (
+                  <p className="text-[10px] text-slate-300 truncate flex-1 min-w-0" title={lawModal.query}>
+                    쿼리: {lawModal.query}
+                  </p>
+                )}
+              </div>
             </div>
             <button
               onClick={closeLawModal}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors"
+              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors shrink-0 ml-2"
               aria-label="닫기"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -730,7 +829,7 @@ export default function LabelPage() {
                 <svg className="w-8 h-8 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0115.83-3.5M20 15a9 9 0 01-15.83 3.5"/>
                 </svg>
-                <p className="text-xs">Pinecone 에서 법령 원문을 검색 + 주변 청크 확장 중...</p>
+                <p className="text-xs">Pinecone 에서 법령 원문을 검색 중...</p>
               </div>
             )}
 
@@ -744,13 +843,20 @@ export default function LabelPage() {
             {!lawModal.loading && !lawModal.errorMsg && lawModal.results.length === 0 && (
               <div className="text-center py-12 text-sm text-slate-400">
                 관련 법령 원문을 찾지 못했습니다.
+                {lawModal.hint && (
+                  <p className="mt-2 text-[11px]">
+                    필터 '{lawModal.hint}' 에 해당하는 청크가 없을 수 있습니다.
+                  </p>
+                )}
               </div>
             )}
 
             {!lawModal.loading && !lawModal.errorMsg && lawModal.results.length > 0 && (
               <>
                 <p className="text-[11px] text-slate-400 mb-3">
-                  관련도 높은 순으로 {lawModal.results.length}건 · 주변 청크 확장 적용
+                  관련도 높은 순으로 {lawModal.results.length}건
+                  {lawModal.hint && ` · '${lawModal.hint}' 법령 필터 적용`}
+                  {" · 주변 청크 확장 적용"}
                 </p>
 
                 <div className="space-y-3">
@@ -758,7 +864,6 @@ export default function LabelPage() {
                     const isExpanded = expandedChunks.has(idx);
                     const isCopied = copiedIdx === idx;
 
-                    // 청크 범위 라벨
                     let chunkLabel = "";
                     if (chunk.chunk_range && chunk.chunk_range.length === 2) {
                       const [start, end] = chunk.chunk_range;
@@ -767,7 +872,6 @@ export default function LabelPage() {
                       chunkLabel = `청크 #${chunk.chunk_index}`;
                     }
 
-                    // 🅑 가독성 후처리
                     const prettified = prettifyLawContent(chunk.content || "");
 
                     return (
@@ -775,7 +879,6 @@ export default function LabelPage() {
                         key={idx}
                         className="border border-slate-200 rounded-xl overflow-hidden"
                       >
-                        {/* 🅐 헤더 — 클릭으로 접기/펼치기 */}
                         <div className="bg-slate-50 border-b border-slate-100 flex items-center">
                           <button
                             type="button"
@@ -810,7 +913,6 @@ export default function LabelPage() {
                             </div>
                           </button>
 
-                          {/* 🅔 복사 버튼 */}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -842,7 +944,6 @@ export default function LabelPage() {
                           </button>
                         </div>
 
-                        {/* 본문 - 펼쳐진 경우만 표시 */}
                         {isExpanded && (
                           <div className="px-4 py-3 bg-white">
                             <pre className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap break-words font-sans">
@@ -851,7 +952,6 @@ export default function LabelPage() {
                           </div>
                         )}
 
-                        {/* 접힌 경우 미리보기 */}
                         {!isExpanded && (
                           <div
                             className="px-4 py-2 text-[11px] text-slate-400 line-clamp-2 cursor-pointer hover:text-slate-600"
@@ -871,7 +971,7 @@ export default function LabelPage() {
 
           <div className="px-6 py-3 border-t border-slate-100 flex items-center justify-between">
             <p className="text-[11px] text-slate-400">
-              출처: Pinecone f5-law-chunks · Voyage-3 임베딩 · 주변 청크 ±1 확장
+              출처: Pinecone f5-law-chunks · Voyage-3 임베딩
             </p>
             <button
               onClick={closeLawModal}
@@ -959,6 +1059,31 @@ export default function LabelPage() {
 
         {step === "done" && result && (
           <>
+            {ragFailed && (
+              <div className="rounded-xl p-4 mb-4 border border-red-200 bg-red-50">
+                <div className="flex items-start gap-3">
+                  <svg
+                    className="w-5 h-5 text-red-600 shrink-0 mt-0.5"
+                    fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                  </svg>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-800 mb-1">
+                      ⚠ 법령 DB 조회 실패 — 정확도 저하 가능
+                    </p>
+                    <p className="text-xs text-red-700 leading-relaxed">
+                      Pinecone 법령 검색에 실패하여 <strong>법령 근거 없이 AI 일반 지식만으로</strong> 검토와 시안 생성이 진행되었습니다.
+                      <br />
+                      결과 정확도가 평소보다 낮을 수 있으니 <strong>각 항목을 더 꼼꼼히 확인</strong>해주세요.
+                      네트워크 상태를 확인한 후 <strong>"다시 실행"</strong>으로 재생성하는 것을 권장합니다.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className={`rounded-xl p-4 mb-5 border ${
               failCount + disagreeCount + errorCount > 0 ? "ds-alert-warning" : "ds-alert-success"
             }`}>
@@ -1082,6 +1207,11 @@ export default function LabelPage() {
                 {modifiedCount > 0 && (
                   <span className="block mt-1 text-blue-600 font-medium">
                     ℹ 편집한 {modifiedCount}개 항목이 확정 시 함께 저장됩니다.
+                  </span>
+                )}
+                {ragFailed && (
+                  <span className="block mt-1 text-red-600 font-medium">
+                    ⚠ 법령 DB 조회 실패 상태입니다. 확정 전 각 항목을 더욱 꼼꼼히 확인해주세요.
                   </span>
                 )}
               </p>

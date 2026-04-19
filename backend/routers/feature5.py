@@ -40,9 +40,10 @@ class ConfirmRequest(BaseModel):
 class LawSearchRequest(BaseModel):
     query: str
     match_count: int = 3
-    # 주변 청크 확장 범위 (앞뒤 각각 몇 개 청크를 추가로 가져올지)
-    # 기본 1 — PDF 청킹으로 잘린 원문을 주변 청크로 복원
     context_window: int = 1
+    # 법령명 힌트 (예: "표시기준", "시행규칙"). 힌트가 있으면 해당 법령만 검색.
+    # None 이면 전체 법령 대상 검색.
+    law_name_hint: Optional[str] = None
 
 
 def _get_documents(case_id: str) -> list:
@@ -345,13 +346,10 @@ def download_report(
 @router.post("/law-search")
 def search_laws(case_id: str, body: LawSearchRequest):
     """
-    법령 원문 시맨틱 검색 + 주변 청크 확장.
+    법령 원문 시맨틱 검색 + 주변 청크 확장 + Hybrid 필터.
 
-    Pinecone f5-law-chunks 에서 쿼리와 유사한 청크를 찾은 후,
-    각 매칭의 chunk_index ± context_window 범위를 추가로 가져와
-    이어붙인 "확장된 원문" 반환. PDF 청킹으로 인해 조문이 잘리는 문제를 완화.
-
-    case_id 는 prefix 요구사항 때문에 받지만 실제 검색에는 사용하지 않음.
+    law_name_hint 가 제공되면 해당 법령명 키워드와 매칭되는 법령만 검색
+    (검색 정확도 향상). None 이면 전체 법령 대상 검색.
     """
     query = (body.query or "").strip()
     if not query:
@@ -359,12 +357,14 @@ def search_laws(case_id: str, body: LawSearchRequest):
 
     match_count = max(1, min(10, body.match_count))
     context_window = max(0, min(5, body.context_window))
+    hint = (body.law_name_hint or "").strip() or None
 
     try:
         results = search_law_chunks_extended(
             query=query,
             match_count=match_count,
             context_window=context_window,
+            law_name_hint=hint,
         )
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -376,4 +376,5 @@ def search_laws(case_id: str, body: LawSearchRequest):
         "results": results,
         "count": len(results),
         "context_window": context_window,
+        "law_name_hint": hint,
     }

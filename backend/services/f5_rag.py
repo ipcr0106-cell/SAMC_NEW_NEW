@@ -3,11 +3,10 @@ Pinecone 법령 검색 (RAG)
 Pinecone f5-law-chunks 인덱스 검색 → 관련 법령 청크 반환
 
 제공 함수:
-  - search_and_format(query, match_count) : F5 시안 생성용 프롬프트 문자열 반환
-  - search_law_chunks(query, match_count) : 법령 원문 미리보기용 기본 검색 (단일 청크)
-  - search_law_chunks_extended(query, match_count, context_window)
-      : 매칭 청크 ± context_window 개까지 확장해서 이어붙인 결과 반환.
-        PDF 청킹 때문에 원문이 잘리는 문제를 보완.
+  - search_and_format(query, match_count)           : 레거시 호환 (문자열만 반환)
+  - search_and_format_with_status(query, match_count): 문자열 + 성공 플래그 반환
+  - search_law_chunks(query, match_count)           : 기본 검색 (metadata 필터 없음)
+  - search_law_chunks_extended(query, ...)          : 주변 청크 확장 + metadata 필터
 """
 
 import os
@@ -23,6 +22,55 @@ _voyage_client = None
 _pinecone_index = None
 
 INDEX_NAME = os.getenv("F5_PINECONE_INDEX", "f5-law-chunks")
+
+
+# ════════════════════════════════════════════════════════════
+# 인덱스에 존재하는 법령 목록 (Hybrid 검색용)
+#
+# 검색 품질 향상을 위해 law_name_hint 에 따라 이 목록에서
+# 해당 법령만 골라 metadata 필터로 사용.
+#
+# 법령 추가/제거 시 이 상수와 LAW_NAME_KEYWORDS 를 업데이트.
+# (f5_list_law_names.py 스크립트로 최신 목록 확인 가능)
+# ════════════════════════════════════════════════════════════
+
+KNOWN_LAW_NAMES: list[str] = [
+    "식품등의 표시기준(식품의약품안전처고시)(제2025-60호)(20250829)",
+    "식품등의 한시적 기준 및 규격 인정 기준(식품의약품안전처고시)(제2025-75호)(20251202)",
+    "식품 등의 표시ㆍ광고에 관한 법률 시행규칙(총리령)(제02004호)(20260101)",
+    "식품 등의 표시ㆍ광고에 관한 법률(법률)(제20826호)(20250919)",
+    "식품 등의 표시ㆍ광고에 관한 법률 시행령(대통령령)(제35734호)(20250919)",
+    "부당한 표시 또는 광고로 보지 아니하는 식품등의 기능성 표시  또는 광고에 관한 규정(식품의약품안전처고시)(제2024-62호)(20250101)",
+    "식품등의 부당한 표시 또는 광고의 내용 기준(식품의약품안전처 고시)(제2025-79호)(20251204)",
+    "유전자변형식품등의 표시기준(식품의약품안전처고시)(제2019-98 호)(20191028)",
+    "OEM 기구용기 영업자 안내서★",
+]
+
+# law_name_hint → 매칭 대상 법령의 식별 키워드 매핑
+#
+# 힌트가 여러 법령에 매칭될 수 있음:
+#   "표시기준" → "식품등의 표시기준" + "유전자변형식품등의 표시기준"
+#   "시행규칙" → "... 표시ㆍ광고에 관한 법률 시행규칙"
+#
+# Hint 매칭은 소문자 + 공백 무시 단순 substring 으로 체크.
+LAW_NAME_KEYWORDS: dict[str, list[str]] = {
+    # 키: 힌트 (소문자, 공백 제거)
+    # 값: 해당 힌트로 매칭해야 할 법령명의 부분 문자열 (KNOWN_LAW_NAMES 와 같은 형태)
+    "표시기준":     ["표시기준"],
+    "표시ㆍ광고":   ["표시ㆍ광고"],
+    "표시광고":     ["표시ㆍ광고"],  # 가운뎃점 없이 써도 매칭
+    "시행규칙":     ["시행규칙"],
+    "시행령":       ["시행령"],
+    "한시적":       ["한시적"],
+    "기능성":       ["기능성"],
+    "부당한":       ["부당한"],
+    "유전자변형":   ["유전자변형"],
+    "GMO":         ["유전자변형"],
+    "gmo":         ["유전자변형"],
+    "OEM":         ["OEM"],
+    "oem":         ["OEM"],
+    "기구용기":     ["기구용기"],
+}
 
 
 def _get_voyage():
@@ -51,11 +99,59 @@ def embed_query(text: str) -> list[float]:
     return result.embeddings[0]
 
 
-def search_and_format(query: str, match_count: int = 5) -> str:
+def _filter_laws_by_hint(hint: str | None) -> list[str] | None:
     """
-    쿼리와 관련된 법령 청크를 검색하고 프롬프트에 삽입할 문자열로 반환.
-    Pinecone f5-law-chunks 인덱스 사용.
+    law_name_hint 로 KNOWN_LAW_NAMES 에서 매칭되는 법령만 반환.
+
+    Returns:
+        - None : 힌트가 없거나 빈 문자열 (필터 미적용)
+        - []   : 힌트는 있지만 매칭되는 법령이 없음 (검색 결과도 없을 것)
+        - list : 매칭된 법령명 리스트
     """
+    if not hint or not hint.strip():
+        return None
+
+    # 정규화: 공백 제거 + 소문자
+    normalized_hint = hint.strip().replace(" ", "").lower()
+
+    # LAW_NAME_KEYWORDS 에서 힌트 키 찾기
+    # 먼저 정확 매칭 시도
+    keywords = None
+    for key, vals in LAW_NAME_KEYWORDS.items():
+        if key.replace(" ", "").lower() == normalized_hint:
+            keywords = vals
+            break
+
+    # 정확 매칭 실패 시 부분 매칭 (힌트가 키를 포함 or 키가 힌트를 포함)
+    if keywords is None:
+        for key, vals in LAW_NAME_KEYWORDS.items():
+            key_normalized = key.replace(" ", "").lower()
+            if key_normalized in normalized_hint or normalized_hint in key_normalized:
+                keywords = vals
+                break
+
+    # 여전히 매칭 실패 시 힌트 자체를 키워드로 사용
+    if keywords is None:
+        keywords = [hint.strip()]
+
+    # KNOWN_LAW_NAMES 에서 키워드 포함하는 법령 필터링
+    matched = []
+    for law_name in KNOWN_LAW_NAMES:
+        law_lower = law_name.replace(" ", "").lower()
+        for kw in keywords:
+            kw_lower = kw.replace(" ", "").lower()
+            if kw_lower in law_lower:
+                matched.append(law_name)
+                break  # 이 법령은 매칭됐으니 다음 법령으로
+
+    return matched
+
+
+def search_and_format_with_status(
+    query: str,
+    match_count: int = 5,
+) -> tuple[str, bool]:
+    """쿼리와 관련된 법령 청크를 검색하고 (프롬프트 문자열, 성공여부) 반환."""
     try:
         vector = embed_query(query)
 
@@ -65,11 +161,13 @@ def search_and_format(query: str, match_count: int = 5) -> str:
             include_metadata=True,
         )
         matches = res.get("matches") or []
-    except Exception:
-        return ""
+    except Exception as e:
+        print(f"[F5 RAG] search_and_format_with_status 실패: {e}")
+        return "", False
 
     if not matches:
-        return ""
+        print(f"[F5 RAG] 검색 결과 없음: query={query[:60]}...")
+        return "", False
 
     lines = ["[관련 법령 근거]"]
     for m in matches:
@@ -78,14 +176,17 @@ def search_and_format(query: str, match_count: int = 5) -> str:
         content = meta.get("content", "")
         lines.append(f"\n## {law}\n{content}")
 
-    return "\n".join(lines)
+    return "\n".join(lines), True
+
+
+def search_and_format(query: str, match_count: int = 5) -> str:
+    """레거시 호환용."""
+    context, _ = search_and_format_with_status(query, match_count)
+    return context
 
 
 def search_law_chunks(query: str, match_count: int = 3) -> list[dict]:
-    """
-    기본 시맨틱 검색 — 매칭된 청크 그대로 반환 (확장 없음).
-    레거시 용도로 유지. 원문 미리보기는 search_law_chunks_extended 사용 권장.
-    """
+    """기본 시맨틱 검색 (metadata 필터 없음)."""
     vector = embed_query(query)
 
     res = _get_pinecone_index().query(
@@ -110,15 +211,11 @@ def search_law_chunks(query: str, match_count: int = 3) -> list[dict]:
     return results
 
 
-# ────────────────────────────────────────────────────────────
-# 확장 검색 (주변 청크 이어붙이기)
-# ────────────────────────────────────────────────────────────
+# ════════════════════════════════════════════════════════════
+# 확장 검색 (주변 청크 이어붙이기 + Hybrid 필터)
+# ════════════════════════════════════════════════════════════
 
 def _normalize_chunk_index(value) -> int | None:
-    """
-    chunk_index 가 int / str / float 등으로 저장되어 있을 수 있어 int 로 정규화.
-    변환 불가 시 None 반환.
-    """
     if value is None:
         return None
     try:
@@ -128,23 +225,16 @@ def _normalize_chunk_index(value) -> int | None:
 
 
 def _fetch_chunks_by_indices(law_name: str, indices: list[int]) -> dict[int, dict]:
-    """
-    특정 law_name 의 chunk_index 가 indices 안에 포함된 청크들을 Pinecone 에서 조회.
-    Returns: { chunk_index: {content, law_name} }
-
-    Pinecone metadata 필터를 사용 — chunk_index 가 metadata 에 저장되어 있어야 함.
-    벡터 없이 metadata 만 조회하기 위해 더미 벡터(0 벡터)로 query.
-    """
+    """특정 law_name 의 chunk_index in indices 청크들을 조회."""
     if not indices:
         return {}
 
     try:
-        # Voyage-3 는 1024 차원 - 더미 0 벡터
         dummy_vector = [0.0] * 1024
 
         res = _get_pinecone_index().query(
             vector=dummy_vector,
-            top_k=len(indices) + 5,  # 여유분 (스코어 낮아도 filter 내에서 다 잡히도록)
+            top_k=len(indices) + 5,
             include_metadata=True,
             filter={
                 "law_name": {"$eq": law_name},
@@ -173,51 +263,57 @@ def search_law_chunks_extended(
     query: str,
     match_count: int = 3,
     context_window: int = 1,
+    law_name_hint: str | None = None,
 ) -> list[dict]:
     """
-    법령 원문 미리보기용 확장 검색.
+    법령 원문 미리보기용 확장 검색 (Hybrid: metadata 필터 + 시맨틱).
 
-    Steps:
-      1. 시맨틱 검색으로 top_k 매칭 청크 확보
-      2. 각 매칭의 chunk_index ± context_window 로 확장 범위 계산
-      3. 같은 law_name 내 겹치는 범위는 합집합으로 병합
-      4. metadata 필터로 확장 청크 조회
-      5. chunk_index 순 정렬 + content 이어붙이기
+    1. law_name_hint 가 있으면 해당 키워드와 매칭되는 법령만 metadata 필터로 제한
+    2. 제한된 법령 내에서 시맨틱 top_k 매칭
+    3. 각 매칭의 chunk_index ± context_window 로 확장 범위 계산
+    4. 같은 law_name 내 겹치는 범위는 합집합으로 병합
+    5. metadata 필터로 확장 청크 조회
+    6. chunk_index 순 정렬 + content 이어붙이기
 
     Args:
         query: 검색 쿼리
         match_count: 시맨틱 검색 top_k (기본 3)
         context_window: 앞뒤로 몇 개 청크를 추가로 가져올지 (기본 1)
+        law_name_hint: 법령명 힌트 (예: "표시기준", "시행규칙"). None 이면 전체 검색.
 
     Returns:
-        [
-          {
-            "law_name": str,
-            "chunk_index": int,        # 대표 청크 (시맨틱 매칭 기준)
-            "content": str,            # 확장된 이어붙인 원문
-            "score": float,            # 대표 청크의 유사도
-            "extended": bool,          # 확장 성공 여부
-            "chunk_range": [int, int], # 포함된 청크 범위 [min, max]
-          },
-          ...
-        ]
+        각 결과 dict 에 "extended", "chunk_range" 포함.
     """
-    # 1) 시맨틱 검색
+    # 1) Hybrid 필터 - law_name_hint 로 검색 범위 제한
+    filtered_law_names = _filter_laws_by_hint(law_name_hint)
+
+    pinecone_filter = None
+    if filtered_law_names is not None:
+        if not filtered_law_names:
+            # 힌트는 있는데 매칭되는 법령이 하나도 없는 경우
+            print(f"[F5 RAG] law_name_hint '{law_name_hint}' 매칭 법령 없음")
+            return []
+        pinecone_filter = {"law_name": {"$in": filtered_law_names}}
+        print(f"[F5 RAG] hint='{law_name_hint}' → {len(filtered_law_names)}개 법령으로 필터")
+
+    # 2) 시맨틱 검색 (필터 적용)
     vector = embed_query(query)
 
-    res = _get_pinecone_index().query(
-        vector=vector,
-        top_k=match_count,
-        include_metadata=True,
-    )
+    query_kwargs: dict = {
+        "vector": vector,
+        "top_k": match_count,
+        "include_metadata": True,
+    }
+    if pinecone_filter:
+        query_kwargs["filter"] = pinecone_filter
+
+    res = _get_pinecone_index().query(**query_kwargs)
     top_matches = res.get("matches") or []
 
     if not top_matches:
         return []
 
-    # 2) 대표 청크 정리 (law_name 별로 가장 점수 높은 매칭을 "대표"로)
-    #    같은 law_name 이 여러 번 매칭될 수 있음 — 점수 높은 것 하나만 대표로 두고 나머지는
-    #    같은 법령의 확장 범위에 흡수.
+    # 3) law_name 별 대표 매칭 (점수 가장 높은 것)
     primary_by_law: dict[str, dict] = {}
     for m in top_matches:
         meta = m.get("metadata") or {}
@@ -235,7 +331,7 @@ def search_law_chunks_extended(
                 "score": score,
             }
 
-    # 각 법령별로 확장 범위 계산 (여러 매칭이 한 법령에 있으면 합집합)
+    # 확장 범위 합집합
     ranges_by_law: dict[str, set[int]] = defaultdict(set)
     for m in top_matches:
         meta = m.get("metadata") or {}
@@ -244,14 +340,13 @@ def search_law_chunks_extended(
         if not law_name or idx is None:
             continue
 
-        # chunk_index - context_window ~ chunk_index + context_window 범위
         for i in range(
             max(0, idx - context_window),
             idx + context_window + 1,
         ):
             ranges_by_law[law_name].add(i)
 
-    # 3) 각 법령별로 확장 청크 조회
+    # 4) 확장 청크 조회
     chunks_by_law: dict[str, dict[int, dict]] = {}
     for law_name, idx_set in ranges_by_law.items():
         chunks_by_law[law_name] = _fetch_chunks_by_indices(
@@ -259,7 +354,7 @@ def search_law_chunks_extended(
             indices=sorted(idx_set),
         )
 
-    # 4) 결과 빌드 — 각 "대표" 매칭에 대해 이어붙인 content 만들기
+    # 5) 결과 빌드
     results: list[dict] = []
     for m in top_matches:
         meta = m.get("metadata") or {}
@@ -268,7 +363,6 @@ def search_law_chunks_extended(
         score = float(m.get("score", 0))
 
         if not law_name or idx is None:
-            # 이상한 데이터는 기본 방식으로 처리
             results.append({
                 "law_name": law_name,
                 "chunk_index": idx,
@@ -279,20 +373,14 @@ def search_law_chunks_extended(
             })
             continue
 
-        # 이 대표 청크가 law_name 내에서 최고 점수가 아니면 건너뛰기
-        # (같은 법령은 한 번만 대표로 보여줌)
         primary = primary_by_law.get(law_name)
         if primary is None or primary["chunk_index"] != idx:
             continue
 
-        # 해당 법령의 확장 청크들 조회
         available = chunks_by_law.get(law_name, {})
 
-        # idx 주변 ±context_window 범위에서 연속된 청크만 이어붙이기
-        # (중간이 비어있으면 거기까지만)
         sorted_indices = sorted(available.keys())
         if not sorted_indices:
-            # 확장 실패 — 대표 청크만 반환
             results.append({
                 "law_name": law_name,
                 "chunk_index": idx,
@@ -303,15 +391,10 @@ def search_law_chunks_extended(
             })
             continue
 
-        # idx 를 포함하는 연속된 블록 찾기
-        # 예: indices=[38,39,41,42], idx=39 → 연속된 블록 [38,39]
-        #     indices=[38,39,40,41,42], idx=39 → 연속된 블록 [38,39,40,41,42]
         left = idx
         right = idx
-        # 왼쪽으로 확장
         while (left - 1) in available:
             left -= 1
-        # 오른쪽으로 확장
         while (right + 1) in available:
             right += 1
 
