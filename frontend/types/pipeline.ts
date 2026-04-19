@@ -97,6 +97,21 @@ export interface StandardCheck {
 // 기능2: 식품유형 분류 (담당: 아람)
 // ──────────────────────────────────────────────────
 
+/**
+ * F2 API 응답의 3단계 분류 계층 구조.
+ * F1 ImportCheckPage 내 FoodTypeSection 표시에 사용.
+ * BE 변경 없이 FE에서만 매핑·표시.
+ */
+export interface FoodTypeHierarchy {
+  category_name: string | null;
+  subcategory_name: string | null;
+  food_type: string | null;
+  category_no?: string | null;
+  law_ref?: string | null;
+  reason?: string | null;
+  is_alcohol?: boolean | null;
+}
+
 export interface Feature2Result {
   food_type: string;        // 예: "증류주"
   sub_type?: string;        // 예: "일반증류주"
