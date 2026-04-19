@@ -4,7 +4,6 @@ import { useRouter, useParams } from "next/navigation";
 import {
   FileText,
   Search,
-  ListChecks,
   ClipboardCheck,
   Globe,
   FileCheck,
@@ -21,8 +20,7 @@ interface Step {
 
 const steps: Step[] = [
   { key: "upload", label: "서류 업로드", icon: <FileText size={15} />, route: "upload" },
-  { key: "F1", label: "수입판정", icon: <Search size={15} />, route: "f1" },
-  { key: "F2", label: "유형분류", icon: <ListChecks size={15} />, route: "f2" },
+  { key: "F1", label: "수입·유형 판정", icon: <Search size={15} />, route: "f1" },
   { key: "F3", label: "필요서류", icon: <ClipboardCheck size={15} />, route: "f3" },
   { key: "F4", label: "라벨검토", icon: <Globe size={15} />, route: "f4" },
   { key: "F5", label: "한글시안", icon: <FileCheck size={15} />, route: "f5" },
