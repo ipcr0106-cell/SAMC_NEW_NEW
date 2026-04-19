@@ -189,6 +189,89 @@ export interface Feature4Result {
 }
 
 // ──────────────────────────────────────────────────
+// 기능1 HITL 타입 (Wave 3 — backend/models/f1_hitl.py 1:1 매핑)
+// F2~F5 영역 금지 — F1 HITL만 추가
+// ──────────────────────────────────────────────────
+
+/**
+ * pipeline_steps.status 확장값 (migration 017, 05번 §6)
+ * backend/models/f1_hitl.py PipelineStepStatus 와 동일.
+ */
+export type PipelineStepStatus =
+  | "pending"
+  | "running"
+  | "completed"
+  | "approved"         // HITL-0 승인 (F0 전용)
+  | "waiting_review"
+  | "needs_review"     // HITL-1 필요 (에스컬레이션 있음)
+  | "confirmed"        // HITL-2 완료
+  | "locked";          // 확정 후 잠김
+
+/**
+ * HITL-1: 미확인 원재료 담당자 판정 (IngredientDecision)
+ * backend/models/f1_hitl.py IngredientDecision 1:1 매핑.
+ */
+export interface IngredientDecision {
+  name: string;
+  decision: "allow" | "deny" | "skip";
+  alternative_name?: string | null;
+  note?: string | null;
+}
+
+/**
+ * HITL-1: 조건부 원재료 사용 조건 평가 결과 (ConditionalResolution)
+ * backend/models/f1_hitl.py ConditionalResolution 1:1 매핑.
+ */
+export interface HITLConditionalResolution {
+  ingredient_name: string;
+  meets_condition: boolean;
+  reasoning: string;
+}
+
+/**
+ * HITL-1: 비수치 기준값 담당자 판정 (QualitativeResolution)
+ * backend/models/f1_hitl.py QualitativeResolution 1:1 매핑.
+ */
+export interface QualitativeResolution {
+  ingredient_name: string;
+  test_category: string;
+  resolution: "pass" | "fail" | "unknown";
+  note?: string | null;
+}
+
+/**
+ * HITL-1 decisions 요청 바디
+ * POST /api/v1/cases/{case_id}/pipeline/feature/1/hitl1-decisions
+ * backend/models/f1_hitl.py HITL1DecisionsRequest 1:1 매핑.
+ */
+export interface HITL1DecisionsRequest {
+  ingredient_decisions: IngredientDecision[];
+  conditional_resolutions: HITLConditionalResolution[];
+  qualitative_resolutions: QualitativeResolution[];
+  escalation_acknowledgements: string[];
+  reviewer_id: string;
+}
+
+/**
+ * HITL-2 confirm 요청 바디
+ * POST /api/v1/cases/{case_id}/pipeline/feature/1/confirm
+ * backend/models/f1_hitl.py HITL2ConfirmRequest 1:1 매핑.
+ */
+export interface HITL2ConfirmRequest {
+  user_verdict: UserVerdict;
+  final_reason: string;
+  selected_citations: string[];
+  signer_id: string;
+  signed_at: string; // ISO 8601 문자열 (프론트 → 백엔드 datetime 직렬화)
+}
+
+/**
+ * HITL-2 최종 판정 값
+ * backend/models/f1_hitl.py UserVerdict 와 동일.
+ */
+export type UserVerdict = "수입가능" | "수입불가" | "보류";
+
+// ──────────────────────────────────────────────────
 // 기능5: 한글표시사항 검토 및 시안 (담당: 세연)
 // ──────────────────────────────────────────────────
 

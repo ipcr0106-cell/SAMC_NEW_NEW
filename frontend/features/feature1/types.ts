@@ -9,9 +9,10 @@ import type { Feature1Result } from "@/types/pipeline";
 
 // 백엔드 응답 래퍼 (ai_result + final_result + status)
 //
-// Phase 4-B (RAG + HITL):
-//   - "needs_review" 는 conflict_status in ("conflict", "rag_supplemented") 시 부여.
-//   - 담당자가 RagConflictPanel 에서 판정 확정 후 PATCH → confirm 흐름으로 "completed" 전환.
+// Wave 3 HITL:
+//   - "needs_review" 는 HITL-1 에스컬레이션 발생 시 부여.
+//   - "waiting_review" 는 HITL-1 처리 후 HITL-2 대기 시 부여.
+//   - 담당자가 HITL-2 confirm 후 "confirmed" / "locked" 로 전이.
 export interface Feature1Response {
   case_id: string;
   status: "pending" | "running" | "waiting_review" | "needs_review" | "completed" | "error";

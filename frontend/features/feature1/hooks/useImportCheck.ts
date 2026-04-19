@@ -118,8 +118,7 @@ export function useImportCheck(caseId: string) {
     setState((prev) => ({ ...prev, editReason: reason }));
   }, []);
 
-  // HITL 결정 (RagConflictPanel 에서 호출)
-  // DB 따르기 / RAG 따르기 / 수동 판정 3가지 경로 모두 이 핸들러로 수렴.
+  // HITL 결정 핸들러 (Wave 3: HITL-1/2 패널에서 호출)
   // 기존 updateImportCheckResult (PATCH /feature/1) 재사용.
   const submitHITLDecision = useCallback(
     async (verdict: Feature1Result["verdict"], reason: string) => {
