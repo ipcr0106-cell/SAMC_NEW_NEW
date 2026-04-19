@@ -262,3 +262,52 @@ async def run_feature1_with_rag(
         conflict = "conflict"
 
     return out, rag, conflict
+
+
+# ============================================================
+# Wave 2 Day 0 — F1 재설계 v2 orchestrator (골격)
+# feature flag `F1_USE_DATA_GO_KR_API` 도입 후 `run_feature1_with_rag`
+# 분기 경로로 연결된다. Day 0 시점에는 Step A/B/C/D 가 NotImplementedError
+# 를 raise 하므로, 호출 시 feature flag가 off 여야 정상.
+# 본 골격은 **부모 세션이 배타 관리** (14번 §5-3). W2-A/B/C/D 서브에이전트는
+# 각자 `f1_step_*.py` 만 구현하고 본 함수는 건드리지 않는다.
+# ============================================================
+
+
+async def run_feature1_v2(
+    ingredients: list[Ingredient],
+    food_type: Optional[str] = None,
+    food_type_hierarchy: Any = None,
+    process_conditions: Optional[ProcessConditions] = None,
+    measured_values: Optional[dict[str, Any]] = None,
+) -> Any:
+    """F1 재설계 파이프라인 v2 (Wave 2 골격).
+
+    흐름 (설계 문서 01~04):
+        1. Step A: f1_forbidden_ingredients + 15111777 2중 안전망
+           └ forbidden hit → 즉시 종료 (Step B/C/D skip)
+        2. Step B: 15111777 + 15094202 + 15111913 병렬 → allow_verdict·GMO
+           └ prohibited → Step C/D skip, verdict="prohibited"
+           └ restricted → HITL-1 표시 후 Step C 진행
+        3. Step C: 15116583 원재료당 조회 → T_KOR_NM별 집계 + 수치 비교
+           └ fail → verdict 확정하되 Step D 는 계속 (법령 인용용)
+        4. Step D: Pinecone 5 namespace 검색 → 법령 인용 (판정 주도 없음)
+        5. `F1Output` 합성 → pipeline_steps.ai_result 저장
+
+    Args:
+        ingredients: F0 원재료 목록 (sub_ingredients 포함).
+        food_type: F2 확정 식품유형.
+        food_type_hierarchy: F2 계층 정보 (Any — F2 타입 결합 회피).
+        process_conditions: 가열·발효·증류·도수 플래그.
+        measured_values: 원재료명 → MeasuredValue. None 이면 Step C 수치 비교 스킵.
+
+    Returns:
+        `models.f1_types.F1Output` — Day 0 동결 6 필드 + W1-B 확장 3 필드.
+
+    Day 0 스켈레톤: 부모 세션이 Wave 2 종료 시점에 실제 Step A~D 호출로 채운다.
+    W2-A/B/C/D 4 트랙 완료 직후 `from services import f1_step_a, f1_step_b,
+    f1_step_c, f1_step_d` import 하여 순차 호출 + 조기 종료 조건 구현.
+    """
+    raise NotImplementedError(
+        "Wave 2 종료 시점에 부모 세션이 Step A~D 호출로 채운다"
+    )
