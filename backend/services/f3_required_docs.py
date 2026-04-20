@@ -21,125 +21,66 @@ from fastapi import HTTPException
 
 from db.f3_supabase_client import (
     load_country_groups,
+    load_document_law_citations,
+    load_food_type_categories,
     load_keyword_synonyms,
+    load_mid_category_flags,
+    load_plant_based_patterns,
     load_required_documents,
+    load_strong_animal_keywords,
+    load_suppress_rules,
+    load_warning_keywords,
 )
-from models.f3_schemas import ProductInfo, RequiredDoc, RequiredDocsResponse
+from models.f3_schemas import LawCitation, ProductInfo, RequiredDoc, RequiredDocsResponse
+
+try:
+    from services.f3_llm_explainer import generate_law_explanation
+except ImportError:
+    generate_law_explanation = None  # type: ignore
 
 
 # ──────────────────────────────────────────────
-# 식품공전 중분류 기반 판별 상수
+# 식품유형 / 중분류 판별 헬퍼 — DB 조회 기반
+# (Track C 리팩토링: 기존 하드코딩 set → f3_food_type_categories / f3_mid_category_flags)
 # ──────────────────────────────────────────────
 
-# 중분류가 이 값이면 → 소(반추동물) 원유 기반 확정 → BSE 서류 자동 발동
-RUMINANT_MID_CATEGORIES: set[str] = {"유가공품", "유가공품류"}
-
-# 중분류가 이 값이면 → 축산물(동물성 식품) 확정 → 위생증명서 자동 발동
-LIVESTOCK_MID_CATEGORIES: set[str] = {
-    "식육가공품", "식육가공품류",
-    "유가공품", "유가공품류",
-    "알가공품", "알가공품류",
-}
+def _get_ruminant_mid_categories() -> set[str]:
+    return {mc for mc, flags in load_mid_category_flags().items() if flags.get("is_ruminant")}
 
 
-# ──────────────────────────────────────────────
-# 식품유형 직접 판별용 상수
-# ──────────────────────────────────────────────
-
-PORK_FOOD_TYPES: set[str] = {"식용돈지", "돈지", "생햄"}
-
-RUMINANT_FOOD_TYPES: set[str] = {
-    "쇠고기", "소고기",
-    "원료우지", "우지",
-    "양고기", "사슴고기", "생녹용",
-    "원유", "우유", "가공유", "저지방우유", "탈지우유", "유당분해우유", "유음료",
-    "발효유", "농후발효유", "크림발효유", "발효버터유", "발효유분말", "농후크림발효유",
-    "유크림", "가공유크림", "버터", "가공버터", "버터오일", "버터유",
-    "자연치즈", "가공치즈", "치즈",
-    "분유", "전지분유", "탈지분유", "가당분유", "혼합분유",
-    "조제분유", "성장기용조제분유", "영아용조제식", "영아용조제우유",
-    "성장기용조제우유", "영유아용이유식",
-    "영아용 조제유", "성장기용 조제유",
-    "농축유", "연유", "가당연유", "가당탈지연유", "가공연유",
-    "유청", "유청분말", "유당", "유단백가수분해식품", "유청단백분말",
-    "아이스크림", "아이스크림류", "아이스밀크", "샤베트", "아이스크림분말",
-    "아이스크림믹스", "비유지방아이스크림", "아이스밀크믹스",
-}
-
-LIVESTOCK_FOOD_TYPES: set[str] = {
-    # 대분류
-    "식육", "식육가공품", "유가공품", "알가공품", "축산물", "육류", "가금류", "가금육",
-    # 식육가공품 세부
-    "햄", "햄류", "생햄", "프레스햄", "소시지", "소시지류", "베이컨", "베이컨류",
-    "건조저장육", "건조저장육류", "양념육", "양념육류", "분쇄가공육", "분쇄가공육제품",
-    "갈비가공품", "식육추출가공품", "식육함유가공품", "포장육", "혼합소시지",
-    "발효소시지", "천연케이싱", "식육케이싱",
-    # 유가공품 전체 (RUMINANT_FOOD_TYPES 와 중복되는 것들 포함)
-    "원유", "우유", "가공유", "저지방우유", "탈지우유", "유음료",
-    "발효유", "농후발효유", "크림발효유", "발효버터유", "발효유분말",
-    "농후크림발효유", "유당분해우유",
-    "유크림", "가공유크림", "버터", "가공버터", "버터오일", "버터유",
-    "자연치즈", "가공치즈", "치즈",
-    "분유", "전지분유", "탈지분유", "가당분유", "혼합분유",
-    "조제분유", "성장기용조제분유", "영아용조제식", "영아용조제우유",
-    "성장기용조제우유", "영유아용이유식",
-    "영아용 조제유", "성장기용 조제유",
-    "농축유", "연유", "가당연유", "가당탈지연유", "가공연유",
-    "유청", "유청분말", "유당", "유단백가수분해식품", "유청단백분말",
-    # 알가공품 세부
-    "알류", "난황", "난백", "전란분", "난황분", "난백분", "전란액", "난황액", "난백액",
-    "피단", "달걀(알)", "알가열제품",
-    # 지방
-    "식용돈지", "원료우지", "우지", "돈지",
-    # 일반 축산 원료
-    "닭고기", "오리고기", "쇠고기", "돼지고기", "양고기",
-    # 아이스크림류
-    "아이스크림", "아이스크림류", "아이스밀크", "샤베트", "아이스크림분말",
-    "아이스크림믹스", "비유지방아이스크림", "아이스밀크믹스",
-}
-
-# 식약처 복합 명칭 패턴 (예: "돼지고기(냉동,정육...)")
-LIVESTOCK_FOOD_TYPE_PREFIXES: tuple[str, ...] = (
-    "돼지고기(", "소고기(", "닭고기(", "양고기(", "염소고기(",
-    "오리고기(", "칠면조고기(",
-)
+def _get_livestock_mid_categories() -> set[str]:
+    return {mc for mc, flags in load_mid_category_flags().items() if flags.get("is_livestock")}
 
 
-# ──────────────────────────────────────────────
-# 식품유형 판별 헬퍼
-# ──────────────────────────────────────────────
+def _match_food_type_flag(food_type: str, flag_key: str) -> bool:
+    """DB 에서 특정 플래그(is_livestock/is_ruminant/is_pork) True 인 행과 매칭."""
+    if not food_type:
+        return False
+    ft_map = load_food_type_categories()
+    # 1) 정확 일치
+    entry = ft_map.get(food_type)
+    if entry and entry.get(flag_key):
+        return True
+    # 2) prefix 패턴 매칭
+    for ft, flags in ft_map.items():
+        if flags.get("is_prefix") and flags.get(flag_key) and food_type.startswith(ft):
+            return True
+    return False
+
 
 def is_pork_food_type(food_type: str) -> bool:
     """food_type 이 돼지 유래임을 확정할 수 있는지 판별."""
-    if not food_type:
-        return False
-    if food_type in PORK_FOOD_TYPES:
-        return True
-    if food_type.startswith("돼지고기("):
-        return True
-    return False
+    return _match_food_type_flag(food_type, "is_pork")
 
 
 def is_ruminant_food_type(food_type: str) -> bool:
     """food_type 이 반추동물(소·양·사슴) 유래임을 확정할 수 있는지 판별."""
-    if not food_type:
-        return False
-    if food_type in RUMINANT_FOOD_TYPES:
-        return True
-    if food_type.startswith(("소고기(", "쇠고기(", "양고기(")):
-        return True
-    return False
+    return _match_food_type_flag(food_type, "is_ruminant")
 
 
 def is_livestock_food_type(food_type: str) -> bool:
     """축산물 식품유형 판별 — 정확 매칭 + 복합 명칭 prefix."""
-    if not food_type:
-        return False
-    if food_type in LIVESTOCK_FOOD_TYPES:
-        return True
-    if any(food_type.startswith(p) for p in LIVESTOCK_FOOD_TYPE_PREFIXES):
-        return True
-    return False
+    return _match_food_type_flag(food_type, "is_livestock")
 
 
 # ──────────────────────────────────────────────
@@ -205,39 +146,140 @@ def _match_keyword(
 # 키워드 힌트 → DB 키워드 자동 보강
 # ──────────────────────────────────────────────
 
-def _enrich_keywords(product_keywords: list[str], origin_country: str) -> list[str]:
-    """사용자 입력 키워드를 DB 키워드로 보강.
+def _normalize_for_match(s: str) -> str:
+    """매칭용 정규화 — 공백(ASCII/전각) 전부 제거 + lowercase.
 
-    f3_keyword_synonyms (38건) 기반:
-      'pork', '햄', '소시지' → '돼지원료' 추가
-      'sea salt', 'solar salt' → '천일염' 추가
-      ...
+    예:
+      '프리페어드 라드' → '프리페어드라드'
+      'Sea Salt'      → 'seasalt'
+      '산 양유'       → '산양유'
+    """
+    if not s:
+        return ''
+    # split() 는 인자 없이 호출 시 모든 whitespace (공백/탭/\u3000 등) 로 분리
+    return ''.join(s.split()).lower()
 
-    food_type 과 origin_country 연관 보강도 수행:
-      PET 재질 기구 + 중국/대만/베트남/태국 → 'PET기구' 추가 (호출부에서)
+
+# ──────────────────────────────────────────────
+# 식물성 원재료 패턴 — 소/양/반추동물 매핑 억제용
+# ──────────────────────────────────────────────
+# Track D: 하드코딩 tuple/set 제거, Supabase 에서 로드
+#   - f3_plant_based_patterns (식품공전 별표1 원료 + 제5 식품유형 + 업계통용명)
+#   - f3_suppress_rules (식물성 감지 시 억제할 db_keyword)
+# 라벨에 "버터"/"크림"/"우유" 가 있어도 식물성 (코코아버터/시어버터/아몬드밀크) 이면
+# '소'/'양'/'반추동물' db_keyword 로 매핑되지 않도록 선택적 억제.
+
+
+def _clean_label_prefix(kw: str) -> str:
+    """사용자 입력 원재료에서 '원재료:', 'Ingredients:' 같은 라벨 prefix 제거.
+
+    엑셀 셀이 "원재료: 설탕,포도당,..." 처럼 라벨 포함된 경우 split 결과
+    첫 원소가 "원재료: 설탕" 이 됨. 매칭은 substring 이라 되지만 match_reason
+    에 지저분하게 찍히는 걸 방지.
+    """
+    if not kw:
+        return kw
+    stripped = kw.strip()
+    low = stripped.lower()
+    patterns = (
+        '원재료:', '원재료 :', '원 재료:', '원 재료 :', '원재료명:', '원재료 명:',
+        'ingredients:', 'ingredient:',
+    )
+    for p in patterns:
+        if low.startswith(p):
+            cleaned = stripped[len(p):].strip()
+            if cleaned:
+                return cleaned
+    return stripped
+
+
+def _is_plant_based_ingredient(user_kw: str) -> bool:
+    """원재료명이 명확한 식물성 유래인지 판별.
+
+    True 면 '소'/'양'/'사슴'/'반추동물' db_keyword 매핑을 억제.
+    예:
+      '코코아버터'     → True
+      '시어버터나무'    → True
+      '아몬드밀크'      → True
+      '우유'           → False (진짜 동물성)
+      '버터'           → False (진짜 동물성)
+      '치즈'           → False
+    """
+    if not user_kw:
+        return False
+    kw_norm = _normalize_for_match(user_kw)
+    # 명확한 동물성 키워드 (예: '탈지우유', '생크림') 포함되면 plant 판정 무효화.
+    # 복합 원재료 "탈지 우유 요거트 - 딸기 크림" 에서 '딸기' 로 인한 False Negative 방지.
+    for animal_kw in load_strong_animal_keywords():
+        if _normalize_for_match(animal_kw) in kw_norm:
+            return False
+    for pat in load_plant_based_patterns():
+        if _normalize_for_match(pat) in kw_norm:
+            return True
+    return False
+
+
+def _enrich_keywords(
+    product_keywords: list[str],
+    origin_country: str,
+) -> tuple[list[str], dict[str, list[str]]]:
+    """사용자 입력 키워드를 DB 키워드로 보강 + 매칭 추적 반환.
+
+    반환:
+      enriched_kws : list[str]          — 보강된 전체 키워드 (원본 + db_keyword)
+      match_trace  : dict[str, list]    — db_keyword 별 매칭 원재료 (match_reason 생성용)
+                                          예: {'돼지원료': ['하몽', '젤라틴(돼지)'], '젤라틴': ['젤라틴(돼지)']}
+
+    매칭 방식:
+      1. 공백 정규화 후 비교 ('프리페어드 라드' == '프리페어드라드' 동일시)
+      2. 정확 일치 또는 hint 가 user_kw 안에 substring
+      3. hint 원본 길이 >= 2 일 때만 (한글 1글자 방지)
     """
     enriched: set[str] = set(product_keywords)
+    match_trace: dict[str, set[str]] = {}
 
     synonyms = load_keyword_synonyms()
-    # hint → db_keyword 그룹핑
+    # hint_normalized → [(db_keyword, country_cond), ...]
     hint_map: dict[str, list[tuple[str, Optional[str]]]] = {}
     for row in synonyms:
-        hint = (row.get("hint_keyword") or "").lower()
+        hint_raw = (row.get("hint_keyword") or "").strip()
+        if len(hint_raw) < 2:
+            continue
+        hint_norm = _normalize_for_match(hint_raw)
+        if not hint_norm:
+            continue
         db_kw = row.get("db_keyword")
         country_cond = row.get("country_cond")
-        if hint and db_kw:
-            hint_map.setdefault(hint, []).append((db_kw, country_cond))
+        if db_kw:
+            hint_map.setdefault(hint_norm, []).append((db_kw, country_cond))
 
     for user_kw in product_keywords:
-        ukl = user_kw.lower()
-        for hint, targets in hint_map.items():
-            if hint in ukl or ukl in hint:
-                for db_kw, country_cond in targets:
-                    if country_cond and country_cond != origin_country:
-                        continue
-                    enriched.add(db_kw)
+        # 라벨 prefix 제거 ('원재료: 설탕' → '설탕')
+        user_kw_clean = _clean_label_prefix(user_kw)
+        ukl = _normalize_for_match(user_kw_clean)
+        if not ukl:
+            continue
+        # 식물성 원재료 여부 — 소/양/반추동물 매핑 억제용
+        is_plant = _is_plant_based_ingredient(user_kw_clean)
+        suppress_kws = load_suppress_rules() if is_plant else set()
+        for hint_norm, targets in hint_map.items():
+            is_match = (hint_norm == ukl) or (hint_norm in ukl)
+            if not is_match:
+                continue
+            for db_kw, country_cond in targets:
+                if country_cond and country_cond != origin_country:
+                    continue
+                # 식물성인데 축산(소/양/사슴/반추동물) db_keyword 매핑 — 억제
+                if is_plant and db_kw in suppress_kws:
+                    continue
+                enriched.add(db_kw)
+                # trace 에는 cleaned 버전 저장 (match_reason 깔끔하게 표시)
+                match_trace.setdefault(db_kw, set()).add(user_kw_clean)
 
-    return list(enriched)
+    return (
+        list(enriched),
+        {k: sorted(v) for k, v in match_trace.items()},
+    )
 
 
 # ──────────────────────────────────────────────
@@ -286,8 +328,25 @@ def _derive_decision_axis(doc: dict, info: ProductInfo) -> str:
 # 매칭 근거 설명 (match_reason)
 # ──────────────────────────────────────────────
 
-def _build_match_reason(doc: dict, info: ProductInfo) -> str:
-    """이 서류가 이 제품에 왜 필요한지 한 문장으로 요약."""
+def _format_ingredients(items: list[str], max_n: int = 3) -> str:
+    """원재료 리스트를 사람이 읽기 좋게 '', '', '외 N개' 형태로."""
+    if not items:
+        return ""
+    if len(items) <= max_n:
+        return ", ".join(f"'{x}'" for x in items)
+    shown = ", ".join(f"'{x}'" for x in items[:max_n])
+    return f"{shown} 외 {len(items) - max_n}건"
+
+
+def _build_match_reason(
+    doc: dict,
+    info: ProductInfo,
+    match_trace: Optional[dict[str, list[str]]] = None,
+) -> str:
+    """이 서류가 이 제품에 왜 필요한지 요약. match_trace 있으면 원재료 구체 이름 포함.
+
+    match_trace 예: {'돼지원료': ['하몽', '젤라틴(돼지)'], '젤라틴': ['젤라틴(돼지)']}
+    """
     # 공통
     if not doc.get("condition") and not doc.get("target_country") and not doc.get("product_keywords"):
         return "모든 수입식품에 공통으로 적용되는 서류입니다."
@@ -295,6 +354,7 @@ def _build_match_reason(doc: dict, info: ProductInfo) -> str:
     clauses: list[str] = []
     cond = doc.get("condition")
     name = doc.get("doc_name") or ""
+    trace = match_trace or {}
 
     if cond == "OEM":
         clauses.append("주문자상표부착(OEM) 수입식품에 해당")
@@ -305,11 +365,43 @@ def _build_match_reason(doc: dict, info: ProductInfo) -> str:
     if cond == "축산물또는동물성식품":
         clauses.append(f"식품유형이 축산물/동물성 식품({info.food_type})")
     if cond == "GMO":
-        clauses.append("GMO 표시대상 원료를 함유")
+        # GMO 원재료 구체 이름 포함
+        ingredients = trace.get("GMO") or []
+        if ingredients:
+            clauses.append(f"원재료 중 {_format_ingredients(ingredients)} 이(가) GMO 표시대상")
+        else:
+            clauses.append("GMO 표시대상 원료를 함유")
     if cond == "협약체결국수산물":
         clauses.append(
             f"수산물({info.food_type}) + 증명서 첨부 협약체결국({info.origin_country})"
         )
+    if cond == "정밀검사대상":
+        clauses.append("최초 수입 또는 정밀검사 대상 건에 해당")
+    if cond == "외화획득용":
+        clauses.append("외화획득용 수입식품에 해당")
+    if cond == "외화획득용원료":
+        clauses.append("외화획득용 원료에 해당")
+    if cond == "돼지원료포함":
+        ingredients = trace.get("돼지원료") or []
+        if ingredients:
+            clauses.append(
+                f"원재료 중 {_format_ingredients(ingredients)} 이(가) 돼지 유래 원료로 분류"
+            )
+        else:
+            clauses.append("돼지 유래 원료 포함")
+    if cond == "반추동물원료포함":
+        # 소/양/사슴/반추동물 중 매칭된 것 모두 수집
+        ingredients: list[str] = []
+        for kw in ("소", "양", "사슴", "반추동물"):
+            ingredients.extend(trace.get(kw, []))
+        # 중복 제거
+        ingredients = sorted(set(ingredients))
+        if ingredients:
+            clauses.append(
+                f"원재료 중 {_format_ingredients(ingredients)} 이(가) 반추동물(소/양/사슴) 유래 원료로 분류"
+            )
+        else:
+            clauses.append("반추동물(소/양/사슴) 유래 원료 포함")
 
     is_asf = "ASF" in name
     is_bse = (
@@ -318,22 +410,63 @@ def _build_match_reason(doc: dict, info: ProductInfo) -> str:
         or doc.get("target_country") == "BSE관련36개국"
     )
     if is_asf:
-        clauses.append(
-            f"ASF(아프리카돼지열병) 발생국인 {info.origin_country}에서 돼지 유래 원료를 사용"
-        )
-    elif is_bse:
-        if doc.get("target_country") == "BSE관련36개국":
-            clauses.append(
-                f"BSE 발생 36개국({info.origin_country})에서 반추동물 유래 원료를 사용"
-            )
+        # cond="돼지원료포함" 절이 이미 원재료 나열했다면 중복 피하고 국가 정보만 추가
+        already_listed_pork = cond == "돼지원료포함" and trace.get("돼지원료")
+        if already_listed_pork:
+            clauses.append(f"ASF 발생 73개국 {info.origin_country} 수출건")
         else:
-            clauses.append("반추동물(소/양/사슴) 유래 원료를 함유")
+            pork_ingredients = trace.get("돼지원료") or []
+            if pork_ingredients:
+                clauses.append(
+                    f"ASF 발생국 {info.origin_country} + 원재료 중 "
+                    f"{_format_ingredients(pork_ingredients)} 돼지 유래"
+                )
+            else:
+                clauses.append(
+                    f"ASF(아프리카돼지열병) 발생국인 {info.origin_country}에서 돼지 유래 원료를 사용"
+                )
+    elif is_bse:
+        # 반추동물/소 trace 활용
+        ruminant_ingredients: list[str] = []
+        for kw in ("소", "양", "사슴", "반추동물"):
+            ruminant_ingredients.extend(trace.get(kw, []))
+        ruminant_ingredients = sorted(set(ruminant_ingredients))
+        if doc.get("target_country") == "BSE관련36개국":
+            if ruminant_ingredients:
+                clauses.append(
+                    f"BSE 발생 36개국 {info.origin_country} + 원재료 중 "
+                    f"{_format_ingredients(ruminant_ingredients)} 반추동물 유래"
+                )
+            else:
+                clauses.append(
+                    f"BSE 발생 36개국({info.origin_country})에서 반추동물 유래 원료를 사용"
+                )
+        else:
+            if ruminant_ingredients:
+                clauses.append(
+                    f"원재료 중 {_format_ingredients(ruminant_ingredients)} 이(가) "
+                    f"반추동물(소/양/사슴) 유래"
+                )
+            else:
+                clauses.append("반추동물(소/양/사슴) 유래 원료를 함유")
     else:
         tc = doc.get("target_country")
         if tc and tc != "EU":
             clauses.append(f"제조국이 {info.origin_country}(해당 국가 특수 서류 대상)")
         elif tc == "EU":
             clauses.append(f"제조국이 EU 회원국({info.origin_country})")
+
+    # product_keywords 매칭 — 특정 원재료 필수 서류 (예: 젤라틴/대마씨/복어)
+    doc_keywords = doc.get("product_keywords") or []
+    if doc_keywords:
+        matched_user_ingredients: list[str] = []
+        for dkw in doc_keywords:
+            matched_user_ingredients.extend(trace.get(dkw, []))
+        matched_user_ingredients = sorted(set(matched_user_ingredients))
+        if matched_user_ingredients:
+            clauses.append(
+                f"원재료 {_format_ingredients(matched_user_ingredients)} 해당"
+            )
 
     if doc.get("submission_timing") == "first" and info.is_first_import:
         clauses.append("**최초 수입 건**에 해당 (동일 제조사 재수입 시 생략 가능)")
@@ -368,7 +501,10 @@ def _build_warnings(
     submit_docs: list[RequiredDoc],
     keep_docs: list[RequiredDoc],
 ) -> list[str]:
-    """원본 입력 기반 스마트 경고. 이미 매칭된 서류의 주제는 제거."""
+    """원본 입력 기반 스마트 경고. 이미 매칭된 서류의 주제는 제거.
+
+    Track C 리팩토링: 경고 규칙별 키워드를 DB(f3_warning_keywords) 에서 로드.
+    """
     warnings: list[str] = []
     kws_raw = set(info.product_keywords)
     origin = info.origin_country
@@ -376,17 +512,18 @@ def _build_warnings(
     groups = load_country_groups()
     bse_36 = groups.get("BSE_36", set())
     asf_73 = groups.get("ASF_73", set())
-    eu_members = groups.get("EU_27") or groups.get("EU_MEMBERS") or set()
     equivalence = groups.get("EQUIVALENCE", set())
+
+    # DB 에서 경고 규칙 키워드 로드 (소문자 set 으로 캐시)
+    wk = load_warning_keywords()
+    def _kw_set(rule_id: str) -> set[str]:
+        return {k.lower() for k in wk.get(rule_id, [])}
 
     # 1. 일본산 + 도현 미지정
     if origin == "일본" and not any(
         t in info.food_type for t in ("기구", "용기", "포장")
     ):
-        japan_prefectures = {
-            "후쿠시마", "이바라키", "토치키", "군마", "사이타마", "치바",
-            "미야기", "가나가와", "도쿄", "나가노", "야마가타", "니이가타", "시즈오카",
-        }
+        japan_prefectures = set(wk.get("japan_13_prefecture", []))
         if not (set(info.product_keywords) & japan_prefectures):
             warnings.append(
                 "일본산 식품입니다. 생산 도·현에 따라 방사성 물질 검사성적서가 "
@@ -401,13 +538,7 @@ def _build_warnings(
         )
 
     # 3. GMO 힌트
-    gmo_hints = {
-        "콩", "대두", "soy", "옥수수", "corn", "카놀라", "canola", "면실",
-        "사탕무", "알팔파", "감자", "potato", "corn syrup", "hfcs",
-        "high fructose corn syrup", "cornstarch", "corn starch", "corn oil",
-        "corn flour", "dextrose", "maltodextrin", "maize", "soybean",
-        "soy protein", "soy lecithin", "대두유", "대두분말", "콩기름",
-    }
+    gmo_hints = _kw_set("gmo_hint")
     found = [k for k in info.product_keywords if k.lower() in gmo_hints]
     if found and "GMO" not in kws_raw:
         warnings.append(
@@ -425,7 +556,7 @@ def _build_warnings(
     # 5. ASF 돼지 힌트 — g6-6 미매칭 시만
     already_matched_asf = any(d.id == "g6-6" for d in submit_docs)
     if not already_matched_asf and origin in asf_73:
-        pork_hints = {"돼지고기", "pork", "햄", "베이컨", "소시지", "족발", "삼겹살"}
+        pork_hints = _kw_set("pork_hint")
         if any(
             any(h in k.lower() for h in pork_hints) for k in info.product_keywords
         ):
@@ -435,7 +566,7 @@ def _build_warnings(
             )
 
     # 6. 유기 + 동등성인정 미체크
-    organic_hints = {"유기", "유기농", "organic", "오가닉"}
+    organic_hints = _kw_set("organic_hint")
     if (
         any(any(h in k.lower() for h in organic_hints) for k in info.product_keywords)
         and not info.has_organic_cert
@@ -448,7 +579,7 @@ def _build_warnings(
             )
 
     # 7. 반추동물 힌트
-    ruminant_hints = {"소고기", "쇠고기", "beef", "양고기", "lamb", "사슴고기", "venison"}
+    ruminant_hints = _kw_set("ruminant_hint")
     if any(k.lower() in ruminant_hints for k in info.product_keywords) and not (
         kws_raw & {"반추동물", "소", "사슴", "양"}
     ):
@@ -458,8 +589,8 @@ def _build_warnings(
         )
 
     # 8. 소금류 제품 힌트
-    salt_food_types = ("소금", "천일염", "식염", "소금류", "조미소금")
-    if any(st in info.food_type for st in salt_food_types):
+    salt_food_types = tuple(wk.get("salt_food_type_hint", []))
+    if salt_food_types and any(st in info.food_type for st in salt_food_types):
         if not (kws_raw & {"죽염", "구운소금", "벌크천일염", "천일염"}):
             warnings.append(
                 "소금류 제품입니다. 소금 종류(죽염/구운소금/천일염/벌크천일염)에 따라 "
@@ -468,7 +599,7 @@ def _build_warnings(
 
     # 9. 뉴질랜드 + 꿀 힌트
     if origin == "뉴질랜드":
-        honey_hints = {"honey", "벌꿀", "마누카", "manuka"}
+        honey_hints = _kw_set("honey_hint")
         if (
             any(k.lower() in honey_hints for k in info.product_keywords)
             and not (kws_raw & {"꿀", "소밀"})
@@ -479,7 +610,7 @@ def _build_warnings(
             )
 
     # 10. 대마씨·Hemp 힌트
-    hemp_hints = {"헴프", "hemp seed", "삼씨", "hempseed"}
+    hemp_hints = _kw_set("hemp_hint")
     if (
         any(k.lower() in hemp_hints for k in info.product_keywords)
         and not (kws_raw & {"대마씨", "hemp", "Cannabis sativa"})
@@ -490,10 +621,7 @@ def _build_warnings(
         )
 
     # 11. 양봉제품 → 농림축산검역본부 별도 확인
-    apiary_hints = {
-        "꿀", "honey", "마누카", "manuka", "로열젤리", "royal jelly",
-        "프로폴리스", "propolis", "벌꿀", "비폴렌", "bee pollen",
-    }
+    apiary_hints = _kw_set("apiary_hint")
     if any(k.lower() in apiary_hints for k in info.product_keywords):
         warnings.append(
             "양봉제품(꿀·로열젤리·프로폴리스 등)은 수입식품 서류 외에 "
@@ -518,6 +646,52 @@ def _build_warnings(
 # 메인 매칭 함수
 # ──────────────────────────────────────────────
 
+def _build_degraded_response(info: ProductInfo, reason: str) -> RequiredDocsResponse:
+    """DB 장애/비정상 상태에서 최소한의 공통 서류만 안내.
+
+    공통 서류 c1(한글표시), c2(수입식품사진) 는 법령상 모든 수입식품 필수라
+    DB 없이도 하드코딩으로 안내 가능. 그 외 특수 서류는 매칭 불가 경고.
+    """
+    common_docs = [
+        RequiredDoc(
+            id="c1",
+            doc_name="한글표시 포장지 또는 한글표시 서류",
+            doc_description="한글표시가 인쇄된 스티커를 붙인 포장지 포함. 모든 수입식품 공통.",
+            is_mandatory=True,
+            submission_type="submit",
+            submission_timing="every",
+            law_source="수입식품안전관리 특별법 시행규칙 제27조제1항제1호",
+            match_reason="모든 수입식품에 공통으로 적용되는 서류입니다.",
+            decision_axis="공통",
+        ),
+        RequiredDoc(
+            id="c2",
+            doc_name="수입식품 사진",
+            doc_description="별표9 제2호가목 1)~3) 해당 식품 및 식약처 홈페이지 게시 식품 제외.",
+            is_mandatory=True,
+            submission_type="submit",
+            submission_timing="every",
+            law_source="수입식품안전관리 특별법 시행규칙 제27조제1항제1의2호",
+            match_reason="모든 수입식품에 공통으로 적용되는 서류입니다.",
+            decision_axis="공통",
+        ),
+    ]
+    return RequiredDocsResponse(
+        food_type=info.food_type,
+        origin_country=info.origin_country,
+        is_first_import=info.is_first_import,
+        submit_docs=common_docs,
+        keep_docs=[],
+        total_submit=len(common_docs),
+        total_keep=0,
+        warnings=[
+            f"⚠️ 데이터베이스 연결 문제로 특수 원료/국가 매칭이 불가합니다 ({reason}). "
+            "아래 공통 서류만 표시되며, 법령상 필요한 추가 서류는 수동 확인이 필요합니다."
+        ],
+        match_confidence="degraded",
+    )
+
+
 def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
     """5축 AND 매칭 후 통과 서류의 합집합을 반환.
 
@@ -528,20 +702,32 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
       3. target_country (국가 그룹 태그 해석)
       4. product_keywords (키워드 교집합)
       5. submission_timing (first 는 is_first_import=true 만)
-    """
-    rows = load_required_documents()
-    if not rows:
-        raise HTTPException(
-            status_code=503,
-            detail={
-                "error": "REQUIRED_DOCS_EMPTY",
-                "message": "f3_required_documents 테이블이 비어 있습니다.",
-                "feature": 3,
-            },
-        )
 
-    # 키워드 보강
-    enriched_kws = _enrich_keywords(info.product_keywords, info.origin_country)
+    DB 장애 대응:
+      필수 참조 테이블(f3_required_documents/food_type_categories/mid_category_flags/
+      warning_keywords) 중 하나라도 비어있거나 조회 실패 시
+      공통 서류 2건(c1, c2) 만 반환하는 degraded 모드로 전환.
+    """
+    # 필수 DB 참조 테이블 건강성 체크
+    try:
+        rows = load_required_documents()
+        ft_map = load_food_type_categories()
+        mid_map = load_mid_category_flags()
+        wk_map = load_warning_keywords()
+    except Exception as e:
+        return _build_degraded_response(info, f"DB 조회 실패: {type(e).__name__}")
+
+    if not rows:
+        return _build_degraded_response(info, "f3_required_documents 비어있음")
+    if not ft_map:
+        return _build_degraded_response(info, "f3_food_type_categories 비어있음")
+    if not mid_map:
+        return _build_degraded_response(info, "f3_mid_category_flags 비어있음")
+    if not wk_map:
+        return _build_degraded_response(info, "f3_warning_keywords 비어있음")
+
+    # 키워드 보강 + 매칭 추적 (match_reason 풍부화용)
+    enriched_kws, match_trace = _enrich_keywords(info.product_keywords, info.origin_country)
 
     # PET4 보정 (중국/대만/베트남/태국 + PET 식품유형 → PET기구 키워드 추가)
     groups = load_country_groups()
@@ -561,8 +747,8 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
     keep_docs: list[RequiredDoc] = []
 
     equivalence = groups.get("EQUIVALENCE", set())
-    ruminant_mid = RUMINANT_MID_CATEGORIES
-    livestock_mid = LIVESTOCK_MID_CATEGORIES
+    ruminant_mid = _get_ruminant_mid_categories()
+    livestock_mid = _get_livestock_mid_categories()
     seafood_treaty = groups.get("SEAFOOD_TREATY", set())
 
     for doc in rows:
@@ -672,6 +858,10 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
         if doc.get("submission_timing") == "first" and not enriched_info.is_first_import:
             continue
 
+        # Phase 4 — 법령 인용 로드 (Pinecone RAG 매핑)
+        citations_raw = load_document_law_citations().get(doc["id"], [])
+        law_citations = [LawCitation(**c) for c in citations_raw]
+
         # 통과 → 이유·결정축 부착 후 수집
         required_doc = RequiredDoc(
             id=doc["id"],
@@ -687,8 +877,9 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
             law_source=doc.get("law_source", ""),
             effective_from=doc.get("effective_from"),
             effective_until=doc.get("effective_until"),
-            match_reason=_build_match_reason(doc, enriched_info),
+            match_reason=_build_match_reason(doc, enriched_info, match_trace),
             decision_axis=_derive_decision_axis(doc, enriched_info),
+            law_citations=law_citations,
         )
 
         if required_doc.submission_type == "keep":
@@ -721,3 +912,30 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
         warnings=warnings,
         match_confidence=confidence,
     )
+
+
+def enrich_response_with_llm(response: RequiredDocsResponse) -> RequiredDocsResponse:
+    """Opt-in: 각 서류의 law_citations 를 LLM 으로 자연어 풀이 (GPT-5.4 mini).
+
+    할루시네이션 4단 차단 내장 (f3_llm_explainer.generate_law_explanation 참고).
+    LLM 실패/API 키 없음/할루시네이션 감지 시 law_explanation=None 유지 (엔진 동작 보장).
+
+    비용·속도 주의: 서류당 1회 LLM 호출. 평균 4-5 서류 × 호출당 $0.001~0.003 (mini 기준).
+    """
+    if generate_law_explanation is None:
+        return response
+    for doc in list(response.submit_docs) + list(response.keep_docs):
+        if not doc.law_citations:
+            continue
+        citations_raw = [c.model_dump(exclude_none=False) for c in doc.law_citations]
+        try:
+            exp = generate_law_explanation(
+                doc_id=doc.id,
+                doc_title=doc.doc_name,
+                rule_reason=doc.match_reason or "",
+                citations=citations_raw,
+            )
+            doc.law_explanation = exp
+        except Exception:
+            doc.law_explanation = None
+    return response

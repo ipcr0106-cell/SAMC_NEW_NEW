@@ -6,7 +6,21 @@
   python scripts/embed_laws.py --dry-run  # 대상 PDF 목록만 출력
   python scripts/embed_laws.py --check    # 저장된 청크 수 확인
   python scripts/embed_laws.py --reset    # 기존 청크 삭제 후 재임베딩
+
+지원 파일 형식:
+  - PDF (.pdf) : pdfplumber 로 텍스트 추출
+
+미지원 파일 형식 (추후 대응 필요):
+  - HWPX (.hwpx) : 현재 DB_최신/ 하위 법령이 모두 PDF 라서 미지원.
+    추후 HWPX 로 들어오는 법령이 생기면 아래 TODO 참조.
 """
+
+# TODO(F5/HWPX): 현재는 PDF 만 지원. 법령 원본이 HWPX 로 들어올 경우
+# extract_text() 와 collect_pdfs() 에 분기 처리 추가 필요.
+# 참고할 수 있는 선행 구현:
+#   1) backend/db/feature4/preprocess_laws.py (F4 의 HWPX 파싱 로직)
+#   2) f0 의 외부 파서 서비스 (backend/.env 의 F0_PARSER_SERVICE_URL)
+# 관련: f5_수정_요청_사항.md [공통] 섹션 참조.
 
 import argparse
 import os
@@ -20,7 +34,7 @@ from dotenv import load_dotenv
 from pinecone import Pinecone, ServerlessSpec
 
 # backend/ 기준으로 경로 설정
-ROOT = Path(__file__).parent.parent.parent  # SAMC_NEW/
+ROOT = Path(__file__).parent.parent.parent.parent  # SAMC/
 DB_DIR = ROOT / "DB_최신"
 
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -78,6 +92,7 @@ def get_voyage():
 # ── PDF 처리 ───────────────────────────────────────────────────────────────
 
 def collect_pdfs() -> list[Path]:
+    # TODO(F5/HWPX): HWPX 파일이 섞여 들어올 경우 *.hwpx 도 함께 수집하도록 확장 필요.
     pdfs = []
     for d in TARGET_DIRS:
         if d.exists():
@@ -86,6 +101,10 @@ def collect_pdfs() -> list[Path]:
 
 
 def extract_text(pdf_path: Path) -> str:
+    # TODO(F5/HWPX): pdf_path.suffix == ".hwpx" 인 경우 별도 분기 처리 필요.
+    # 예시 구조:
+    #   if pdf_path.suffix.lower() == ".hwpx":
+    #       return extract_text_from_hwpx(pdf_path)  # F4 또는 f0 파서 서비스 활용
     text_parts = []
     with pdfplumber.open(pdf_path) as pdf:
         for page in pdf.pages:

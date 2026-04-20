@@ -55,6 +55,24 @@ class ProductInfo(BaseModel):
     )
 
 
+class LawCitation(BaseModel):
+    """서류의 법령 근거 인용 (Pinecone RAG 매핑)."""
+
+    pinecone_chunk_id: Optional[str] = None
+    chunk_type: Optional[str] = None  # 'law'/'treaty'/'official_excel'/'guideline'
+    priority: Optional[str] = None    # 'primary'/'secondary'
+    law_name: Optional[str] = None
+    law_source: Optional[str] = None
+    article: Optional[str] = None
+    clause: Optional[str] = None
+    item: Optional[str] = None
+    topic: Optional[str] = None
+    agreement: Optional[str] = None
+    country_code: Optional[str] = None
+    effective_date: Optional[str] = None
+    excerpt: Optional[str] = None
+
+
 class RequiredDoc(BaseModel):
     """매칭된 단일 서류 정보."""
 
@@ -73,6 +91,14 @@ class RequiredDoc(BaseModel):
     effective_until: Optional[str] = None
     match_reason: Optional[str] = None
     decision_axis: Optional[str] = None
+    law_citations: list[LawCitation] = Field(
+        default_factory=list,
+        description="Pinecone RAG 기반 법령 인용 목록 (Phase 4 추가)",
+    )
+    law_explanation: Optional[dict] = Field(
+        None,
+        description="LLM 생성 자연어 설명 — enrich_with_llm=True 일 때만 채워짐",
+    )
 
 
 class RequiredDocsResponse(BaseModel):
@@ -86,4 +112,4 @@ class RequiredDocsResponse(BaseModel):
     total_submit: int
     total_keep: int
     warnings: list[str]
-    match_confidence: Literal["high", "needs_review"] = "high"
+    match_confidence: Literal["high", "needs_review", "degraded"] = "high"
