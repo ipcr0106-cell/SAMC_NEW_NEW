@@ -12,6 +12,7 @@ import {
 
 interface ProcessCodeReason {
   code: string;
+  name: string;
   reason: string;
 }
 
