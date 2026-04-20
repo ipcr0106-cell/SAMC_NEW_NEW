@@ -863,9 +863,10 @@ export default function StepAPage() {
         const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
         const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
-        const [f2Res, f1Res] = await Promise.all([
+        const [f2Res, f1Res, f0Res] = await Promise.all([
           fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`, { headers: authHeaders }),
           fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/1`, { headers: authHeaders }),
+          fetch(`${API_BASE}/cases/${caseId}/parsed-result`, { headers: authHeaders }),
         ]);
 
         if (!f2Res.ok) {
