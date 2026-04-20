@@ -501,21 +501,12 @@ async def process_label_image(
             original_storage_path=original_storage_path,
             source_hash=source_hash,
             image_index=image_index,
-<<<<<<< HEAD
             page_bytes=crop["page_bytes"],      # f4 인증마크 분석용 (크롭 전 원본)
             cropped_bytes=crop["cropped_bytes"],
             bbox=crop["bbox"],
             width=crop["width"],
             height=crop["height"],
             texts=crop["texts"],
-=======
-            page_bytes=page_bytes,       # 크롭 전 전체 이미지 (f4 인증마크 분석용)
-            cropped_bytes=cropped_bytes,
-            bbox=bbox,
-            width=cw,
-            height=ch,
-            texts=texts,
->>>>>>> origin/develope
         )
 
     save_results = await asyncio.gather(
