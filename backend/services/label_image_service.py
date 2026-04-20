@@ -11,7 +11,7 @@ SAMC — 수출국 라벨 이미지 처리 서비스.
   5) PIL로 bbox 크롭 → PNG 저장
   6) Supabase Storage + case_label_images 테이블에 기록
 
-⚠️  임시: Vision은 OpenAI 사용. 최종 통합 시 Claude Vision으로 교체.
+Vision은 OpenAI(gpt-5.4)를 사용합니다.
 """
 
 from __future__ import annotations
