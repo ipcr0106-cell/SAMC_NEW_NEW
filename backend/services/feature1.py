@@ -539,17 +539,18 @@ async def run_feature1_v2(
         # ── Verdict 결정 ──────────────────────────────────────
         if step_c.overall_status == "fail":
             verdict, confidence = "prohibited", 0.90
+        elif restricted_names:
+            # Step B restricted 판정은 Step C 결과보다 우선:
+            # review_needed가 restricted 경로를 차단하는 Bug 2 회귀 방지.
+            verdict, confidence = "restricted", 0.75
         elif step_c.overall_status == "review_needed":
             verdict, confidence = "needs_review", 0.40
         elif step_b.unidentified:
             verdict, confidence = "needs_review", 0.45
         elif step_c.overall_status == "no_data":
-            if restricted_names:
-                verdict, confidence = "restricted", 0.70
-            else:
-                verdict, confidence = "needs_review", 0.50
-        elif restricted_names:
-            verdict, confidence = "restricted", 0.75
+            # unidentified·restricted 없고 기준규격 데이터도 없음
+            # → 알려진 일반 원료로 판단해 permitted (e.g. 쌀, 사과 등 식품공전 별표1 원료)
+            verdict, confidence = "permitted", 0.85
         else:
             verdict, confidence = "permitted", 0.90
 

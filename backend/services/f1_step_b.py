@@ -542,6 +542,58 @@ def _pick_gmo_flag(normalized: str, raw_items: List[dict]) -> Optional[bool]:
 
 
 # ---------------------------------------------------------------------------
+# DB 폴백 — f1_allowed_ingredients (API unidentified 시 보조 판정)
+# ---------------------------------------------------------------------------
+
+
+def _query_db_allowed_fallback(
+    normalized: str,
+) -> tuple[Verdict, Optional[str], Optional[str]]:
+    """API가 unidentified를 반환했을 때 f1_allowed_ingredients 테이블을 보조 조회.
+
+    name_ko 정규화 비교(strip + 소문자)로 exact match. 폴백 소스이므로
+    miss/오류 시 ("unidentified", None, None) 반환.
+
+    Returns:
+        (verdict, law_source, conditions)
+    """
+    if not normalized:
+        return "unidentified", None, None
+    try:
+        from db.supabase_client import get_supabase  # lazy import
+
+        supabase = get_supabase()
+        rows = (
+            supabase.table("f1_allowed_ingredients")
+            .select("name_ko, allowed_status, conditions, law_source")
+            .execute()
+            .data
+        )
+        if not rows:
+            return "unidentified", None, None
+
+        norm_lower = normalized.strip().lower()
+        for row in rows:
+            db_name = (row.get("name_ko") or "").strip().lower()
+            if db_name == norm_lower:
+                status = (row.get("allowed_status") or "").strip()
+                law = row.get("law_source") or None
+                conditions = row.get("conditions") or None
+                if status == "permitted":
+                    return "allowed", law, None
+                if status == "restricted":
+                    return "restricted", law, conditions
+        return "unidentified", None, None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Step B DB fallback failed for '%s': %s — returning unidentified",
+            normalized,
+            exc,
+        )
+        return "unidentified", None, None
+
+
+# ---------------------------------------------------------------------------
 # DataGoKrClient 팩토리 (테스트에서 monkeypatch 가능)
 # ---------------------------------------------------------------------------
 
@@ -754,11 +806,50 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
         setattr(ing, "match_method", match_method)
         verdict, law_source, warning_template = _resolve_verdict_by_category(exact_item)
 
-        ing.allow_verdict = verdict
         ing.law_source = law_source
 
+        if verdict == "unidentified":
+            # API miss → f1_allowed_ingredients DB 폴백
+            db_verdict, db_law, db_cond = await asyncio.to_thread(
+                _query_db_allowed_fallback, normalized
+            )
+            if db_verdict != "unidentified":
+                verdict = db_verdict
+                law_source = db_law
+                warning_template = (
+                    f"{{name}}: {db_cond}" if db_cond and db_verdict == "restricted" else None
+                )
+                ing.law_source = law_source
+                logger.info(
+                    "Step B DB fallback hit: '%s' → %s (source: f1_allowed_ingredients)",
+                    normalized,
+                    verdict,
+                )
+        elif verdict == "allowed":
+            # API → allowed 이지만 DB에 restricted 등재 시 사용 제한 우선 적용.
+            # 사례: 과라나·은행·하수오 등 15094202가 "사용가능"으로 반환하나
+            #       식품공전 [별표2]에 조건부 제한이 있는 원료.
+            db_verdict, db_law, db_cond = await asyncio.to_thread(
+                _query_db_allowed_fallback, normalized
+            )
+            if db_verdict == "restricted":
+                verdict = "restricted"
+                law_source = db_law or law_source
+                warning_template = f"{{name}}: {db_cond}" if db_cond else None
+                ing.law_source = law_source
+                logger.info(
+                    "Step B DB restriction upgrade: '%s' allowed→restricted (별표2)",
+                    normalized,
+                )
+
+        ing.allow_verdict = verdict
+
         if verdict in ("allowed", "restricted"):
-            ing.source_api = DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value
+            ing.source_api = (
+                DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value
+                if exact_item is not None
+                else "db_fallback"
+            )
             if warning_template:
                 warnings.append(warning_template.format(name=ing.name))
             if verdict == "restricted":

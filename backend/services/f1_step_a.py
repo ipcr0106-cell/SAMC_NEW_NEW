@@ -36,8 +36,12 @@ logger = logging.getLogger(__name__)
 
 
 def _normalize(s: str) -> str:
-    """공백 제거 + 소문자 변환 (DB 매칭 정규화)."""
-    return s.strip().lower()
+    """공백(앞뒤+내부) 모두 제거 + 소문자 변환 (DB 매칭 정규화).
+
+    내부 공백 제거 이유: DB의 '코카 잎'(공백 있음)과 입력의 '코카잎'(공백 없음)을
+    동일 원료로 인식하기 위함.
+    """
+    return s.strip().lower().replace(" ", "")
 
 
 def _flatten_ingredients(ingredients: list[Ingredient]) -> list[Ingredient]:

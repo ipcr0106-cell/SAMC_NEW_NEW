@@ -484,28 +484,31 @@ async def _fetch_all_specs_for_ingredient(
         .omc/research/f1_api_15111777_filter_issue.md
         backend/scripts/f1_sync_safetydata.py
     """
-    from services.safetydata_client import lookup_food_code
+    from services.safetydata_client import lookup_food_additive
 
     # 결함 #1 수정: Silent masking 제거 — 예외를 catch하지 않고 전파.
     # 호출부(run_step_c)의 asyncio.gather 가 return_exceptions=True 로 수집하여
     # api_error 사유로 처리한다.
-    records = await lookup_food_code(name)
+    # 식품첨가물공전(f1_safetydata_food_additive)만 조회 — 식품공전 전체
+    # (f1_safetydata_food_code)를 조회하면 쌀·사과 등 일반 원료에도 기준치가
+    # 반환되어 전부 review_needed 오판되는 Bug 1 회귀를 유발한다.
+    records = await lookup_food_additive(name)
 
     aggregated: list[AdditiveSpec] = []
     for r in records:
         raw = {
-            "PC_KOR_NM": r.item_nm,
-            "T_KOR_NM": r.test_artcl,
-            "FNPRT_ITM_NM": r.spcs_artcl,
+            "PC_KOR_NM": r.item_korn_nm,
+            "T_KOR_NM": r.test_artcl_korn_nm,
+            "FNPRT_ITM_NM": r.spcs_artcl_nm,
             "SPEC_VAL": r.crtr_spcfct_vl,
-            "SPEC_VAL_SUMUP": r.spcfct_vl_smry,
+            "SPEC_VAL_SUMUP": r.crtr_spcfct_vl_smry,
             "MIMM_VAL": r.min_vl,
             "MXMM_VAL": r.max_vl,
             "UNIT_NM": r.unit_nm,
             "INJRY_YN": r.hzr_yn,
-            "VALD_BEGN_DT": r.vld_strt_ymd,
-            "VALD_END_DT": r.vld_end_ymd,
-            "SORC": "식품공전",
+            "VALD_BEGN_DT": None,
+            "VALD_END_DT": None,
+            "SORC": r.src or "식품첨가물공전",
         }
         try:
             aggregated.append(AdditiveSpec.model_validate(raw))
@@ -570,8 +573,18 @@ async def run_step_c(
     """
     # ingredients 사전 필터: prohibited 는 Step A/B 종료 흐름에서 제외됐어야 하나
     # 방어적으로 skip (03번 §3-1)
+    # Step C = 식품첨가물 기준규격 조회:
+    #   - restricted / unidentified → 항상 포함 (조건 또는 미지 원료)
+    #   - allowed + 식품첨가물 출처 → 포함 (사용량 기준 확인 필요)
+    #   - allowed + 식품원료(별표1)/db_fallback → 제외 (첨가물 기준 없음)
+    #   - prohibited / permitted → 제외
     target_ingredients: list[Ingredient] = [
-        ing for ing in ingredients if (getattr(ing, "allow_verdict", None) != "prohibited")
+        ing for ing in ingredients
+        if getattr(ing, "allow_verdict", None) in ("restricted", "unidentified")
+        or (
+            getattr(ing, "allow_verdict", None) == "allowed"
+            and "식품첨가물" in (getattr(ing, "law_source", None) or "")
+        )
     ]
 
     if not target_ingredients:
