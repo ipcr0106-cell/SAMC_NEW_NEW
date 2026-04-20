@@ -350,11 +350,13 @@ async def run_feature1_v2(
         step_a = await f1_step_a.run_step_a(ingredients, client=client)
         if step_a.api_errors:
             warnings.extend(f"step_a_api_error:{e}" for e in step_a.api_errors)
+        if getattr(step_a, "warnings", None):
+            warnings.extend(step_a.warnings)
         if step_a.forbidden_hits:
             evidence_external_data.append(
                 {
                     "step": "A",
-                    "source": "f1_forbidden_ingredients + 15111777",
+                    "source": "f1_forbidden_ingredients (DB)",
                     "forbidden_hits": [h.model_dump() for h in step_a.forbidden_hits],
                 }
             )
@@ -388,6 +390,8 @@ async def run_feature1_v2(
         api_call_stats = dict(step_b.api_call_stats)
         if step_b.unidentified:
             warnings.extend(f"step_b_unidentified:{n}" for n in step_b.unidentified)
+        if getattr(step_b, "warnings", None):
+            warnings.extend(step_b.warnings)
 
         enriched = step_b.enriched_ingredients or list(ingredients)
 
@@ -403,7 +407,7 @@ async def run_feature1_v2(
         evidence_external_data.append(
             {
                 "step": "B",
-                "source": "15111777 + 15094202 + 15111913",
+                "source": "15094202 + 15111913 (P6-b: 15111777 제거)",
                 "enriched_summary": [
                     {
                         "name": getattr(i, "name", ""),

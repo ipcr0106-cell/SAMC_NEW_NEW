@@ -1,6 +1,14 @@
-"""Step D — 법령 인용 (W2-D 본체, 2026-04-20 P6 재작성).
+"""Step D — 법령 인용 (W2-D 본체, 2026-04-20 P7 관련도 가드).
 
-설계 변경:
+P7 (2026-04-20) — 관련도 가드 도입:
+    - stopword 필터 ({"제품","식품","원료","물","염",...}) + 최소길이 (한글 2/영문 3)
+    - 가중치: food_type ×3, ingredient_name ×2, 기타 ×1
+    - namespace 라우팅: 일반식품 기본 food_code_text, ingredient_codes 시 첨가물,
+      food_type "건강기능"·"기능성" 힌트 또는 profile_flags 로 opt-in
+    - score < 0.2 (가중 매칭 20%) 컷
+    - tie-break: 점수 DESC → 본문 length DESC (의미 있는 본문 우선)
+
+설계 변경 (P6 계승):
     이전: Pinecone 5 namespace 임베딩 검색 (OpenAI embed + search_multi)
     현재: law.go.kr DRF 본문을 Postgres f1_law_articles 에 캐시 적재 후
           pg_trgm/ILIKE 다중 키워드 매칭
@@ -62,6 +70,88 @@ _NAMESPACES: list[str] = [
     "functional_labeling",
 ]
 
+# ─────────────────────────────────────────────────────────────
+# P7 (2026-04-20) — 법령 인용 관련도 가드
+#
+# 배경:
+#   P6 까지 ILIKE 부분문자열 매칭 + namespace 별 PARTITION top_k 로
+#   "밀가루" 쿼리에 건기식/한시기준 별표가 섞여 반환되는 회귀 발생.
+#   stopword·가중치·threshold·tie-break·namespace routing 을 한꺼번에
+#   도입해 무관 인용을 차단한다.
+# ─────────────────────────────────────────────────────────────
+
+# 너무 일반적이어서 거의 모든 법령 본문에 히트하는 토큰 (noise 키워드 제거)
+_STOPWORDS: frozenset[str] = frozenset({
+    "제품", "식품", "원료", "물", "염", "분말", "혼합물",
+    "기타", "일반", "성분", "첨가물", "가공", "제조", "함유", "사용",
+})
+
+# 의미 있는 매칭 보장: 한글은 2자, 영문/숫자 혼합은 3자 이상
+_MIN_LEN_HANGUL = 2
+_MIN_LEN_LATIN = 3
+
+# 점수 컷 — 전체 가중 합 대비 20% 미만 매칭은 무관 인용으로 간주해 제거
+_MIN_SCORE = 0.2
+
+# 키워드 가중치 — food_type (핵심 분류) > ingredient_name > 기타
+_W_FOOD_TYPE = 3
+_W_INGREDIENT_NAME = 2
+_W_DEFAULT = 1
+
+# 일반식품 기본 namespace — food_type/ingredient_codes/profile_flags 로 확장
+_NAMESPACE_DEFAULT: list[str] = ["food_code_text"]
+
+
+def _has_hangul(s: str) -> bool:
+    return any("\uac00" <= c <= "\ud7a3" for c in s)
+
+
+def _is_valid_keyword(kw: str) -> bool:
+    """stopword 제외, 최소길이 필터."""
+    kw = kw.strip()
+    if not kw or kw in _STOPWORDS:
+        return False
+    min_len = _MIN_LEN_HANGUL if _has_hangul(kw) else _MIN_LEN_LATIN
+    return len(kw) >= min_len
+
+
+def _select_namespaces(ctx: "QueryContext") -> list[str]:
+    """product profile 기반 검색 대상 namespace 선별.
+
+    - 기본: food_code_text
+    - ingredient_codes 있으면: additive_code_text 추가 (첨가물 공전)
+    - food_type 에 "건강기능"/"건강보조": health_food_text
+    - food_type 에 "기능성"/"기능성표시": functional_labeling
+    - profile_flags 로 명시 opt-in 시: health_food / functional_labeling / temporary_standard
+
+    순서 유지 + dedup.
+    """
+    selected: list[str] = list(_NAMESPACE_DEFAULT)
+    if getattr(ctx, "ingredient_codes", None):
+        selected.append("additive_code_text")
+
+    ft = (ctx.food_type or "")
+    if "건강기능" in ft or "건강보조" in ft:
+        selected.append("health_food_text")
+    if "기능성" in ft:
+        selected.append("functional_labeling")
+
+    for flag in (getattr(ctx, "profile_flags", None) or []):
+        if flag == "health_food":
+            selected.append("health_food_text")
+        elif flag == "functional_labeling":
+            selected.append("functional_labeling")
+        elif flag == "temporary_standard":
+            selected.append("temporary_standard")
+
+    seen: set[str] = set()
+    out: list[str] = []
+    for ns in selected:
+        if ns in _NAMESPACES and ns not in seen:
+            seen.add(ns)
+            out.append(ns)
+    return out or list(_NAMESPACE_DEFAULT)
+
 
 def _dsn() -> Optional[str]:
     return os.environ.get("DATABASE_URL") or os.environ.get("F1_DATABASE_URL")
@@ -85,20 +175,28 @@ def build_query(ctx: QueryContext) -> str:
     return " / ".join(parts) or "수입식품 일반"
 
 
-def _extract_keywords(ctx: QueryContext) -> list[str]:
-    """QueryContext → ILIKE 매칭용 키워드 리스트.
+def _extract_keywords(ctx: QueryContext) -> list[tuple[str, int]]:
+    """QueryContext → (키워드, 가중치) 리스트.
+
+    P7 (2026-04-20):
+        - stopword 제거 + 최소길이 (한글 2 / 영문·숫자 3) 필터
+        - food_type × 3, ingredient_name × 2, 기타 × 1 가중치
+        - 중복 키워드는 최대 가중치로 dedup
 
     P6 (2026-04-20):
-        - ingredient_names / ingredient_codes 추가 (밀가루 같은 원재료명·코드 직접 매칭)
-        - failed_standards "name:test" 형태는 ':' 로 분해해 양쪽 토큰 모두 키워드화
-
-    중복 제거, 길이 < 2 토큰 제외 (의미 있는 매칭 보장).
+        - ingredient_names / ingredient_codes 추가 (원재료명·코드 직접 매칭)
+        - failed_standards "name:test" 형태는 ':' 로 분해
     """
+    food_type = (ctx.food_type or "").strip()
+    ingredient_names: set[str] = {
+        n.strip() for n in (getattr(ctx, "ingredient_names", []) or []) if n
+    }
+
     raw: list[str] = []
-    if ctx.food_type:
-        raw.append(ctx.food_type)
-    raw.extend(getattr(ctx, "ingredient_names", []) or [])
-    raw.extend(getattr(ctx, "ingredient_codes", []) or [])
+    if food_type:
+        raw.append(food_type)
+    raw.extend(ingredient_names)
+    raw.extend(c for c in (getattr(ctx, "ingredient_codes", []) or []) if c)
     for h in ctx.forbidden_hits:
         if h.ingredient_name:
             raw.append(h.ingredient_name)
@@ -111,26 +209,34 @@ def _extract_keywords(ctx: QueryContext) -> list[str]:
         else:
             raw.append(s)
 
-    seen: set[str] = set()
-    out: list[str] = []
+    weighted: dict[str, int] = {}
     for k in raw:
         k = k.strip()
-        if len(k) < 2 or k in seen:
+        if not _is_valid_keyword(k):
             continue
-        seen.add(k)
-        out.append(k)
-    return out
+        if food_type and k == food_type:
+            w = _W_FOOD_TYPE
+        elif k in ingredient_names:
+            w = _W_INGREDIENT_NAME
+        else:
+            w = _W_DEFAULT
+        # 같은 키워드가 여러 역할로 들어오면 최대 가중치 유지
+        if w > weighted.get(k, 0):
+            weighted[k] = w
+
+    return list(weighted.items())
 
 
-def _build_search_sql(num_keywords: int, top_k_per_ns: int) -> str:
-    """동적 SQL — 키워드 K개 → ILIKE OR + match-count 합산.
+def _build_search_sql(weights: list[int], top_k_per_ns: int) -> str:
+    """동적 SQL — 키워드 K개 + 가중치 → ILIKE OR + 가중 합산.
 
     PARTITION BY namespace 로 namespace 별 top_k_per_ns 보장.
+    tie-break: 가중 매칭합 DESC → 본문 length DESC (P7: 의미 있는 본문 우선).
     """
-    placeholders = " OR ".join(f"a.text ILIKE ${i+2}" for i in range(num_keywords))
-    match_sum = " + ".join(
-        f"(CASE WHEN a.text ILIKE ${i+2} THEN 1 ELSE 0 END)"
-        for i in range(num_keywords)
+    placeholders = " OR ".join(f"a.text ILIKE ${i+2}" for i in range(len(weights)))
+    weighted_sum = " + ".join(
+        f"(CASE WHEN a.text ILIKE ${i+2} THEN {w} ELSE 0 END)"
+        for i, w in enumerate(weights)
     )
     return f"""
     SELECT * FROM (
@@ -140,10 +246,10 @@ def _build_search_sql(num_keywords: int, top_k_per_ns: int) -> str:
             a.id::text         AS chunk_id,
             a.article_label,
             a.text,
-            ({match_sum})::int AS m,
+            ({weighted_sum})::int AS m,
             ROW_NUMBER() OVER (
                 PARTITION BY c.namespace
-                ORDER BY ({match_sum}) DESC, length(a.text) ASC
+                ORDER BY ({weighted_sum}) DESC, length(a.text) DESC
             ) AS rn
         FROM f1_law_articles a
         JOIN f1_law_cache c ON c.id = a.law_cache_id
@@ -151,17 +257,21 @@ def _build_search_sql(num_keywords: int, top_k_per_ns: int) -> str:
           AND ({placeholders})
     ) sub
     WHERE sub.rn <= {top_k_per_ns}
-    ORDER BY sub.m DESC, length(sub.text) ASC
+    ORDER BY sub.m DESC, length(sub.text) DESC
     """
 
 
-async def _search(keywords: list[str], top_k: int) -> list[dict]:
-    """키워드 ILIKE 매칭 — 키워드 0개면 빈 리스트 (P6: fallback 제거).
+async def _search(
+    kw_weights: list[tuple[str, int]],
+    namespaces: list[str],
+    top_k: int,
+) -> list[dict]:
+    """가중 키워드 ILIKE 매칭 — 키워드 0개 또는 namespace 0개면 빈 리스트.
 
-    fallback (각 namespace 첫 1건) 은 무관 article 을 반환해 사용자에게
-    혼란을 주므로 제거했다. 키워드가 비어 있으면 정직하게 인용 없음.
+    fallback (각 namespace 첫 1건) 은 무관 article 을 반환하므로 P6 에서 제거.
+    namespace 선별은 호출자 (`_select_namespaces`) 책임.
     """
-    if not keywords:
+    if not kw_weights or not namespaces:
         return []
 
     dsn = _dsn()
@@ -169,11 +279,14 @@ async def _search(keywords: list[str], top_k: int) -> list[dict]:
         logger.warning("Step D: DATABASE_URL 미설정 — citations=[]")
         return []
 
+    keywords = [k for k, _ in kw_weights]
+    weights = [w for _, w in kw_weights]
+
     conn = await asyncpg.connect(dsn, statement_cache_size=0, command_timeout=15)
     try:
-        sql = _build_search_sql(len(keywords), top_k_per_ns=top_k)
+        sql = _build_search_sql(weights, top_k_per_ns=top_k)
         patterns = [f"%{k}%" for k in keywords]
-        rows = await conn.fetch(sql, _NAMESPACES, *patterns)
+        rows = await conn.fetch(sql, namespaces, *patterns)
         return [dict(r) for r in rows]
     finally:
         await conn.close()
@@ -192,12 +305,16 @@ async def run_step_d(
     Returns:
         StepDResult — citations (LawCitation 리스트). 판정 주도 없음.
     """
-    keywords = _extract_keywords(query_context)
+    kw_weights = _extract_keywords(query_context)
+    namespaces = _select_namespaces(query_context)
     query_text = build_query(query_context)
-    logger.debug("Step D 쿼리: %s (keywords=%s)", query_text, keywords)
+    logger.debug(
+        "Step D 쿼리: %s (keywords=%s, namespaces=%s)",
+        query_text, kw_weights, namespaces,
+    )
 
     try:
-        rows = await _search(keywords, top_k=top_k)
+        rows = await _search(kw_weights, namespaces, top_k=top_k)
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "Step D 검색 실패 (%s: %s) — citations=[], 파이프라인 계속",
@@ -209,10 +326,13 @@ async def run_step_d(
     if not rows:
         return StepDResult(citations=[])
 
-    n_kw = max(len(keywords), 1)
+    total_weight = sum(w for _, w in kw_weights) or 1
     citations: list[LawCitation] = []
     for r in rows:
-        score = float(r["m"]) / n_kw if keywords else 0.0
+        score = float(r["m"]) / total_weight
+        # P7: min_score 컷 — 20% 미만 가중 매칭은 무관 인용으로 간주해 제거
+        if score < _MIN_SCORE:
+            continue
         citations.append(
             LawCitation(
                 chunk_id=r["chunk_id"],
@@ -224,8 +344,8 @@ async def run_step_d(
             )
         )
 
-    citations.sort(key=lambda c: c.score, reverse=True)
+    citations.sort(key=lambda c: (c.score, len(c.text)), reverse=True)
     citations = citations[:top_k]
 
-    logger.debug("Step D 완료: %d건 반환", len(citations))
+    logger.debug("Step D 완료: %d건 반환 (threshold=%.2f)", len(citations), _MIN_SCORE)
     return StepDResult(citations=citations)
