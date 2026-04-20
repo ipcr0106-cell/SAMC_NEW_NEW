@@ -145,11 +145,12 @@ export interface Feature3Result {
 
 export interface LabelIssue {
   text: string;           // 문제 문구 원문
-  location?: string;      // 라벨 내 위치
+  evidence?: string;      // 판정 근거 (라벨 텍스트 원문 또는 시각 요소)
+  location?: string;      // 라벨 상 위치 설명
+  reason: string;         // 삭제/수정 이유
+  law_ref: string;        // 근거 법령
+  law_excerpt?: string;   // 근거 법령 원문 구절
   severity: "must_fix" | "review_needed";
-  law_ref?: string;       // 관련 법령
-  reason?: string;        // 위반 이유
-  law_excerpt?: string;   // 참고 법령 원문
 }
 
 export interface ImageIssue {
