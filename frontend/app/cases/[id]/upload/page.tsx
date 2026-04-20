@@ -34,6 +34,7 @@ import {
   getParsedResult,
   getLabelImages,
   getFeature1,
+  getFeature2,
   getFeature3,
   getFeature4,
   runFeature1,
@@ -195,6 +196,7 @@ export default function UploadPage() {
 
   // 파이프라인 결과 (미니바용)
   const [f1Data, setF1Data] = useState<Record<string, unknown> | null>(null);
+  const [f2Data, setF2Data] = useState<Record<string, unknown> | null>(null);
   const [f3Data, setF3Data] = useState<Record<string, unknown> | null>(null);
   const [f4Data, setF4Data] = useState<Record<string, unknown> | null>(null);
 
@@ -246,6 +248,8 @@ export default function UploadPage() {
           const f1 = await getFeature1(caseId);
           if (f1?.ai_result || f1?.final_result) {
             setF1Data(f1);
+            const f2 = await getFeature2(caseId).catch(() => null);
+            if (f2) setF2Data(f2);
             const f3 = await getFeature3(caseId).catch(() => null);
             if (f3) setF3Data(f3);
             const f4 = await getFeature4(caseId).catch(() => null);
@@ -393,6 +397,8 @@ export default function UploadPage() {
     updateStep("f2", { status: "running" });
     try {
       await runFeature2(caseId);
+      const f2r = await getFeature2(caseId).catch(() => null);
+      if (f2r) setF2Data(f2r);
       updateStep("f2", { status: "done" });
     } catch (e) {
       console.error("[F2]", e);
@@ -481,7 +487,6 @@ export default function UploadPage() {
   // 뷰 1: 파이프라인 실행 중
   // ═══════════════════════════════════════════
   if (view === "running") {
-    const ingredients = parsedData?.ingredients || [];
     return (
       <div className="max-w-[1440px] mx-auto px-6 py-6">
         {/* 제목 */}
@@ -496,19 +501,8 @@ export default function UploadPage() {
         </div>
 
         <div className="flex gap-6 items-start">
-          {/* 좌측: 업로드된 서류 (흐릿하게, 클릭 불가) */}
-          <div className="w-[37%] shrink-0 opacity-30 pointer-events-none select-none">
-            <Card padding="lg">
-              <DocumentUploadGrid
-                onFileSelect={handleFileSelect}
-                restoredFiles={restoredFileNames}
-                onFileDelete={handleFileDelete}
-              />
-            </Card>
-          </div>
-
-          {/* 우측: 진행 상태 + 파싱 정보 미리보기 */}
-          <div className="flex-1 min-w-0 flex flex-col gap-4">
+          {/* 전체 너비: 진행 상태 + 파싱 정보 미리보기 */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4 max-w-3xl mx-auto">
             {/* 로딩 헤더 */}
             {(() => {
               const currentStep = pipelineSteps.find(s => s.status === "running");
@@ -603,47 +597,6 @@ export default function UploadPage() {
               ))}
             </div>
 
-            {/* 파싱된 제품 정보 미리보기 */}
-            {parsedData && (
-              <div className="rounded-xl border p-4 space-y-4"
-                style={{ borderColor: "var(--ds-color-border)", background: "var(--ds-color-bg)" }}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] mb-1" style={{ color: "var(--ds-color-text-tertiary)" }}>제품명</p>
-                    <p className="text-[15px] font-bold" style={{ color: "var(--ds-color-text-heading)" }}>
-                      {parsedData.basic_info.product_name || caseName || "—"}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[11px] mb-1" style={{ color: "var(--ds-color-text-tertiary)" }}>원산지</p>
-                    <p className="text-[14px] font-semibold" style={{ color: "var(--ds-color-text-secondary)" }}>
-                      {parsedData.basic_info.export_country || "—"}
-                    </p>
-                  </div>
-                </div>
-
-                {ingredients.length > 0 && (
-                  <div>
-                    <p className="text-[11px] mb-2" style={{ color: "var(--ds-color-text-tertiary)" }}>
-                      원재료 {ingredients.length}종
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {ingredients.map((ing, i) => (
-                        <span key={i}
-                          className="text-[12px] px-2.5 py-1 rounded-full"
-                          style={{
-                            background: "var(--ds-color-surface)",
-                            color: "var(--ds-color-text-secondary)",
-                            border: "1px solid var(--ds-color-border-subtle)",
-                          }}>
-                          {ing.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -661,8 +614,10 @@ export default function UploadPage() {
     const f1Ingredients = (f1Result?.ingredients as Array<Record<string, unknown>>) || [];
 
     // F3 요약
-    const f3Result = (f3Data?.final_result || f3Data?.ai_result) as Record<string, unknown> | null;
-    const f3Docs = (f3Result?.documents as Array<Record<string, unknown>>) || [];
+    const f3Result = (f3Data?.final_result || f3Data?.ai_result || f3Data) as Record<string, unknown> | null;
+    const f3SubmitDocs = (f3Result?.submit_docs as Array<Record<string, unknown>>) || [];
+    const f3KeepDocs = (f3Result?.keep_docs as Array<Record<string, unknown>>) || [];
+    const f3Docs = [...f3SubmitDocs, ...f3KeepDocs];
     const f3Mandatory = f3Docs.filter(d => d.is_mandatory).length;
 
     // F4 요약
@@ -692,40 +647,18 @@ export default function UploadPage() {
                 <button
                   onClick={() => handleDownload("docx")}
                   disabled={downloading}
-                  className="flex items-center gap-1.5 text-[13px] font-semibold px-4 py-2 rounded-lg transition-all disabled:opacity-60"
-                  style={{ background: "var(--ds-color-primary)", color: "#fff" }}
-                  onMouseEnter={e => { if (!downloading) e.currentTarget.style.background = "#005FDB"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--ds-color-primary)"; }}
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors disabled:opacity-50"
                 >
-                  {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
                   DOCX
                 </button>
                 <button
                   onClick={() => handleDownload("pdf")}
                   disabled={downloading}
-                  className="flex items-center gap-1.5 text-[13px] font-semibold px-4 py-2 rounded-lg transition-all disabled:opacity-60"
-                  style={{ background: "var(--ds-color-primary)", color: "#fff" }}
-                  onMouseEnter={e => { if (!downloading) e.currentTarget.style.background = "#005FDB"; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = "var(--ds-color-primary)"; }}
+                  className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-colors disabled:opacity-50"
                 >
-                  <Download size={14} /> PDF
-                </button>
-                <button
-                  onClick={() => setView("upload")}
-                  className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-2 rounded-lg border transition-all"
-                  style={{ color: "var(--ds-color-text-secondary)", borderColor: "var(--ds-color-border)", background: "var(--ds-color-bg)" }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = "var(--ds-color-surface)";
-                    e.currentTarget.style.borderColor = "var(--ds-color-border-strong)";
-                    e.currentTarget.style.color = "var(--ds-color-text-heading)";
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = "var(--ds-color-bg)";
-                    e.currentTarget.style.borderColor = "var(--ds-color-border)";
-                    e.currentTarget.style.color = "var(--ds-color-text-secondary)";
-                  }}
-                >
-                  <UploadCloud size={14} /> 재업로드
+                  {downloading ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+                  PDF
                 </button>
               </div>
             </div>
@@ -736,7 +669,7 @@ export default function UploadPage() {
         </div>
 
         {/* ── 우측 미니바 ── */}
-        <div className="w-[240px] shrink-0 space-y-2 sticky top-[72px] self-start">
+        <div className="w-[240px] shrink-0 space-y-2 sticky top-[72px] self-start max-h-[calc(100vh-90px)] overflow-y-auto">
           <p className="text-[11px] font-semibold mb-3 tracking-wide"
             style={{ color: "var(--ds-color-text-tertiary)" }}>
             분석 결과
@@ -855,10 +788,26 @@ export default function UploadPage() {
           <MiniBarSection
             title="F2 식품유형"
             onEdit={() => router.push(`/cases/${caseId}/f2?from=view`)}
+            statusIcon={(() => {
+              const f2r = (f2Data as Record<string, unknown> | null);
+              const f2Result = (f2r?.final_result ?? f2r?.ai_result) as Record<string, unknown> | null;
+              return f2Result?.food_type ? <CheckCircle size={13} style={{ color: "var(--ds-color-success)" }} /> : undefined;
+            })()}
           >
-            <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>
-              F1 판정 후 식품유형 분류
-            </p>
+            {(() => {
+              const f2r = (f2Data as Record<string, unknown> | null);
+              const f2Result = (f2r?.final_result ?? f2r?.ai_result) as Record<string, unknown> | null;
+              const foodType = f2Result?.food_type as string | undefined;
+              const category = f2Result?.category_name as string | undefined;
+              return foodType ? (
+                <div className="space-y-1">
+                  <span className="text-[13px] font-bold" style={{ color: "var(--ds-color-text-heading)" }}>{foodType}</span>
+                  {category && <p className="text-[11px]" style={{ color: "var(--ds-color-text-tertiary)" }}>{category}</p>}
+                </div>
+              ) : (
+                <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>F1 판정 후 식품유형 분류</p>
+              );
+            })()}
           </MiniBarSection>
 
           {/* F3 필요서류 */}
@@ -954,7 +903,6 @@ export default function UploadPage() {
           </button>
 
           {/* 실무자 최종 확정 포탈 마운트 포인트 */}
-          <div id="f5-confirm-portal" />
         </div>
       </div>
     );
@@ -1017,21 +965,6 @@ export default function UploadPage() {
             <LabelImageCard caseId={caseId} images={labelImages} loading={labelImagesLoading} />
           )}
 
-          {showParseButton && (
-            <Button variant="primary" size="lg"
-              icon={parsing ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
-              onClick={handleParse} disabled={parsing} className="w-full">
-              {parsing ? "AI 분석 중..." : `OCR 분석 시작 (${uploadedCount}개 파일)`}
-            </Button>
-          )}
-
-          {showReParseButton && (
-            <Button variant="primary" size="lg"
-              icon={parsing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
-              onClick={handleParse} disabled={parsing} className="w-full">
-              {parsing ? "AI 재분석 중..." : newUploadsSinceParse > 0 ? `재분석 (${newUploadsSinceParse}개 변경됨)` : "재분석"}
-            </Button>
-          )}
 
           {parseStatus === "error" && parseError && (
             <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)" }}>
@@ -1056,6 +989,8 @@ export default function UploadPage() {
             extractionErrors={extractionErrors}
             externalLabelImages={labelImages.length > 0 ? labelImages : undefined}
             externalLabelImagesLoading={labelImagesLoading}
+            onParse={handleParse}
+            isParsing={parsing}
           />
         </div>
       </div>
@@ -1081,19 +1016,6 @@ export default function UploadPage() {
               </span>
             </div>
             <div className="flex items-center gap-3">
-              {(showParseButton || showReParseButton) && (
-                <Button variant="primary" size="lg"
-                  icon={parsing ? <Loader2 size={16} className="animate-spin" />
-                    : showReParseButton ? <RefreshCw size={16} /> : <Play size={16} />}
-                  onClick={handleParse} disabled={parsing}>
-                  {parsing ? "AI 분석 중..." : showReParseButton ? "재분석" : `OCR 분석 시작 (${uploadedCount}개)`}
-                </Button>
-              )}
-              <Button variant="secondary" size="md"
-                icon={saving ? <Loader2 size={16} className="animate-spin" /> : undefined}
-                onClick={handleSaveDraft} disabled={!parsedData || saving}>
-                임시 저장
-              </Button>
               <Button variant="primary" size="lg"
                 icon={<Play size={18} />}
                 onClick={handleStartPipeline}

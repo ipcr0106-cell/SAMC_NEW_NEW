@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ScanSearch, FileText, FileDown, Loader2, AlertTriangle } from "lucide-react";
+import { ScanSearch, FileText, FileDown, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import BasicInfoCard from "./BasicInfoCard";
 import IngredientTable, { Ingredient } from "./IngredientTable";
 import ProcessCodeCard, { type ProcessCodeCandidate, type ProcessStep } from "./ProcessCodeCard";
 import LabelInfoCard from "./LabelInfoCard";
 import LabelImageCard from "@/components/upload/LabelImageCard";
-import Badge from "@/components/ui/Badge";
 import { downloadParsedResultFile, getLabelImages, type LabelImageData } from "@/lib/api";
 
 interface ProcessCodeReason {
@@ -75,6 +74,10 @@ interface OcrResultEditorProps {
    *  제공 시 내부 fetch를 생략하고 이 값을 그대로 사용. */
   externalLabelImages?: LabelImageData[];
   externalLabelImagesLoading?: boolean;
+  /** OCR 분석 시작 콜백 */
+  onParse?: () => void;
+  /** OCR 분석 중 여부 */
+  isParsing?: boolean;
 }
 
 export default function OcrResultEditor({
@@ -85,6 +88,8 @@ export default function OcrResultEditor({
   extractionErrors,
   externalLabelImages,
   externalLabelImagesLoading,
+  onParse,
+  isParsing,
 }: OcrResultEditorProps) {
   const [exporting, setExporting] = useState<"docx" | "pdf" | null>(null);
 
@@ -414,12 +419,6 @@ export default function OcrResultEditor({
     [notifyParent]
   );
 
-  const statusBadge = {
-    idle: { variant: "slate" as const, text: "분석 대기" },
-    parsing: { variant: "blue" as const, text: "분석 중..." },
-    done: { variant: "green" as const, text: "분석 완료" },
-    error: { variant: "red" as const, text: "분석 실패" },
-  }[parseStatus];
 
   return (
     <div className="flex flex-col h-full">
@@ -439,6 +438,18 @@ export default function OcrResultEditor({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {parseStatus === "done" && onParse && (
+            <button
+              type="button"
+              onClick={onParse}
+              disabled={isParsing}
+              className="inline-flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+              style={{ background: "var(--ds-color-primary, #2563eb)" }}
+            >
+              {isParsing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              <span>OCR 재분석</span>
+            </button>
+          )}
           {parseStatus === "done" && caseId && (
             <>
               <button
@@ -471,9 +482,6 @@ export default function OcrResultEditor({
               </button>
             </>
           )}
-          <Badge variant={statusBadge.variant} size="md">
-            {statusBadge.text}
-          </Badge>
         </div>
       </div>
 
@@ -488,15 +496,25 @@ export default function OcrResultEditor({
         </div>
       )}
 
-      {/* 대기 상태 */}
+      {/* 대기 상태 — 분석 시작 버튼 */}
       {parseStatus === "idle" && (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <ScanSearch size={24} className="text-slate-400" />
+          <div className="text-center max-w-sm">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <ScanSearch size={28} className="text-blue-500" />
             </div>
-            <p className="text-sm font-medium text-slate-600">서류를 업로드한 후 OCR 분석을 시작하세요</p>
-            <p className="text-xs text-slate-400 mt-1">업로드된 서류에서 성분, 공정, 라벨 정보를 자동 추출합니다</p>
+            <p className="text-base font-semibold text-slate-700 mb-2">서류를 업로드한 후 OCR 분석을 시작하세요</p>
+            <p className="text-sm text-slate-400 mb-6">업로드된 서류에서 성분, 공정, 라벨 정보를 자동 추출합니다</p>
+            {onParse && (
+              <button
+                onClick={onParse}
+                disabled={isParsing}
+                className="w-full py-3.5 px-6 rounded-xl text-base font-semibold text-white transition-all disabled:opacity-60"
+                style={{ background: "var(--ds-color-primary, #2563eb)" }}
+              >
+                {isParsing ? "AI 분석 중..." : "OCR 분석 시작"}
+              </button>
+            )}
           </div>
         </div>
       )}

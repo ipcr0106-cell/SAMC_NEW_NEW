@@ -222,7 +222,7 @@ async def export_parsed_pdf(
 
     fname = _export_filename(product_name, case_id, "pdf")
     return Response(
-        content=data,
+        content=bytes(data),
         media_type="application/pdf",
         headers={"Content-Disposition": _content_disposition(fname)},
     )
@@ -510,13 +510,17 @@ async def _llm_suggest_ingredient_names(raw_name: str) -> list[str]:
                         "한국 식약처 성분코드 DB에 등록되어 있을 법한 "
                         "공식 한국어 성분명 후보를 최대 5개 추천하세요.\n"
                         "중요: 식약처 DB에는 일상 명칭이 아닌 공식 화학명/법정명으로 등록됩니다.\n"
+                        "DB의 명명 패턴: '에스터'→'에스테르', '수크로스'→'자당', "
+                        "'모노글리세리드'→'글리세린지방산에스테르' 등 식약처 고유 표기를 사용합니다.\n"
                         "예시:\n"
                         "- 이산화황/Sulphur dioxide → 무수아황산\n"
                         "- 물/Water → 정제수\n"
                         "- 설탕/Sugar → 백설탕, 설탕\n"
                         "- Grape based Wine → 포도, 포도주\n"
                         "- Citric acid → 구연산\n"
-                        "동의어, 유사명, 상위/하위 카테고리명도 포함하세요.\n"
+                        "- 수크로스 지방산 에스터 → 자당지방산에스테르\n"
+                        "- 지방산의 모노글리세리드 → 글리세린지방산에스테르\n"
+                        "동의어, 유사명, 상위/하위 카테고리명, 식약처 고유 표기를 모두 포함하세요.\n"
                         "반드시 한 줄에 하나씩, 한국어 성분명만 출력하세요."
                     ),
                 },
@@ -626,15 +630,18 @@ async def _enrich_ingredient_codes(parsed_result) -> object:
             # 3) LLM fallback: 기존 검색 모두 실패 시 LLM에게 공식 성분명 추천받아 재검색
             if not relevant:
                 llm_names = await _llm_suggest_ingredient_names(raw_name)
+                seen_codes: set[str] = set()
                 for llm_name in llm_names:
+                    # auto 모드: 완전일치 + ilike 부분매칭
                     llm_result = await search_ingredient_codes(
                         query=llm_name,
-                        top_k=3,
-                        search_mode="exact",
+                        top_k=5,
+                        search_mode="auto",
                     )
                     for r in llm_result.results:
-                        if r.code not in {x.code for x in relevant}:
+                        if r.code not in seen_codes:
                             relevant.append(r)
+                            seen_codes.add(r.code)
                 if relevant:
                     logger.warning(f"LLM fallback 성공: {raw_name} → {[r.name_ko for r in relevant]}")
 
