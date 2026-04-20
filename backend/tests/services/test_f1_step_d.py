@@ -23,8 +23,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from models.f1_types import ForbiddenHit, QueryContext, StepDResult
+from common.result import Result
 from services.f1_step_d import (
-    _MIN_SCORE,
     _NAMESPACES,
     _extract_keywords,
     _is_valid_keyword,
@@ -210,13 +210,22 @@ class TestSelectNamespaces:
 # ────────────────────────────────────────────────────────────
 
 
-def _mock_row(ns: str, m: int, text_len: int, chunk_id: str = "c1") -> dict:
-    """_search 가 반환하는 dict 형태 모사."""
+def _mock_row(
+    ns: str,
+    m: int,
+    text_len: int,
+    chunk_id: str = "c1",
+    article_label: str | None = None,
+) -> dict:
+    """_search 가 반환하는 dict 형태 모사.
+
+    article_label 미지정 시 chunk_id 기반으로 고유값을 생성해 dedup 충돌을 방지.
+    """
     return {
         "namespace": ns,
         "law_name": "식품의 기준 및 규격",
         "chunk_id": chunk_id,
-        "article_label": "제1조",
+        "article_label": article_label if article_label is not None else f"제{chunk_id}조",
         "text": "가" * text_len,
         "m": m,
     }
@@ -228,8 +237,8 @@ class TestRunStepD:
         """키워드가 모두 stopword/짧아서 제거되면 citations=[]."""
         with patch("services.f1_step_d._search", new=AsyncMock(return_value=[])) as mock_s:
             result = await run_step_d(QueryContext(food_type="물"), top_k=5)
-        assert isinstance(result, StepDResult)
-        assert result.citations == []
+        assert result.is_ok()
+        assert result.value.citations == []
         # 키워드 0개 → _search 는 호출되지만 빈 리스트 반환
         mock_s.assert_awaited_once()
 
@@ -237,26 +246,29 @@ class TestRunStepD:
     async def test_db_failure_returns_empty(self):
         with patch("services.f1_step_d._search", new=AsyncMock(side_effect=RuntimeError("db down"))):
             result = await run_step_d(QueryContext(food_type="빵류"), top_k=5)
-        assert result.citations == []
+        assert result.is_err()
 
     @pytest.mark.asyncio
-    async def test_min_score_cut(self):
-        """min_score=0.2 미만 row 는 제거된다."""
+    async def test_min_score_cut(self, monkeypatch):
+        """min_score=0.4 미만 row 는 제거된다 (기본값 0.4 기준)."""
         # food_type=빵류 (weight=3) 만 있으면 total_weight=3.
-        # m=1 → score=1/3≈0.33 ≥ 0.2 통과
-        # m=0 은 SQL WHERE 에서 제외되지만 혹시 row 로 오더라도 컷해야 한다.
+        # m=3 → score=1.0 ≥ 0.4 통과
+        # m=1 → score=1/3≈0.33 < 0.4 → 컷
+        # m=0 → score=0.0 < 0.4 → 컷
+        monkeypatch.setenv("F1_STEP_D_MIN_SCORE", "0.4")
         rows = [
             _mock_row("food_code_text", m=3, text_len=200, chunk_id="hi"),   # 1.00
-            _mock_row("food_code_text", m=1, text_len=150, chunk_id="mid"),  # 0.33
-            _mock_row("food_code_text", m=0, text_len=100, chunk_id="lo"),   # 0.00 < 0.2
+            _mock_row("food_code_text", m=1, text_len=150, chunk_id="mid"),  # 0.33 < 0.4
+            _mock_row("food_code_text", m=0, text_len=100, chunk_id="lo"),   # 0.00 < 0.4
         ]
         with patch("services.f1_step_d._search", new=AsyncMock(return_value=rows)):
             result = await run_step_d(QueryContext(food_type="빵류"), top_k=5)
 
-        ids = [c.chunk_id for c in result.citations]
+        assert result.is_ok()
+        ids = [c.chunk_id for c in result.value.citations]
         assert "hi" in ids
-        assert "mid" in ids
-        assert "lo" not in ids, f"score<{_MIN_SCORE} row 가 남아있음"
+        assert "mid" not in ids
+        assert "lo" not in ids
 
     @pytest.mark.asyncio
     async def test_length_desc_tiebreak(self):
@@ -268,7 +280,8 @@ class TestRunStepD:
         with patch("services.f1_step_d._search", new=AsyncMock(return_value=rows)):
             result = await run_step_d(QueryContext(food_type="빵류"), top_k=5)
 
-        assert [c.chunk_id for c in result.citations] == ["long", "short"]
+        assert result.is_ok()
+        assert [c.chunk_id for c in result.value.citations] == ["long", "short"]
 
     @pytest.mark.asyncio
     async def test_score_computed_against_total_weight(self):
@@ -280,8 +293,9 @@ class TestRunStepD:
         with patch("services.f1_step_d._search", new=AsyncMock(return_value=rows)):
             result = await run_step_d(ctx, top_k=5)
 
-        assert len(result.citations) == 1
-        assert result.citations[0].score == pytest.approx(1.0)
+        assert result.is_ok()
+        assert len(result.value.citations) == 1
+        assert result.value.citations[0].score == pytest.approx(1.0)
 
     @pytest.mark.asyncio
     async def test_top_k_limits_after_merge(self):
@@ -295,9 +309,10 @@ class TestRunStepD:
         with patch("services.f1_step_d._search", new=AsyncMock(return_value=rows)):
             result = await run_step_d(ctx, top_k=2)
 
-        assert len(result.citations) == 2
+        assert result.is_ok()
+        assert len(result.value.citations) == 2
         # score DESC 정렬
-        scores = [c.score for c in result.citations]
+        scores = [c.score for c in result.value.citations]
         assert scores == sorted(scores, reverse=True)
 
     @pytest.mark.asyncio
@@ -313,3 +328,81 @@ class TestRunStepD:
             await run_step_d(QueryContext(food_type="빵류"), top_k=5)
 
         assert captured["namespaces"] == ["food_code_text"]
+
+    # ────────────────────────────────────────────────────────────
+    # 신규 테스트 (Wave A Phase 2)
+    # ────────────────────────────────────────────────────────────
+
+    @pytest.mark.asyncio
+    async def test_min_score_env_override(self, monkeypatch):
+        """F1_STEP_D_MIN_SCORE=0.9 설정 시 score=0.5 citation 은 컷된다."""
+        monkeypatch.setenv("F1_STEP_D_MIN_SCORE", "0.9")
+        # food_type=빵류 (weight=3) → total_weight=3
+        # m=3 → score=1.0 ≥ 0.9 통과, m=2 → score≈0.67 < 0.9 컷
+        rows = [
+            _mock_row("food_code_text", m=2, text_len=200, chunk_id="cut"),   # 0.67 < 0.9
+            _mock_row("food_code_text", m=3, text_len=200, chunk_id="pass"),  # 1.0 ≥ 0.9
+        ]
+        with patch("services.f1_step_d._search", new=AsyncMock(return_value=rows)):
+            result = await run_step_d(QueryContext(food_type="빵류"), top_k=5)
+
+        assert result.is_ok()
+        ids = [c.chunk_id for c in result.value.citations]
+        assert "pass" in ids
+        assert "cut" not in ids
+
+    @pytest.mark.asyncio
+    async def test_dedup_same_article(self, monkeypatch):
+        """동일 (law_name, article_no) 조합이 2건 들어오면 score 높은 1건만 반환."""
+        monkeypatch.setenv("F1_STEP_D_MIN_SCORE", "0.0")
+        rows = [
+            {
+                "namespace": "food_code_text",
+                "law_name": "식품의 기준 및 규격",
+                "chunk_id": "low_score",
+                "article_label": "제3조",
+                "text": "가" * 100,
+                "m": 1,
+            },
+            {
+                "namespace": "food_code_text",
+                "law_name": "식품의 기준 및 규격",
+                "chunk_id": "high_score",
+                "article_label": "제3조",
+                "text": "가" * 200,
+                "m": 3,
+            },
+        ]
+        with patch("services.f1_step_d._search", new=AsyncMock(return_value=rows)):
+            result = await run_step_d(QueryContext(food_type="빵류"), top_k=5)
+
+        assert result.is_ok()
+        assert len(result.value.citations) == 1
+        assert result.value.citations[0].chunk_id == "high_score"
+
+    @pytest.mark.asyncio
+    async def test_top_k_global_applied(self, monkeypatch):
+        """F1_STEP_D_TOP_K_GLOBAL=2 설정 시 최대 2건만 반환."""
+        monkeypatch.setenv("F1_STEP_D_TOP_K_GLOBAL", "2")
+        monkeypatch.setenv("F1_STEP_D_MIN_SCORE", "0.0")
+        rows = [
+            _mock_row("food_code_text", m=3, text_len=300, chunk_id="a"),
+            _mock_row("food_code_text", m=3, text_len=250, chunk_id="b"),
+            _mock_row("food_code_text", m=3, text_len=200, chunk_id="c"),
+            _mock_row("food_code_text", m=3, text_len=150, chunk_id="d"),
+        ]
+        with patch("services.f1_step_d._search", new=AsyncMock(return_value=rows)):
+            # top_k=None → 환경변수 2 사용
+            result = await run_step_d(QueryContext(food_type="빵류"))
+
+        assert result.is_ok()
+        assert len(result.value.citations) == 2
+
+    @pytest.mark.asyncio
+    async def test_db_failure_returns_result_err(self):
+        """asyncpg.connect 예외 발생 시 Result.err 반환, reason에 '검색 실패' 포함."""
+        with patch("services.f1_step_d._search", new=AsyncMock(side_effect=RuntimeError("conn refused"))):
+            result = await run_step_d(QueryContext(food_type="빵류"), top_k=5)
+
+        assert result.is_err()
+        assert "Step D 검색 실패" in result._reason

@@ -831,7 +831,7 @@ class TestPickExactComponentItem:
             {"CPNT_CD": "DIFFERENT", "KOR_NM": "대두"},  # 이름 매칭은 되지만 코드 틀림
             {"CPNT_CD": "A1000001000000", "KOR_NM": "오타"},  # 코드 정확 일치
         ]
-        matched = _pick_exact_component_item(ing, "대두", items)
+        matched, _ = _pick_exact_component_item(ing, "대두", items)
         assert matched["CPNT_CD"] == "A1000001000000"
 
     def test_kor_nm_match_when_no_f0_code(self):
@@ -840,29 +840,33 @@ class TestPickExactComponentItem:
             {"CPNT_CD": "OTHER", "KOR_NM": "다른이름"},
             {"CPNT_CD": "B3000035000000", "KOR_NM": "에탄올"},
         ]
-        matched = _pick_exact_component_item(ing, "에탄올", items)
+        matched, _ = _pick_exact_component_item(ing, "에탄올", items)
         assert matched["CPNT_CD"] == "B3000035000000"
 
     def test_kor_nm_strip_matching(self):
         ing = Ingredient(name="대두")
         items = [{"CPNT_CD": "X", "KOR_NM": " 대두"}]
-        matched = _pick_exact_component_item(ing, "대두", items)
+        matched, _ = _pick_exact_component_item(ing, "대두", items)
         assert matched is not None
 
     def test_eng_nm_fallback(self):
         ing = Ingredient(name="ethanol")
         items = [{"CPNT_CD": "X", "KOR_NM": "에탄올", "ENG_NM": "ETHANOL"}]
-        matched = _pick_exact_component_item(ing, "ethanol", items)
+        matched, _ = _pick_exact_component_item(ing, "ethanol", items)
         assert matched["CPNT_CD"] == "X"
 
     def test_no_match_returns_none(self):
         ing = Ingredient(name="없는원료")
         items = [{"CPNT_CD": "X", "KOR_NM": "다른것"}]
-        assert _pick_exact_component_item(ing, "없는원료", items) is None
+        matched, mm = _pick_exact_component_item(ing, "없는원료", items)
+        assert matched is None
+        assert mm is None
 
     def test_empty_items_returns_none(self):
         ing = Ingredient(name="대두")
-        assert _pick_exact_component_item(ing, "대두", []) is None
+        matched, mm = _pick_exact_component_item(ing, "대두", [])
+        assert matched is None
+        assert mm is None
 
 
 # ============================================================
@@ -1082,3 +1086,134 @@ class TestRunStepBCategoryBased:
         await run_step_b([Ingredient(name="대두")])
         ingd_calls = [c for c in client.calls if c[0] == "15111777"]
         assert len(ingd_calls) == 0
+
+
+# ============================================================
+# Phase 2 신규 — match_method, _safe_call Result, gather timeout
+# ============================================================
+
+
+class TestMatchMethod:
+    """_pick_exact_component_item 의 match_method 반환 + run_step_b ing.match_method 설정."""
+
+    def test_match_method_exact(self):
+        """F0 코드(ingredient_code_f0 == CPNT_CD) 매칭 → match_method == 'exact'."""
+        ing = Ingredient(name="대두", ingredient_code_f0="A1000001000000")
+        items = [{"CPNT_CD": "A1000001000000", "KOR_NM": "대두"}]
+        _, mm = _pick_exact_component_item(ing, "대두", items)
+        assert mm == "exact"
+
+    def test_match_method_normalized(self):
+        """KOR_NM 정확 일치(F0 코드 없음) → match_method == 'normalized'."""
+        ing = Ingredient(name="에탄올")
+        items = [{"CPNT_CD": "B3000035000000", "KOR_NM": "에탄올"}]
+        _, mm = _pick_exact_component_item(ing, "에탄올", items)
+        assert mm == "normalized"
+
+    def test_match_method_eng(self):
+        """ENG_NM case-insensitive 매칭 → match_method == 'fuzzy'."""
+        ing = Ingredient(name="ethanol")
+        items = [{"CPNT_CD": "X", "KOR_NM": "에탄올", "ENG_NM": "ETHANOL"}]
+        _, mm = _pick_exact_component_item(ing, "ethanol", items)
+        assert mm == "fuzzy"
+
+    def test_match_method_none(self):
+        """매칭 없음 → match_method is None."""
+        ing = Ingredient(name="없는원료")
+        items = [{"CPNT_CD": "X", "KOR_NM": "다른것"}]
+        _, mm = _pick_exact_component_item(ing, "없는원료", items)
+        assert mm is None
+
+
+@pytest.mark.asyncio
+class TestMatchMethodIntegration:
+    """run_step_b 반환 Ingredient 에 match_method 가 실제로 설정되는지 확인."""
+
+    async def test_match_method_set_on_ingredient_exact(self):
+        """F0 코드 매칭 경로 → ing.match_method == 'exact'."""
+        client = FakeClient(
+            component={
+                "대두": {
+                    "items": [
+                        {
+                            "CPNT_CD": "A1000001000000",
+                            "KOR_NM": "대두",
+                            "CPNT_LCLS_CD_NM": "식품원료",
+                            "USE_DIVS_CD_NM": "사용가능",
+                        }
+                    ],
+                    "total_count": 1,
+                }
+            },
+        )
+        set_client_for_test(client)
+
+        ing = Ingredient(name="대두", ingredient_code_f0="A1000001000000")
+        result = await run_step_b([ing])
+        out = result.enriched_ingredients[0]
+        assert getattr(out, "match_method", "__missing__") == "exact"
+
+    async def test_match_method_none_on_unidentified(self):
+        """매칭 없음 → ing.match_method is None."""
+        client = FakeClient()
+        set_client_for_test(client)
+
+        result = await run_step_b([Ingredient(name="가공의원재료X")])
+        out = result.enriched_ingredients[0]
+        assert getattr(out, "match_method", "__missing__") is None
+
+
+@pytest.mark.asyncio
+class TestSafeCallReturnsResult:
+    """_safe_call 이 Result 타입을 반환하는지 확인."""
+
+    async def test_safe_call_returns_result_err(self, monkeypatch):
+        """API 예외 발생 시 Result.err 반환 확인."""
+        from common.result import Result
+        from services.f1_step_b import _safe_call
+
+        async def _raise(*args, **kwargs):
+            raise DataGoKrError("boom", endpoint="15094202")
+
+        result = await _safe_call(_raise(), "15094202", "대두")
+        assert result.is_err()
+        assert "15094202" in result.reason
+        assert "대두" in result.reason
+
+    async def test_safe_call_returns_result_ok(self):
+        """정상 응답 시 Result.ok 반환 확인."""
+        from common.result import Result
+        from services.f1_step_b import _safe_call
+
+        async def _ok():
+            return {"items": [], "total_count": 0}
+
+        result = await _safe_call(_ok(), "15094202", "대두")
+        assert result.is_ok()
+        endpoint_id, name, payload = result._value
+        assert endpoint_id == "15094202"
+        assert name == "대두"
+        assert payload == {"items": [], "total_count": 0}
+
+
+@pytest.mark.asyncio
+class TestGatherTimeout:
+    """asyncio.wait_for 가 TimeoutError 를 전파하는지 확인."""
+
+    async def test_gather_timeout(self, monkeypatch):
+        """asyncio.wait_for 를 mock 하여 TimeoutError 전파 확인."""
+        import asyncio as _asyncio
+        import services.f1_step_b as _mod
+
+        async def _timeout_wait_for(coro, timeout):
+            raise _asyncio.TimeoutError("mocked timeout")
+
+        monkeypatch.setattr(_asyncio, "wait_for", _timeout_wait_for)
+
+        client = FakeClient(
+            component={"대두": {"items": [], "total_count": 0}},
+        )
+        set_client_for_test(client)
+
+        with pytest.raises(_asyncio.TimeoutError):
+            await run_step_b([Ingredient(name="대두")])

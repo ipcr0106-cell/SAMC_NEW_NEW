@@ -22,8 +22,9 @@ import logging
 import os
 from typing import Any, Optional
 
+from common.result import Result
 from models.f1_law_citation import ConflictStatus, RagJudgement
-from models.f1_types import F1Output, MeasuredValue, QueryContext
+from models.f1_types import F1Output, MeasuredValue, QueryContext, StepDResult
 from models.judgment import (Feature1Output, Ingredient, LawReference,
                                      ProcessConditions)
 from services import f1_rag_judge
@@ -371,7 +372,13 @@ async def run_feature1_v2(
                     if getattr(i, "name", "")
                 ],
             )
-            step_d = await f1_step_d.run_step_d(query_ctx)
+            _step_d_result = await f1_step_d.run_step_d(query_ctx)
+            step_d = _step_d_result.unwrap_or(StepDResult(citations=[]))
+            if _step_d_result.is_err():
+                logger.warning("Step D 실패 — citations=[]: %s", _step_d_result._reason)
+                warnings.append("pipeline_status:partial")
+            else:
+                warnings.append("pipeline_status:ok")
             return F1Output(
                 verdict="prohibited",
                 confidence=0.95,
@@ -445,7 +452,13 @@ async def run_feature1_v2(
                     if getattr(i, "component_code", None)
                 ],
             )
-            step_d = await f1_step_d.run_step_d(query_ctx)
+            _step_d_result = await f1_step_d.run_step_d(query_ctx)
+            step_d = _step_d_result.unwrap_or(StepDResult(citations=[]))
+            if _step_d_result.is_err():
+                logger.warning("Step D 실패 — citations=[]: %s", _step_d_result._reason)
+                warnings.append("pipeline_status:partial")
+            else:
+                warnings.append("pipeline_status:ok")
             return F1Output(
                 verdict="prohibited",
                 confidence=0.85,
@@ -511,8 +524,17 @@ async def run_feature1_v2(
                 if getattr(i, "component_code", None)
             ],
         )
-        step_d = await f1_step_d.run_step_d(query_ctx)
+        _step_d_result = await f1_step_d.run_step_d(query_ctx)
+        step_d = _step_d_result.unwrap_or(StepDResult(citations=[]))
+        if _step_d_result.is_err():
+            logger.warning("Step D 실패 — citations=[]: %s", _step_d_result._reason)
         evidence_laws = [c.model_dump() for c in step_d.citations]
+
+        # ── pipeline_status 결정 ──────────────────────────────
+        if _step_d_result.is_err() or step_b.unidentified:
+            warnings.append("pipeline_status:partial")
+        else:
+            warnings.append("pipeline_status:ok")
 
         # ── Verdict 결정 ──────────────────────────────────────
         if step_c.overall_status == "fail":

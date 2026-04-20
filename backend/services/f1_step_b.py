@@ -35,6 +35,8 @@ import os
 import re
 from typing import Any, Iterable, List, Literal, Optional, Tuple
 
+from common.match_method import MatchMethod
+from common.result import Result
 from constants.thresholds_config import is_synthetic_flavor
 from exceptions import DataGoKrError
 from models.f1_types import DataGoKrEndpoint, StepBResult
@@ -215,34 +217,34 @@ def _pick_exact_component_item(
     ing: Ingredient,
     normalized: str,
     comp_items: List[dict],
-) -> Optional[dict]:
+) -> Tuple[Optional[dict], Optional[MatchMethod]]:
     """15094202 응답에서 정확 매칭 1건 선택.
 
     우선순위 (P6-b):
-        1. F0 성분코드(`ingredient_code_f0`) == `CPNT_CD` (정확 매칭)
-        2. `KOR_NM.strip()` == `normalized`
-        3. `ENG_NM.strip().lower()` == `normalized.lower()`
+        1. F0 성분코드(`ingredient_code_f0`) == `CPNT_CD` (정확 매칭) → "exact"
+        2. `KOR_NM.strip()` == `normalized`                            → "normalized"
+        3. `ENG_NM.strip().lower()` == `normalized.lower()`            → "fuzzy"
 
     Returns:
-        매칭된 아이템 또는 None.
+        (매칭된 아이템 또는 None, MatchMethod 또는 None).
     """
     if not comp_items:
-        return None
+        return None, None
 
     code_f0 = (ing.ingredient_code_f0 or "").strip()
     if code_f0:
         for it in comp_items:
             if (it.get("CPNT_CD") or "").strip() == code_f0:
-                return it
+                return it, "exact"
 
     norm_lower = normalized.lower()
     for it in comp_items:
         if (it.get("KOR_NM") or "").strip() == normalized:
-            return it
+            return it, "normalized"
     for it in comp_items:
         if (it.get("ENG_NM") or "").strip().lower() == norm_lower and norm_lower:
-            return it
-    return None
+            return it, "fuzzy"
+    return None, None
 
 
 def _resolve_verdict_by_category(
@@ -572,11 +574,11 @@ def set_client_for_test(client: Optional[DataGoKrClient]) -> None:
 
 async def _safe_call(
     coro: Any, endpoint_id: str, name: str
-) -> Tuple[str, str, Any]:
-    """개별 API 호출 래퍼. 예외 격리 (return_exceptions=True 와 함께 사용)."""
+) -> "Result[Tuple[str, str, Any]]":
+    """개별 API 호출 래퍼. Result 타입 반환으로 예외를 명시적으로 표현."""
     try:
-        result = await coro
-        return (endpoint_id, name, result)
+        payload = await coro
+        return Result.ok((endpoint_id, name, payload))
     except DataGoKrError as exc:
         logger.warning(
             "Step B %s lookup failed (endpoint=%s, name=%s): %s",
@@ -585,10 +587,10 @@ async def _safe_call(
             name,
             exc,
         )
-        return (endpoint_id, name, exc)
+        return Result.err(f"{endpoint_id}:{name}:{exc}")
     except Exception as exc:  # pragma: no cover - defensive
         logger.exception("Step B %s unexpected error on %s", endpoint_id, name)
-        return (endpoint_id, name, exc)
+        return Result.err(f"{endpoint_id}:{name}:{exc}")
 
 
 async def _fetch_all(
@@ -621,14 +623,18 @@ async def _fetch_all(
                 n,
             )
         )
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.wait_for(
+        asyncio.gather(*tasks, return_exceptions=True), timeout=60.0
+    )
     out: dict[Tuple[str, str], Any] = {}
-    for item in results:
-        if isinstance(item, BaseException):
-            # gather 가 return_exceptions=True 인데 _safe_call 자체가 예외를 감쌌다
-            # 는 것은 None 은 아님. 방어적으로 continue.
+    for result in results:
+        if isinstance(result, BaseException):
+            # _safe_call 외부에서 발생한 예외 — 방어적으로 skip
             continue
-        endpoint_id, name, payload = item
+        if result.is_err():
+            logger.warning("Step B API call failed: %s", result.reason)
+            continue
+        endpoint_id, name, payload = result._value
         out[(endpoint_id, name)] = payload
     return out
 
@@ -710,6 +716,7 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
             unidentified.append(ing.name or "")
             ing.allow_verdict = "unidentified"
             ing.source_api = None
+            setattr(ing, "match_method", None)
             enriched.append(ing)
             continue
 
@@ -717,6 +724,7 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
         if is_synthetic_flavor(normalized):
             ing.allow_verdict = "unidentified"
             ing.source_api = None
+            setattr(ing, "match_method", None)
             if ing.name not in unidentified:
                 unidentified.append(ing.name)
             enriched.append(ing)
@@ -742,7 +750,8 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
             ]
 
         # ── 15094202 정확 매칭 + 카테고리 기반 verdict ────────────
-        exact_item = _pick_exact_component_item(ing, normalized, comp_items)
+        exact_item, match_method = _pick_exact_component_item(ing, normalized, comp_items)
+        setattr(ing, "match_method", match_method)
         verdict, law_source, warning_template = _resolve_verdict_by_category(exact_item)
 
         ing.allow_verdict = verdict

@@ -285,9 +285,18 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
                 }
             )
 
-    # ── fail_reasons: warnings + step A forbidden_hits ────────
-    fail_reasons: list[str] = []
+    # ── pipeline_status: warnings 에서 내부 신호 추출 ─────────
+    pipeline_status = "ok"
+    filtered_warnings: list[str] = []
     for w in out.warnings:
+        if w.startswith("pipeline_status:"):
+            pipeline_status = w.split(":", 1)[1]
+        else:
+            filtered_warnings.append(w)
+
+    # ── fail_reasons: filtered_warnings + step A forbidden_hits ──
+    fail_reasons: list[str] = []
+    for w in filtered_warnings:
         fail_reasons.append(w)
     if step_a_data:
         for h in step_a_data.get("forbidden_hits", []):
@@ -440,10 +449,11 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
         seen_refs.add(src)
         internal_law_refs.append({"law_source": src, "law_article": None})
 
-    # escalations: warnings 를 EscalationDetail 형태로 파싱
+    # escalations: filtered_warnings 를 EscalationDetail 형태로 파싱
     # 예: "step_a_api_error:대두:TIMEOUT" → module_id="step_a_api_error", reason=전체 문자열
+    # pipeline_status:* 내부 신호는 filtered_warnings 에서 이미 제거됨
     internal_escalations: list[dict] = []
-    for w in out.warnings:
+    for w in filtered_warnings:
         module_id = w.split(":")[0] if ":" in w else w
         internal_escalations.append(
             {
@@ -460,6 +470,7 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
         "import_possible": import_possible,
         "fail_reasons": fail_reasons,
         "standards_check": standards_slim,
+        "pipeline_status": pipeline_status,
         "_internal": {
             "evidence_laws": out.evidence_laws,
             "gmo_ingredients": out.gmo_ingredients,

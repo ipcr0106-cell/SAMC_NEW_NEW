@@ -67,13 +67,14 @@ def _query_db_forbidden(
 ) -> list[dict]:
     """Supabase `f1_forbidden_ingredients` 테이블에서 금지 원료 조회.
 
-    name_ko 컬럼과 정규화(strip + lowercase) 후 비교.
+    name_ko, name_en, aliases 컬럼과 정규화(strip + lowercase) 후 비교.
     테이블 크기가 소규모(<200행)이므로 전체 조회 후 Python 필터.
+    매칭 경로(name_ko / name_en / alias)를 row['matched_by'] 에 기록하여 반환.
     """
     supabase = get_supabase()
     rows = (
         supabase.table("f1_forbidden_ingredients")
-        .select("name_ko, reason, law_source")
+        .select("name_ko, name_en, aliases, reason, law_source")
         .execute()
         .data
     )
@@ -86,10 +87,33 @@ def _query_db_forbidden(
 
     for row in rows:
         db_name_ko: str = row.get("name_ko", "") or ""
-        db_norm = _normalize(db_name_ko)
-        if db_norm and db_norm in names_set and db_name_ko not in seen:
+        db_name_en: str = row.get("name_en", "") or ""
+        db_aliases: list = row.get("aliases") or []
+
+        if db_name_ko in seen:
+            continue
+
+        matched_by: str | None = None
+
+        # 경로 1: name_ko 정규화 비교
+        if db_name_ko and _normalize(db_name_ko) in names_set:
+            matched_by = "name_ko"
+        # 경로 2: name_en 정규화 비교 (대소문자 무관)
+        elif db_name_en and _normalize(db_name_en) in names_set:
+            matched_by = "name_en"
+        # 경로 3: aliases 리스트 내 항목 비교
+        else:
+            for alias in db_aliases:
+                alias_str = str(alias) if alias is not None else ""
+                if alias_str and _normalize(alias_str) in names_set:
+                    matched_by = "alias"
+                    break
+
+        if matched_by is not None:
             seen.add(db_name_ko)
-            hits.append(row)
+            hit = dict(row)
+            hit["matched_by"] = matched_by
+            hits.append(hit)
 
     return hits
 
@@ -171,8 +195,24 @@ async def run_step_a(
     db_hits: list[ForbiddenHit] = []
     for row in db_rows:
         db_name_ko: str = row.get("name_ko", "") or ""
-        db_norm = _normalize(db_name_ko)
-        ingredient_name = norm_to_original.get(db_norm, db_name_ko)
+        db_name_en: str = row.get("name_en", "") or ""
+        matched_by: str = row.get("matched_by", "name_ko")
+
+        # 매칭 경로에 따라 입력 원재료명 복원
+        if matched_by == "name_en" and db_name_en:
+            ingredient_name = norm_to_original.get(_normalize(db_name_en), db_name_en)
+        elif matched_by == "alias":
+            # alias 경로: aliases 중 실제 매칭된 항목을 역탐색
+            db_aliases: list = row.get("aliases") or []
+            ingredient_name = db_name_ko  # 기본값
+            for alias in db_aliases:
+                alias_str = str(alias) if alias is not None else ""
+                if alias_str and _normalize(alias_str) in norm_to_original:
+                    ingredient_name = norm_to_original[_normalize(alias_str)]
+                    break
+        else:
+            ingredient_name = norm_to_original.get(_normalize(db_name_ko), db_name_ko)
+
         db_hits.append(
             ForbiddenHit(
                 ingredient_name=ingredient_name,

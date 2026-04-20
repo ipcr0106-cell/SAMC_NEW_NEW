@@ -493,6 +493,71 @@ class TestRunStepA:
         assert result.forbidden_hits[0].ingredient_name == "아편"
 
     # ------------------------------------------------------------------
+    # #7: aliases 경로 — "마리화나" 입력이 aliases=['마리화나']인 대마초 레코드에 hit
+    # ------------------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_alias_hit_마리화나(self) -> None:
+        db_rows = [
+            {
+                "name_ko": "대마초",
+                "name_en": "Cannabis",
+                "aliases": ["마리화나", "대마"],
+                "reason": "마약류관리법",
+                "law_source": "law-002",
+            }
+        ]
+        with _patch_supabase(db_rows):
+            result = await run_step_a([Ingredient(name="마리화나")])
+
+        assert result.stopped is True
+        assert len(result.forbidden_hits) == 1
+        assert result.forbidden_hits[0].matched_name == "대마초"
+        assert result.forbidden_hits[0].source == "db"
+
+    # ------------------------------------------------------------------
+    # #8a: name_en 경로 — "Cannabis" 영문 입력이 name_en="Cannabis" 레코드에 hit
+    # ------------------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_english_name_hit_cannabis(self) -> None:
+        db_rows = [
+            {
+                "name_ko": "대마초",
+                "name_en": "Cannabis",
+                "aliases": [],
+                "reason": "마약류관리법",
+                "law_source": "law-002",
+            }
+        ]
+        with _patch_supabase(db_rows):
+            result = await run_step_a([Ingredient(name="Cannabis")])
+
+        assert result.stopped is True
+        assert len(result.forbidden_hits) == 1
+        assert result.forbidden_hits[0].matched_name == "대마초"
+        assert result.forbidden_hits[0].source == "db"
+
+    # ------------------------------------------------------------------
+    # #8b: name_en 대소문자 무관 — "cannabis" 소문자도 hit
+    # ------------------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_case_insensitive_english(self) -> None:
+        db_rows = [
+            {
+                "name_ko": "대마초",
+                "name_en": "Cannabis",
+                "aliases": [],
+                "reason": "마약류관리법",
+                "law_source": "law-002",
+            }
+        ]
+        with _patch_supabase(db_rows):
+            result = await run_step_a([Ingredient(name="cannabis")])
+
+        assert result.stopped is True
+        assert len(result.forbidden_hits) == 1
+        assert result.forbidden_hits[0].matched_name == "대마초"
+
+    # ------------------------------------------------------------------
     # API 응답에 여러 건 — 하나라도 불가면 hit
     # P6-b: API 제거 — skip.
     # ------------------------------------------------------------------

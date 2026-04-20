@@ -57,6 +57,7 @@ from typing import Optional
 
 import asyncpg
 
+from common.result import Result
 from models.f1_types import LawCitation, QueryContext, StepDResult
 
 logger = logging.getLogger(__name__)
@@ -89,9 +90,6 @@ _STOPWORDS: frozenset[str] = frozenset({
 # 의미 있는 매칭 보장: 한글은 2자, 영문/숫자 혼합은 3자 이상
 _MIN_LEN_HANGUL = 2
 _MIN_LEN_LATIN = 3
-
-# 점수 컷 — 전체 가중 합 대비 20% 미만 매칭은 무관 인용으로 간주해 제거
-_MIN_SCORE = 0.2
 
 # 키워드 가중치 — food_type (핵심 분류) > ingredient_name > 기타
 _W_FOOD_TYPE = 3
@@ -294,17 +292,23 @@ async def _search(
 
 async def run_step_d(
     query_context: QueryContext,
-    top_k: int = 5,
-) -> StepDResult:
+    top_k: int | None = None,
+) -> "Result[StepDResult]":
     """f1_law_articles 키워드 매칭 → 점수 상위 top_k 인용 반환.
 
     Args:
         query_context: Step A/B/C 결정론적 결과 요약.
-        top_k: 최종 반환 건수. namespace 별 top_k 씩 가져온 뒤 점수 정렬.
+        top_k: 최종 반환 건수. None 이면 F1_STEP_D_TOP_K_GLOBAL 환경변수(기본 3) 사용.
 
     Returns:
-        StepDResult — citations (LawCitation 리스트). 판정 주도 없음.
+        Result[StepDResult] — ok 시 citations (LawCitation 리스트). 판정 주도 없음.
+        DB 장애 시 Result.err 반환.
     """
+    if top_k is None:
+        top_k = int(os.getenv("F1_STEP_D_TOP_K_GLOBAL", "3"))
+
+    min_score = float(os.getenv("F1_STEP_D_MIN_SCORE", "0.4"))
+
     kw_weights = _extract_keywords(query_context)
     namespaces = _select_namespaces(query_context)
     query_text = build_query(query_context)
@@ -321,17 +325,17 @@ async def run_step_d(
             type(exc).__name__,
             exc,
         )
-        return StepDResult(citations=[])
+        return Result.err(f"Step D 검색 실패: {type(exc).__name__}: {exc}")
 
     if not rows:
-        return StepDResult(citations=[])
+        return Result.ok(StepDResult(citations=[]))
 
     total_weight = sum(w for _, w in kw_weights) or 1
     citations: list[LawCitation] = []
     for r in rows:
         score = float(r["m"]) / total_weight
-        # P7: min_score 컷 — 20% 미만 가중 매칭은 무관 인용으로 간주해 제거
-        if score < _MIN_SCORE:
+        # P7: min_score 컷 — 가중 매칭 비율이 min_score 미만이면 무관 인용으로 간주해 제거
+        if score < min_score:
             continue
         citations.append(
             LawCitation(
@@ -344,8 +348,18 @@ async def run_step_d(
             )
         )
 
+    # dedup: 동일 (law_name, article_no) 조합은 score 높은 것 1건만 유지
+    seen_keys: set[tuple] = set()
+    deduped: list[LawCitation] = []
+    for c in sorted(citations, key=lambda x: x.score, reverse=True):
+        key = (c.law_name, c.article_no)
+        if key not in seen_keys:
+            seen_keys.add(key)
+            deduped.append(c)
+    citations = deduped
+
     citations.sort(key=lambda c: (c.score, len(c.text)), reverse=True)
     citations = citations[:top_k]
 
-    logger.debug("Step D 완료: %d건 반환 (threshold=%.2f)", len(citations), _MIN_SCORE)
-    return StepDResult(citations=citations)
+    logger.debug("Step D 완료: %d건 (threshold=%.2f)", len(citations), min_score)
+    return Result.ok(StepDResult(citations=citations))

@@ -486,13 +486,12 @@ async def _fetch_all_specs_for_ingredient(
     """
     from services.safetydata_client import lookup_food_code
 
-    aggregated: list[AdditiveSpec] = []
-    try:
-        records = await lookup_food_code(name)
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.exception("Step C: safetydata lookup failed for %s", name)
-        return aggregated, f"safetydata_error:{exc.__class__.__name__}"
+    # 결함 #1 수정: Silent masking 제거 — 예외를 catch하지 않고 전파.
+    # 호출부(run_step_c)의 asyncio.gather 가 return_exceptions=True 로 수집하여
+    # api_error 사유로 처리한다.
+    records = await lookup_food_code(name)
 
+    aggregated: list[AdditiveSpec] = []
     for r in records:
         raw = {
             "PC_KOR_NM": r.item_nm,
@@ -600,11 +599,17 @@ async def run_step_c(
 
     try:
         # 1) 원재료당 병렬 조회
+        # 결함 #6 수정: 전체 gather 에 60초 타임아웃 적용.
+        # 결함 #1 수정: return_exceptions=True 로 개별 예외를 값으로 수집하여
+        #   Silent masking 없이 api_error 사유로 처리.
         fetch_tasks = [
             _fetch_all_specs_for_ingredient(client, ing.name)
             for ing in target_ingredients
         ]
-        fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=False)
+        fetch_results = await asyncio.wait_for(
+            asyncio.gather(*fetch_tasks, return_exceptions=True),
+            timeout=60.0,
+        )
     finally:
         if owns_client:
             try:
@@ -616,13 +621,25 @@ async def run_step_c(
     all_checks: list[StandardCheck] = []
     review_reasons: list[str] = []
 
-    for ing, (specs, err) in zip(target_ingredients, fetch_results):
+    for ing, fetch_result in zip(target_ingredients, fetch_results):
+        # return_exceptions=True 이므로 예외 인스턴스가 올 수 있음
+        if isinstance(fetch_result, BaseException):
+            logger.exception(
+                "Step C: fetch failed for %s: %s",
+                ing.name,
+                fetch_result,
+                exc_info=fetch_result,
+            )
+            review_reasons.append(
+                f"api_error:{ing.name}:{fetch_result.__class__.__name__}"
+            )
+            continue
+        specs, err = fetch_result
         if err is not None:
             review_reasons.append(f"api_error:{ing.name}:{err}")
             continue
         if not specs:
-            # 기준 0건 — 이 원재료는 checks 에 기록하지 않음 (overall_status 계산에서 제외)
-            # review_reasons 에 누적하지 않음 (03번 §5: no_data 는 담당자 확인이지 review 는 아님)
+            # API 0건 — 기준규격 자체가 없는 물질 (전체 no_data 로 처리)
             continue
 
         # 3) 유효기간 필터
@@ -644,6 +661,7 @@ async def run_step_c(
 
         # 6) 시험항목별 평가
         measured = (measured_values or {}).get(ing.name)
+        ing_checks_before = len(all_checks)
         for test_category, group_specs in grouped.items():
             tc = None if test_category == "__unknown__" else test_category
             check = _evaluate_specs_for_test_category(
@@ -665,6 +683,26 @@ async def run_step_c(
                 if reason not in review_reasons:
                     review_reasons.append(reason)
             all_checks.append(check)
+
+        # 결함 #12 수정: applicable_specs 는 있으나 평가 가능한 시험항목이 전혀 없는
+        # 원재료("기준 있음, 수치 비교 불가")를 checks 에 no_data 로 명시적 기록.
+        # — UI 까지 "기준 없음" 상태가 전달될 수 있도록 한다 (03번 §5).
+        if len(all_checks) == ing_checks_before:
+            all_checks.append(
+                StandardCheck(
+                    ingredient_name=ing.name,
+                    test_category=None,
+                    spec_raw=None,
+                    spec_summary=None,
+                    actual_value=None,
+                    unit_original=None,
+                    unit_normalized=None,
+                    threshold_value=None,
+                    is_dangerous=None,
+                    status="no_data",  # type: ignore[arg-type]
+                    law_ref=None,
+                )
+            )
 
     # 7) overall_status 결정
     overall_status = _decide_overall_status(all_checks)
