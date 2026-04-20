@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter, useParams } from "next/navigation";
-import { ArrowRight, Save } from "lucide-react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { ArrowRight, Save, ChevronLeft } from "lucide-react";
 import StepNavigation from "@/components/layout/StepNavigation";
 import CaseSummaryPanel from "@/components/layout/CaseSummaryPanel";
 import Button from "@/components/ui/Button";
@@ -10,7 +10,9 @@ import LabelDraftPage from "@/features/feature5/LabelDraftPage";
 export default function F5KoreanLabelPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const caseId = params?.id as string;
+  const fromView = searchParams?.get("from") === "view";
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
@@ -32,9 +34,16 @@ export default function F5KoreanLabelPage() {
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="max-w-[1440px] mx-auto px-6">
           <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
-            <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f4`)}>
-              이전: 라벨검토
-            </Button>
+            {fromView ? (
+              <Button variant="secondary" size="md" icon={<ChevronLeft size={16} />}
+                onClick={() => router.push(`/cases/${caseId}/view`)}>
+                결과로 돌아가기
+              </Button>
+            ) : (
+              <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f4`)}>
+                이전: 라벨검토
+              </Button>
+            )}
             <div className="flex items-center gap-3">
               <Button variant="secondary" size="md" icon={<Save size={16} />}>
                 임시 저장
@@ -42,10 +51,10 @@ export default function F5KoreanLabelPage() {
               <Button
                 variant="primary"
                 size="lg"
-                icon={<ArrowRight size={18} />}
-                onClick={() => router.push(`/dashboard`)}
+                icon={fromView ? <ChevronLeft size={18} /> : <ArrowRight size={18} />}
+                onClick={() => router.push(fromView ? `/cases/${caseId}/view` : `/dashboard`)}
               >
-                대시보드로 이동
+                {fromView ? "수정 확정 → 결과 보기" : "대시보드로 이동"}
               </Button>
             </div>
           </div>

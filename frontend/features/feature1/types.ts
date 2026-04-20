@@ -181,24 +181,17 @@ export const CONFLICT_STATUS_LABEL: Record<ConflictStatus, string> = {
   agreed: "DB·RAG 일치",
   conflict: "DB·RAG 충돌",
   rag_supplemented: "RAG 보완 판정",
-  rag_unavailable: "RAG 호출 실패",
-  rag_skipped: "RAG 미호출",
+
+  rag_unavailable: "RAG 사용 불가",
+  rag_skipped: "RAG 생략",
 };
 
-// RAG 판정 라벨
-export const RAG_VERDICT_LABEL: Record<RagVerdict, string> = {
-  permitted: "허용",
-  restricted: "조건부 허용",
-  prohibited: "금지",
-  unidentified: "불명확",
-  error: "판정 오류",
-};
-
-// Pinecone namespace → 한국어 라벨 (법령 종류)
+// 법령 네임스페이스 라벨 (LawCitationList에서 사용)
 export const NAMESPACE_LABEL: Record<string, string> = {
-  additive_code_text: "식품첨가물공전",
-  food_code_text: "식품공전",
-  health_food_text: "건강기능식품공전",
-  temporary_standard: "한시적 기준·규격",
-  functional_labeling: "기능성표시 고시",
+  식품공전: "식품공전",
+  주세법: "주세법",
+  건강기능식품: "건강기능식품법",
+  축산물: "축산물 위생관리법",
+  수입식품: "수입식품안전관리법",
+  default: "기타 법령",
 };

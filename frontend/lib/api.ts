@@ -430,21 +430,21 @@ export const getFeature5 = async (caseId: string) => {
   return res.json();
 };
 
-// ── 더미 데이터 시드 (개발/테스트용) ──────────────────
+// ── 더미 데이터 (개발/테스트용) ──────────────────────
 export const seedDummyData = async (caseId: string) => {
-  const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/seed-dummy`, {
+  const res = await fetch(`${API_BASE}/cases/${caseId}/seed-dummy`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
   });
-  if (!res.ok) throw new Error(`Seed dummy failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Seed dummy data failed: ${res.status}`);
   return res.json();
 };
 
 export const clearDummyData = async (caseId: string) => {
-  const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/seed-dummy`, {
+  const res = await fetch(`${API_BASE}/cases/${caseId}/clear-dummy`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
-  if (!res.ok) throw new Error(`Clear dummy failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Clear dummy data failed: ${res.status}`);
   return res.json();
 };

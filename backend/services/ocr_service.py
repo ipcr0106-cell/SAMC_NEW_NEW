@@ -7,12 +7,7 @@ SAMC 수입식품 검역 AI — OCR / 텍스트 추출 서비스
   - HWP/HWPX → parser-service (kordoc, Node.js) HTTP 호출
   - Excel     → openpyxl로 셀 데이터 읽기
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  임시 전환 안내 (TEMPORARY — 개발/테스트용):
-    Vision OCR은 현재 OpenAI(gpt-4o)를 사용합니다.
-    최종 통합 단계에서는 반드시 Claude Vision으로 롤백할 것.
-    (검색 키워드: "# >>> OPENAI TEMP")
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Vision OCR은 OpenAI(gpt-5.4)를 사용합니다.
 """
 
 from __future__ import annotations
@@ -317,7 +312,7 @@ async def _extract_from_image(image_bytes: bytes, mime_type: str, doc_type: str 
     doc_type='process'이면 제조공정 흐름도 전용 프롬프트(_PROCESS_DIAGRAM_OCR_PROMPT) 사용.
 
     ⚠️ 현재(임시): OpenAI gpt-4o Vision 사용
-    ⚠️ 최종(복원): Claude Vision (_extract_from_image_claude) 로 교체
+    ⚠️ 폴백: _extract_from_image_openai_alt 로 교체 가능
     """
     # 지원 MIME 타입 보정
     media_type = mime_type
@@ -332,9 +327,9 @@ async def _extract_from_image(image_bytes: bytes, mime_type: str, doc_type: str 
     else:
         prompt = _OCR_PROMPT
 
-    # >>> OPENAI TEMP — 최종 통합 시 _extract_from_image_claude 로 교체
+    # >>> OPENAI — 현재 사용 중
     return await _extract_from_image_openai(image_bytes, media_type, prompt=prompt)
-    # return await _extract_from_image_claude(image_bytes, media_type, prompt=prompt)
+    # return await _extract_from_image_openai_alt(image_bytes, media_type, prompt=prompt)
     # <<< OPENAI TEMP
 
 
@@ -377,36 +372,34 @@ async def _extract_from_image_openai(image_bytes: bytes, media_type: str, prompt
 
 
 # ─────────────────────────────────────────────
-# --- CLAUDE ORIGINAL (최종 통합 시 사용) ---
+# --- OpenAI Vision 폴백 (기존 Claude 대체) ---
 # ─────────────────────────────────────────────
 
-async def _extract_from_image_claude(image_bytes: bytes, media_type: str, prompt: str = "") -> str:
-    """Claude Vision으로 이미지 텍스트 추출 — 최종 프로덕션용."""
-    anthropic_api_key = os.getenv("F0_ANTHROPIC_API_KEY", "")
-    if not anthropic_api_key:
-        logger.error("F0_ANTHROPIC_API_KEY가 설정되지 않았습니다.")
+async def _extract_from_image_openai_alt(image_bytes: bytes, media_type: str, prompt: str = "") -> str:
+    """OpenAI Vision으로 이미지 텍스트 추출 — 폴백용."""
+    openai_api_key = os.getenv("F0_OPENAI_API_KEY", "")
+    if not openai_api_key:
+        logger.error("F0_OPENAI_API_KEY가 설정되지 않았습니다.")
         return ""
 
     b64_data = base64.b64encode(image_bytes).decode("utf-8")
     ocr_prompt = prompt or _OCR_PROMPT
 
     try:
-        import anthropic
+        from openai import AsyncOpenAI
 
-        client = anthropic.AsyncAnthropic(api_key=anthropic_api_key)
-        message = await client.messages.create(
-            model="claude-sonnet-4-20250514",
+        client = AsyncOpenAI(api_key=openai_api_key)
+        response = await client.chat.completions.create(
+            model="gpt-5.4",
             max_tokens=4096,
             messages=[
                 {
                     "role": "user",
                     "content": [
                         {
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": media_type,
-                                "data": b64_data,
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{media_type};base64,{b64_data}",
                             },
                         },
                         {"type": "text", "text": ocr_prompt},
@@ -414,7 +407,7 @@ async def _extract_from_image_claude(image_bytes: bytes, media_type: str, prompt
                 }
             ],
         )
-        return message.content[0].text
+        return response.choices[0].message.content
     except Exception as e:
-        logger.error(f"Claude Vision OCR 실패: {e}")
+        logger.error(f"OpenAI Vision OCR 실패: {e}")
         return ""
