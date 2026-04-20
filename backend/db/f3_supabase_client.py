@@ -165,6 +165,30 @@ def load_strong_animal_keywords() -> tuple[str, ...]:
     return tuple(row["keyword"] for row in rows if row.get("keyword"))
 
 
+@lru_cache(maxsize=1)
+def load_document_law_citations() -> dict[str, list[dict]]:
+    """f3_document_law_citations → {doc_id: [citation_dict, ...]}.
+
+    각 citation_dict:
+      pinecone_chunk_id, chunk_type, priority ('primary'/'secondary'),
+      law_name, law_source, article, clause, item, topic,
+      agreement, country_code, effective_date, excerpt
+    반환 dict 는 priority='primary' 가 앞에 오도록 정렬.
+    """
+    rows = _fetch(
+        "f3_document_law_citations",
+        "select=doc_id,pinecone_chunk_id,chunk_type,priority,law_name,law_source,"
+        "article,clause,item,topic,agreement,country_code,effective_date,excerpt"
+    )
+    out: dict[str, list[dict]] = {}
+    for row in rows:
+        out.setdefault(row["doc_id"], []).append(row)
+    # priority 정렬: primary 먼저
+    for did in out:
+        out[did].sort(key=lambda c: (0 if c.get("priority") == "primary" else 1))
+    return out
+
+
 def save_pipeline_step(case_id: str, step_key: str, ai_result: dict) -> None:
     """pipeline_steps 에 기능 3 결과 저장 (팀 통합용, 선택)."""
     payload = {
@@ -188,3 +212,4 @@ def reload_cache() -> None:
     load_plant_based_patterns.cache_clear()
     load_suppress_rules.cache_clear()
     load_strong_animal_keywords.cache_clear()
+    load_document_law_citations.cache_clear()

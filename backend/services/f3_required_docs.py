@@ -21,6 +21,7 @@ from fastapi import HTTPException
 
 from db.f3_supabase_client import (
     load_country_groups,
+    load_document_law_citations,
     load_food_type_categories,
     load_keyword_synonyms,
     load_mid_category_flags,
@@ -30,7 +31,12 @@ from db.f3_supabase_client import (
     load_suppress_rules,
     load_warning_keywords,
 )
-from models.f3_schemas import ProductInfo, RequiredDoc, RequiredDocsResponse
+from models.f3_schemas import LawCitation, ProductInfo, RequiredDoc, RequiredDocsResponse
+
+try:
+    from services.f3_llm_explainer import generate_law_explanation
+except ImportError:
+    generate_law_explanation = None  # type: ignore
 
 
 # ──────────────────────────────────────────────
@@ -852,6 +858,10 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
         if doc.get("submission_timing") == "first" and not enriched_info.is_first_import:
             continue
 
+        # Phase 4 — 법령 인용 로드 (Pinecone RAG 매핑)
+        citations_raw = load_document_law_citations().get(doc["id"], [])
+        law_citations = [LawCitation(**c) for c in citations_raw]
+
         # 통과 → 이유·결정축 부착 후 수집
         required_doc = RequiredDoc(
             id=doc["id"],
@@ -869,6 +879,7 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
             effective_until=doc.get("effective_until"),
             match_reason=_build_match_reason(doc, enriched_info, match_trace),
             decision_axis=_derive_decision_axis(doc, enriched_info),
+            law_citations=law_citations,
         )
 
         if required_doc.submission_type == "keep":
@@ -901,3 +912,30 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
         warnings=warnings,
         match_confidence=confidence,
     )
+
+
+def enrich_response_with_llm(response: RequiredDocsResponse) -> RequiredDocsResponse:
+    """Opt-in: 각 서류의 law_citations 를 LLM 으로 자연어 풀이 (GPT-5.4 mini).
+
+    할루시네이션 4단 차단 내장 (f3_llm_explainer.generate_law_explanation 참고).
+    LLM 실패/API 키 없음/할루시네이션 감지 시 law_explanation=None 유지 (엔진 동작 보장).
+
+    비용·속도 주의: 서류당 1회 LLM 호출. 평균 4-5 서류 × 호출당 $0.001~0.003 (mini 기준).
+    """
+    if generate_law_explanation is None:
+        return response
+    for doc in list(response.submit_docs) + list(response.keep_docs):
+        if not doc.law_citations:
+            continue
+        citations_raw = [c.model_dump(exclude_none=False) for c in doc.law_citations]
+        try:
+            exp = generate_law_explanation(
+                doc_id=doc.id,
+                doc_title=doc.doc_name,
+                rule_reason=doc.match_reason or "",
+                citations=citations_raw,
+            )
+            doc.law_explanation = exp
+        except Exception:
+            doc.law_explanation = None
+    return response
