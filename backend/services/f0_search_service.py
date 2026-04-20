@@ -36,6 +36,16 @@ EMBED_MODEL      = "text-embedding-3-small"
 # CAS 번호 패턴: 숫자-숫자-숫자 (예: 64-17-5, 9005-25-8)
 _CAS_PATTERN = re.compile(r"^\d{2,7}-\d{2}-\d$")
 
+# ── 클라이언트 싱글톤 (요청마다 재생성 방지) ──────────────────────────────
+_supabase_client: Optional[Any] = None
+_pinecone_index_client: Optional[Any] = None
+_openai_embed_client: Optional[Any] = None
+
+try:
+    from typing import Any
+except ImportError:
+    pass
+
 
 def _is_cas_number(query: str) -> bool:
     """입력값이 CAS 번호 형식인지 판별."""
@@ -43,21 +53,29 @@ def _is_cas_number(query: str) -> bool:
 
 
 def _get_supabase():
-    from supabase import create_client
-    return create_client(SUPABASE_URL, SUPABASE_KEY)
+    global _supabase_client
+    if _supabase_client is None:
+        from supabase import create_client
+        _supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    return _supabase_client
 
 
 def _get_pinecone_index():
-    from pinecone import Pinecone
-    pc = Pinecone(api_key=PINECONE_API_KEY)
-    return pc.Index(PINECONE_INDEX)
+    global _pinecone_index_client
+    if _pinecone_index_client is None:
+        from pinecone import Pinecone
+        pc = Pinecone(api_key=PINECONE_API_KEY)
+        _pinecone_index_client = pc.Index(PINECONE_INDEX)
+    return _pinecone_index_client
 
 
 def _embed_query(text: str) -> list[float]:
-    """검색어를 OpenAI 임베딩 벡터로 변환."""
-    from openai import OpenAI
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    resp = client.embeddings.create(model=EMBED_MODEL, input=[text])
+    """검색어를 OpenAI 임베딩 벡터로 변환 (클라이언트 재사용)."""
+    global _openai_embed_client
+    if _openai_embed_client is None:
+        from openai import OpenAI
+        _openai_embed_client = OpenAI(api_key=OPENAI_API_KEY)
+    resp = _openai_embed_client.embeddings.create(model=EMBED_MODEL, input=[text])
     return resp.data[0].embedding
 
 
@@ -66,38 +84,55 @@ def _embed_query(text: str) -> list[float]:
 # ─────────────────────────────────────────────
 
 def _search_supabase_exact(query: str, top_k: int) -> list[IngredientSearchItem]:
-    """Supabase f0_ingredient_codes에서 정확 매칭 (ilike).
+    """Supabase f0_ingredient_codes에서 검색.
 
-    name_ko, name_en, code 컬럼에서 검색.
+    전략: 완전일치(eq) 우선 → 없으면 ilike 포함 검색.
+    "물" 검색 시 "열매추출물" 등 포함 일치가 먼저 걸리는 문제 방지.
     """
     sb = _get_supabase()
-    pattern = f"%{query}%"
+
+    def _to_items(rows: list, score: float, match_type: str) -> list[IngredientSearchItem]:
+        return [
+            IngredientSearchItem(
+                code=r["code"],
+                name_ko=r.get("name_ko", ""),
+                name_en=r.get("name_en", ""),
+                category=r.get("category", ""),
+                code_prefix=r.get("code_prefix", ""),
+                score=score,
+                match_type=match_type,
+            )
+            for r in rows
+        ]
 
     try:
-        result = (
+        # 1단계: 완전일치 (name_ko, name_en, code 가 query와 동일)
+        eq_result = (
+            sb.table("f0_ingredient_codes")
+            .select("code, name_ko, name_en, category, code_prefix")
+            .or_(f"name_ko.eq.{query},name_en.ilike.{query},code.eq.{query}")
+            .limit(top_k)
+            .execute()
+        )
+        eq_rows = eq_result.data or []
+        if eq_rows:
+            return _to_items(eq_rows, 1.0, "exact")
+
+        # 2단계: ilike 포함 검색 (완전일치 결과 없을 때만)
+        pattern = f"%{query}%"
+        like_result = (
             sb.table("f0_ingredient_codes")
             .select("code, name_ko, name_en, category, code_prefix")
             .or_(f"name_ko.ilike.{pattern},name_en.ilike.{pattern},code.ilike.{pattern}")
             .limit(top_k)
             .execute()
         )
-        rows = result.data or []
+        like_rows = like_result.data or []
+        return _to_items(like_rows, 0.8, "exact")
+
     except Exception as e:
         logger.error(f"Supabase 성분 검색 실패: {e}")
         return []
-
-    return [
-        IngredientSearchItem(
-            code=r["code"],
-            name_ko=r.get("name_ko", ""),
-            name_en=r.get("name_en", ""),
-            category=r.get("category", ""),
-            code_prefix=r.get("code_prefix", ""),
-            score=1.0,
-            match_type="exact",
-        )
-        for r in rows
-    ]
 
 
 # ─────────────────────────────────────────────
