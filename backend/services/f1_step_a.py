@@ -1,17 +1,18 @@
-"""Step A — 금지원료 체크 서비스 (W2-A 본체 구현).
+"""Step A — 금지원료 체크 서비스.
 
-2중 안전망:
-    1차: Supabase `f1_forbidden_ingredients` DB 조회 (name_ko strip+lowercase 매칭)
-    2차: data.go.kr 15111777 `get_import_food_ingredient` 병렬 호출
-         → EDIBLE_INFO == "불가" 또는 EDIBLE_N == "o" 항목 필터
-    합집합 중복 제거 (name 기준, source="db" 우선)
+P6-b (2026-04-20): 15111777 호출 제거.
+    실측 결과 15111777 은 이름 필터가 작동하지 않고(전체 5,312건 dump 만 반환)
+    화학첨가물도 미수록이라 호출 기여가 없음. Step A 는 로컬
+    `f1_forbidden_ingredients` DB 조회 단일 소스로 판정.
 
-sub_ingredients 재귀 평탄화로 복합원재료 하위 성분까지 모두 검사.
-API 장애 시 api_errors 에 기록하고 DB 결과로만 판정 (파이프라인 차단 없음).
+판정 흐름:
+    1. sub_ingredients 재귀 평탄화
+    2. Supabase `f1_forbidden_ingredients` 전체 조회 (소규모 DB)
+    3. strip+lowercase 정규화 후 정확 매칭
+    4. 하나라도 hit → `stopped=True`
 
 참조:
     - 계획/f1 재설계 계획/01_Step_A_금지원료_설계.md
-    - 계획/f1 재설계 계획/06_API_클라이언트_설계.md §5 (15111777)
     - calling: backend/services/feature1.py `run_feature1_v2`
 """
 
@@ -19,14 +20,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Optional
 
 from db.supabase_client import get_supabase
-from exceptions import DataGoKrError
 from models.f1_types import ForbiddenHit, StepAResult
 from models.judgment import Ingredient
-from services.data_go_kr import DataGoKrClient, IngredientInfo
+from services.data_go_kr import DataGoKrClient
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +55,6 @@ def _flatten_ingredients(ingredients: list[Ingredient]) -> list[Ingredient]:
 
     _collect(ingredients)
     return result
-
-
-def _build_client() -> DataGoKrClient:
-    """환경변수에서 DataGoKrClient 생성 (기본 생성 경로)."""
-    api_key = os.environ.get("F1_DATA_GO_KR_API_KEY", "")
-    if not api_key:
-        raise RuntimeError(
-            "F1_DATA_GO_KR_API_KEY 환경변수가 설정되지 않았습니다."
-        )
-    return DataGoKrClient(api_key=api_key)
 
 
 # ---------------------------------------------------------------------------
@@ -106,89 +95,7 @@ def _query_db_forbidden(
 
 
 # ---------------------------------------------------------------------------
-# API 교차확인
-# ---------------------------------------------------------------------------
-
-
-async def _query_api_forbidden_single(
-    ing: Ingredient,
-    client: DataGoKrClient,
-) -> tuple[list[ForbiddenHit], str | None]:
-    """원재료 1건에 대해 15111777 호출 후 EDIBLE_INFO/EDIBLE_N 필터 적용.
-
-    Returns:
-        (hits, error_str) — 정상 시 (hits, None), 장애 시 ([], "에러 메시지")
-    """
-    name = ing.name.strip()
-    try:
-        result = await client.get_import_food_ingredient(name)
-    except DataGoKrError as exc:
-        return [], f"{name}: {exc.code}"
-    except Exception as exc:
-        return [], f"{name}: {exc!s}"
-
-    hits: list[ForbiddenHit] = []
-    for raw_item in result.get("items", []):
-        try:
-            item = IngredientInfo.model_validate(raw_item)
-        except Exception:
-            continue
-
-        edible_info = (item.edible_info or "").strip()
-        edible_n = (item.edible_n or "").strip().lower()
-
-        if edible_info == "불가" or edible_n == "o":
-            matched_name = (item.ingd_nm or name).strip()
-            reason = "DB 미등록 — 최신 API 기준 금지"
-            if edible_info == "불가":
-                reason = "식품원료 사용 불가 (EDIBLE_INFO=불가)"
-            elif edible_n == "o":
-                reason = "수입 불가 원료 (EDIBLE_N=o)"
-
-            hits.append(
-                ForbiddenHit(
-                    ingredient_name=name,
-                    matched_name=matched_name,
-                    source="api",
-                    reason=reason,
-                    law_ref=None,
-                )
-            )
-
-    return hits, None
-
-
-async def _query_api_forbidden(
-    flat_ingredients: list[Ingredient],
-    client: DataGoKrClient,
-) -> tuple[list[ForbiddenHit], list[str]]:
-    """모든 원재료를 asyncio.gather 병렬 호출하여 API 금지 원료 수집.
-
-    Returns:
-        (api_hits, api_errors)
-    """
-    tasks = [
-        _query_api_forbidden_single(ing, client)
-        for ing in flat_ingredients
-        if ing.name.strip()
-    ]
-    if not tasks:
-        return [], []
-
-    results = await asyncio.gather(*tasks)
-
-    all_hits: list[ForbiddenHit] = []
-    all_errors: list[str] = []
-    for hits, err in results:
-        all_hits.extend(hits)
-        if err:
-            all_errors.append(err)
-
-    return all_hits, all_errors
-
-
-# ---------------------------------------------------------------------------
-# 합집합 중복 제거
+# 레거시 헬퍼 (P6-b 이후 미사용, 테스트 하위 호환용)
 # ---------------------------------------------------------------------------
 
 
@@ -196,21 +103,15 @@ def _merge_hits(
     db_hits: list[ForbiddenHit],
     api_hits: list[ForbiddenHit],
 ) -> list[ForbiddenHit]:
-    """DB + API 합집합. ingredient_name 기준 중복 제거 (source="db" 우선).
+    """DB + API 합집합. P6-b 이후 API 경로 제거로 api_hits 는 항상 빈 리스트.
 
-    동일 원재료명이 DB/API 양쪽에서 hit 된 경우 DB 결과를 유지.
-    API only hit 는 "DB 미등록" 경고 문구를 reason 에 포함.
+    기존 호환을 위해 시그니처 유지 — 테스트에서만 호출될 수 있음.
     """
     merged: dict[str, ForbiddenHit] = {}
-
-    # 1. DB hit 먼저 등록 (우선순위)
     for hit in db_hits:
         merged[hit.ingredient_name] = hit
-
-    # 2. API hit 는 DB에 없는 경우만 추가
     for hit in api_hits:
         if hit.ingredient_name not in merged:
-            # DB 미등록 경고 접두어
             reason = hit.reason
             if "DB 미등록" not in reason:
                 reason = f"DB 미등록 — 최신 API 기준 금지 ({reason})"
@@ -221,7 +122,6 @@ def _merge_hits(
                 reason=reason,
                 law_ref=hit.law_ref,
             )
-
     return list(merged.values())
 
 
@@ -235,21 +135,25 @@ async def run_step_a(
     *,
     client: Optional[DataGoKrClient] = None,
 ) -> StepAResult:
-    """2중 안전망: Supabase `f1_forbidden_ingredients` + data.go.kr 15111777 교차.
+    """Supabase `f1_forbidden_ingredients` DB 기반 금지원료 판정.
+
+    P6-b (2026-04-20): 15111777 API 교차검증 제거 (이름 필터 미작동 확인).
 
     Args:
         ingredients: F0 원재료 목록 (sub_ingredients 포함).
-        client: 테스트 주입용 DataGoKrClient. None 이면 환경변수에서 자동 생성.
+        client: (Deprecated) 하위 호환용 파라미터, 실제로는 사용하지 않음.
 
     Returns:
         StepAResult — forbidden_hits 1건 이상이면 stopped=True.
 
     Day 0 시그니처 유지:
         - 필수 인자 `ingredients: list[Ingredient]` 위치·이름 변경 없음.
-        - `client` 는 keyword-only + default=None 으로만 추가.
+        - `client` 는 keyword-only + default=None (no-op 으로 보존).
     """
     if not ingredients:
-        return StepAResult(forbidden_hits=[], stopped=False, law_refs=[], api_errors=[])
+        return StepAResult(
+            forbidden_hits=[], stopped=False, law_refs=[], api_errors=[], warnings=[]
+        )
 
     # ── 1. sub_ingredients 평탄화 ──────────────────────────────────────
     flat: list[Ingredient] = _flatten_ingredients(ingredients)
@@ -258,8 +162,7 @@ async def run_step_a(
     # ── 2. DB 조회 (동기 Supabase → asyncio.to_thread 로 블록 해제) ────
     db_rows: list[dict] = await asyncio.to_thread(_query_db_forbidden, names_normalized)
 
-    # DB 결과를 ForbiddenHit 로 변환
-    # name 역조회: normalized → 원본 name 매핑
+    # DB 결과를 ForbiddenHit 로 변환 (normalized → 원본 name 매핑)
     norm_to_original: dict[str, str] = {}
     for ing in flat:
         if ing.name.strip():
@@ -276,48 +179,20 @@ async def run_step_a(
                 matched_name=db_name_ko,
                 source="db",
                 reason=row.get("reason") or "금지원료 DB 등재",
-                law_ref=row.get("law_source"),  # DB 실제 컬럼명: law_source
+                law_ref=row.get("law_source"),
             )
         )
 
-    # ── 3. API 교차확인 (병렬) ────────────────────────────────────────
-    _owned_client: Optional[DataGoKrClient] = None
-    api_hits: list[ForbiddenHit] = []
-    api_errors: list[str] = []
+    # ── 3. law_refs 수집 ────────────────────────────────────────────
+    law_refs = list({hit.law_ref for hit in db_hits if hit.law_ref})
 
-    try:
-        if client is None:
-            try:
-                _owned_client = _build_client()
-                active_client = _owned_client
-            except RuntimeError as exc:
-                # API 키 미설정 → api_errors 에 기록, DB 결과로만 판정
-                api_errors.append(f"API 클라이언트 초기화 실패: {exc}")
-                active_client = None
-        else:
-            active_client = client
-
-        if active_client is not None:
-            api_hits, api_errors_from_call = await _query_api_forbidden(flat, active_client)
-            api_errors.extend(api_errors_from_call)
-    finally:
-        if _owned_client is not None:
-            await _owned_client.aclose()
-
-    # ── 4. 합집합 중복 제거 ───────────────────────────────────────────
-    all_hits = _merge_hits(db_hits, api_hits)
-
-    # ── 5. law_refs 수집 ─────────────────────────────────────────────
-    law_refs = list(
-        {hit.law_ref for hit in all_hits if hit.law_ref}
-    )
-
-    # ── 6. stopped 판정 ──────────────────────────────────────────────
-    stopped = len(all_hits) > 0
+    # ── 4. stopped 판정 ──────────────────────────────────────────────
+    stopped = len(db_hits) > 0
 
     return StepAResult(
-        forbidden_hits=all_hits,
+        forbidden_hits=db_hits,
         stopped=stopped,
         law_refs=law_refs,
-        api_errors=api_errors,
+        api_errors=[],
+        warnings=[],
     )

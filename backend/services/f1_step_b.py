@@ -1,23 +1,29 @@
-"""Step B — 원재료 허용여부 + 성분코드 + GMO 서비스 (W2-B 본체).
+"""Step B — 원재료 허용여부 + 성분코드 + GMO 서비스.
 
-본 파일의 `run_step_b` 시그니처는 **Wave 2 Day 0에 동결**되었다.
-W2-B 트랙이 본체를 구현하되 Day 0 시그니처는 유지한다.
+P6-b (2026-04-20): 15111777 제거 + 15094202 카테고리 기반 판정으로 재설계.
 
-구현 범위 (02번 §2~§11):
+재설계 배경 (API 실측, 2026-04-20):
+    - 15111777 은 이름 필터가 작동하지 않음 (어떤 파라미터 보내도 전체 5,312건
+      dump 만 반환) → 원재료별 호출이 의미 없음
+    - 15111777 응답에 식약처 성분코드 필드도 없음 (INGD_SN 은 단순 일련번호)
+    - 에탄올·정제수 등 화학첨가물은 15111777 에 애초에 없고 15094202 에 있음
+    - 따라서 판정은 15094202 의 CPNT_LCLS_CD_NM (식품원료/식품첨가물/식품유형/
+      건강기능식품) + CPNT_CD prefix (*Z* = 외화획득용) 조합으로 수행
+
+구현 범위:
     1. `normalize_name()`                  — strip + 다중공백 단일화 + `·` → `,`
-    2. 3 API 병렬 호출 (asyncio.gather)   — 15111777 / 15094202 / 15111913
-    3. `resolve_verdict()`                 — prohibited > restricted > allowed 안전측 채택
-    4. 이름 매칭 4 전략                    — exact / alias / scientific / Levenshtein fallback
-    5. 15094202 성분코드                   — KOR_NM strip + 식품원료/첨가물 우선 + 사용가능 우선
-    6. 15111913 GMO                        — 정확 일치만 (퍼지 금지)
-    7. sub_ingredients 평탄화              — flatten 후 매칭
-    8. 조기 종료 시그널                    — prohibited 검출 시 `StepBResult.stopped=True` (확장 필드)
-    9. Levenshtein fallback 자동 확정 금지 — unidentified → HITL-1
-   10. 합성향료 자동 감지                  — `is_synthetic_flavor()` → unidentified
+    2. 2 API 병렬 호출 (asyncio.gather)   — 15094202 / 15111913
+    3. 쿼리 키 전략                         — F0 `matched_name_ko` 우선, 없으면 원본 이름
+    4. 15094202 정확 매칭                  — CPNT_CD(F0 코드) 우선, 다음 KOR_NM 정확 일치
+    5. 카테고리 기반 verdict               — `_resolve_verdict_by_category`
+    6. 법령 출처 + 경고 매핑               — `_LAW_SOURCE_BY_CATEGORY`/`_WARNING_BY_CATEGORY`
+    7. 15111913 GMO                        — 정확 일치만 (퍼지 금지)
+    8. sub_ingredients 평탄화              — flatten 후 매칭
+    9. 합성향료 자동 감지                  — `is_synthetic_flavor()` → unidentified
+   10. 조기 종료 시그널                    — `*Z*` restricted 일괄, prohibited 는 Step A 전담
 
 참조:
-    - 계획/f1 재설계 계획/02_Step_B_원재료_매칭_설계.md ⭐
-    - 계획/f1 재설계 계획/06_API_클라이언트_설계.md (15111777/15094202/15111913)
+    - 계획/f1 재설계 계획/02_Step_B_원재료_매칭_설계.md (P6-b 재설계)
     - calling: backend/services/feature1.py `run_feature1_v2`
 """
 
@@ -168,6 +174,127 @@ def _levenshtein_threshold(name: str) -> int:
 
 
 Verdict = Literal["allowed", "restricted", "prohibited", "unidentified"]
+
+
+# ---------------------------------------------------------------------------
+# P6-b (2026-04-20) — 카테고리 기반 verdict 매핑 상수
+# ---------------------------------------------------------------------------
+
+# 15094202 CPNT_LCLS_CD_NM → 법령 출처 (프론트 "법령 출처" 컬럼 표시용)
+_LAW_SOURCE_BY_CATEGORY: dict[str, str] = {
+    "식품원료": "식품의 기준 및 규격 (별표 1 사용 가능 원료)",
+    "식품첨가물": "식품첨가물의 기준 및 규격",
+    "식품유형": "식품의 기준 및 규격 (식품유형)",
+    "건강기능식품": "건강기능식품의 기준 및 규격",
+    "기구 및 용기포장": "기구 및 용기·포장의 기준 및 규격",
+}
+
+# 15094202 CPNT_LCLS_CD_NM → 사용자 경고 템플릿
+# `{name}` 은 ing.name 으로 format() 된다.
+_WARNING_BY_CATEGORY: dict[str, str] = {
+    "식품첨가물": "{name}: 식품첨가물 기준규격(사용량 제한) 준수 필수",
+    "식품유형": "{name}: 식품유형 분류 — 가공 용도로 사용 가능",
+    "건강기능식품": "{name}: 개별 인정형 — 건강기능식품 기능성 원료 확인 필요",
+}
+
+# *Z* 접미는 외화획득용 성분코드 (일반 수입 제한)
+_FOREIGN_EXCHANGE_LAW_SOURCE = "외화획득용 한정 (일반 수입 불가)"
+_FOREIGN_EXCHANGE_WARNING_TEMPLATE = "{name}: 외화획득용 한정 — 일반 수입 불가"
+
+
+def _is_foreign_exchange_code(cpnt_cd: str) -> bool:
+    """CPNT_CD 앞 2자리가 `*Z*` 형태면 외화획득용 성분.
+
+    예: `AZ000083000000`, `BZ000094000000`, `CZ...`
+    """
+    prefix = (cpnt_cd or "").strip()[:2].upper()
+    return len(prefix) == 2 and prefix[1] == "Z"
+
+
+def _pick_exact_component_item(
+    ing: Ingredient,
+    normalized: str,
+    comp_items: List[dict],
+) -> Optional[dict]:
+    """15094202 응답에서 정확 매칭 1건 선택.
+
+    우선순위 (P6-b):
+        1. F0 성분코드(`ingredient_code_f0`) == `CPNT_CD` (정확 매칭)
+        2. `KOR_NM.strip()` == `normalized`
+        3. `ENG_NM.strip().lower()` == `normalized.lower()`
+
+    Returns:
+        매칭된 아이템 또는 None.
+    """
+    if not comp_items:
+        return None
+
+    code_f0 = (ing.ingredient_code_f0 or "").strip()
+    if code_f0:
+        for it in comp_items:
+            if (it.get("CPNT_CD") or "").strip() == code_f0:
+                return it
+
+    norm_lower = normalized.lower()
+    for it in comp_items:
+        if (it.get("KOR_NM") or "").strip() == normalized:
+            return it
+    for it in comp_items:
+        if (it.get("ENG_NM") or "").strip().lower() == norm_lower and norm_lower:
+            return it
+    return None
+
+
+def _resolve_verdict_by_category(
+    item: Optional[dict],
+) -> tuple[Verdict, Optional[str], Optional[str]]:
+    """15094202 정확 매칭 아이템에서 verdict / law_source / warning_template 결정.
+
+    판정 규칙 (P6-b):
+        - `CPNT_CD` 에 *Z* 접미(외화획득용) → `restricted`
+        - `CPNT_LCLS_CD_NM`:
+            * "식품원료"      + `USE_DIVS_CD_NM="사용가능"` → `allowed`
+            * "식품원료"      + 그 외                     → `restricted` (사용 제한)
+            * "식품첨가물"                                → `allowed` (사용량 제한 경고)
+            * "식품유형"                                  → `allowed` (가공 용도 경고)
+            * "건강기능식품"                              → `restricted` (개별 인정 경고)
+            * "기구 및 용기포장"                          → `allowed` (무경고)
+        - 매칭 없음 / 미지의 카테고리 → `unidentified`
+
+    Returns:
+        (verdict, law_source, warning_template)
+            warning_template 은 `{name}` placeholder 를 가진 미포맷 문자열.
+    """
+    if not item:
+        return "unidentified", None, None
+
+    cpnt_cd = (item.get("CPNT_CD") or "").strip()
+    lcls = (item.get("CPNT_LCLS_CD_NM") or "").strip()
+    use = (item.get("USE_DIVS_CD_NM") or "").strip()
+
+    if _is_foreign_exchange_code(cpnt_cd):
+        return (
+            "restricted",
+            _FOREIGN_EXCHANGE_LAW_SOURCE,
+            _FOREIGN_EXCHANGE_WARNING_TEMPLATE,
+        )
+
+    if lcls == "식품원료":
+        if use == "사용가능":
+            return "allowed", _LAW_SOURCE_BY_CATEGORY[lcls], None
+        return "restricted", "식품의 기준 및 규격 (사용 제한 — 담당자 확인 필요)", None
+
+    if lcls in ("식품첨가물", "식품유형", "건강기능식품", "기구 및 용기포장"):
+        verdict: Verdict = (
+            "restricted" if lcls == "건강기능식품" else "allowed"
+        )
+        return (
+            verdict,
+            _LAW_SOURCE_BY_CATEGORY[lcls],
+            _WARNING_BY_CATEGORY.get(lcls),
+        )
+
+    return "unidentified", None, None
 
 
 def _split_aliases(raw: Optional[str]) -> List[str]:
@@ -468,7 +595,10 @@ async def _fetch_all(
     client: DataGoKrClient,
     normalized_names: List[str],
 ) -> dict[Tuple[str, str], Any]:
-    """3 엔드포인트 × N 이름 병렬 호출.
+    """2 엔드포인트 × N 이름 병렬 호출.
+
+    P6-b (2026-04-20): 15111777 제거 — 이름 필터 미작동 + 첨가물 미수록으로
+    기여 없음. 15094202 (성분코드) + 15111913 (GMO) 만 병렬 호출.
 
     Returns:
         {(endpoint_id, name): response | Exception}.
@@ -477,13 +607,6 @@ async def _fetch_all(
     for n in normalized_names:
         if not n:
             continue
-        tasks.append(
-            _safe_call(
-                client.get_import_food_ingredient(n),
-                DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value,
-                n,
-            )
-        )
         tasks.append(
             _safe_call(
                 client.get_import_food_component(n),
@@ -515,35 +638,48 @@ async def _fetch_all(
 # ---------------------------------------------------------------------------
 
 
-async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
-    """3개 API 병렬 호출 → 원재료별 allow_verdict·component_code·is_gmo 집계.
+def _query_key(ing: Ingredient) -> str:
+    """API 쿼리 키 선택 — F0 표준명 우선, 없으면 원본 이름 정규화.
 
-    Day 0 시그니처 유지. 본체는 W2-B 트랙이 구현.
+    P6-b: F0 가 `matched_name_ko="에탄올"` 을 이미 채웠다면 이 값으로 API 를
+    질의한다. 원본 `ing.name="에탄올 (Ethanol)"` 에는 괄호·영문병기가 섞여
+    15094202 `KOR_NM` 필터를 빗나가는 문제를 회피.
+    """
+    standard = (ing.matched_name_ko or "").strip() if ing.matched_name_ko else ""
+    if standard:
+        return normalize_name(standard)
+    return normalize_name(ing.name)
+
+
+async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
+    """2 API 병렬 호출 → 원재료별 allow_verdict·component_code·is_gmo 집계.
+
+    Day 0 시그니처 유지. P6-b 로 내부 로직 재설계.
 
     Args:
         ingredients: Step A 통과한 원재료 목록. `sub_ingredients` 는 내부에서 평탄화.
 
     Returns:
         `StepBResult` — `enriched_ingredients` 에 verdict·component_code·is_gmo 채워진
-        `Ingredient` 목록. `stopped=True` (확장 필드) 시 호출자(`run_feature1_v2`) 가
-        Step C/D 를 skip.
+        `Ingredient` 목록. `warnings` 에 카테고리별 사용자 경고 누적.
     """
     flat = flatten_ingredients(ingredients)
+    empty_stats = {
+        DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value: 0,
+        DataGoKrEndpoint.FOOD_RAW_MATERIAL.value: 0,
+    }
     if not flat:
         return StepBResult(
             enriched_ingredients=[],
             unidentified=[],
             conditional=[],
             gmo_ingredients=[],
-            api_call_stats={
-                DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value: 0,
-                DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value: 0,
-                DataGoKrEndpoint.FOOD_RAW_MATERIAL.value: 0,
-            },
+            api_call_stats=empty_stats,
+            warnings=[],
         )
 
-    # 원재료명 정규화 (중복 dedup 하되 순서는 보존)
-    normalized_map: dict[int, str] = {id(ing): normalize_name(ing.name) for ing in flat}
+    # 원재료별 쿼리 키 (matched_name_ko 우선) — 중복 dedup 하되 순서는 보존
+    normalized_map: dict[int, str] = {id(ing): _query_key(ing) for ing in flat}
     unique_names: List[str] = []
     seen: set = set()
     for n in normalized_map.values():
@@ -551,7 +687,7 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
             seen.add(n)
             unique_names.append(n)
 
-    # 3 API 병렬 호출
+    # 2 API 병렬 호출 (15094202 / 15111913)
     client = _get_client()
     responses = await _fetch_all(client, unique_names)
 
@@ -560,14 +696,10 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
     unidentified: List[str] = []
     conditional: List[Ingredient] = []
     gmo_ingredients: List[str] = []
-    stopped = False
+    warnings: List[str] = []
 
-    api_stats: dict[str, int] = {
-        DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value: 0,
-        DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value: 0,
-        DataGoKrEndpoint.FOOD_RAW_MATERIAL.value: 0,
-    }
-    for (endpoint_id, _n), payload in responses.items():
+    api_stats: dict[str, int] = dict(empty_stats)
+    for (endpoint_id, _n), _payload in responses.items():
         if endpoint_id in api_stats:
             # Exception 도 호출 1건으로 카운트 (감사 추적)
             api_stats[endpoint_id] += 1
@@ -585,14 +717,11 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
         if is_synthetic_flavor(normalized):
             ing.allow_verdict = "unidentified"
             ing.source_api = None
-            if normalized not in unidentified:
+            if ing.name not in unidentified:
                 unidentified.append(ing.name)
             enriched.append(ing)
             continue
 
-        ingd_payload = responses.get(
-            (DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value, normalized)
-        )
         comp_payload = responses.get(
             (DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value, normalized)
         )
@@ -600,128 +729,59 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
             (DataGoKrEndpoint.FOOD_RAW_MATERIAL.value, normalized)
         )
 
-        # ── 15094202/15111913 items 선추출 (resolve_verdict 에 전달) ────
         comp_items: List[dict] = []
         if isinstance(comp_payload, dict):
-            comp_items = [it for it in comp_payload.get("items", []) if isinstance(it, dict)]
+            comp_items = [
+                it for it in comp_payload.get("items", []) if isinstance(it, dict)
+            ]
 
         gmo_items: List[dict] = []
         if isinstance(gmo_payload, dict):
-            gmo_items = [it for it in gmo_payload.get("items", []) if isinstance(it, dict)]
+            gmo_items = [
+                it for it in gmo_payload.get("items", []) if isinstance(it, dict)
+            ]
 
-        # ── 15111777: verdict 판정 ─────────────────────────────
-        ingd_items: List[dict] = []
-        if isinstance(ingd_payload, dict):
-            ingd_items = [it for it in ingd_payload.get("items", []) if isinstance(it, dict)]
+        # ── 15094202 정확 매칭 + 카테고리 기반 verdict ────────────
+        exact_item = _pick_exact_component_item(ing, normalized, comp_items)
+        verdict, law_source, warning_template = _resolve_verdict_by_category(exact_item)
 
-        matched, strategy = _match_ingredient_hits(normalized, ingd_items)
+        ing.allow_verdict = verdict
+        ing.law_source = law_source
 
-        # ── synonym lookup (exact/alias 실패 시) ──────────────
-        # 전략 순서: exact → alias → synonym lookup → scientific → Levenshtein fallback
-        # exact 또는 alias 로 매칭되지 않은 경우 f1_ingredient_synonyms 조회
-        if strategy in ("scientific", "fuzzy", "none"):
-            synonym_standard = _lookup_synonym(normalized)
-            if synonym_standard and synonym_standard != normalized:
-                # name_standard 로 재조회 (캐시된 responses 에 없으면 신규 API 호출)
-                synonym_payload = responses.get(
-                    (DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value, synonym_standard)
-                )
-                if synonym_payload is None:
-                    # 캐시 미스 — 동기 블로킹 없이 새 비동기 호출
-                    try:
-                        synonym_payload = await _get_client().get_import_food_ingredient(
-                            synonym_standard
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        logger.warning(
-                            "Step B synonym API call failed for '%s': %s",
-                            synonym_standard,
-                            exc,
-                        )
-                        synonym_payload = None
-
-                if isinstance(synonym_payload, dict):
-                    synonym_items = [
-                        it
-                        for it in synonym_payload.get("items", [])
-                        if isinstance(it, dict)
-                    ]
-                    syn_matched, syn_strategy = _match_ingredient_hits(
-                        synonym_standard, synonym_items
-                    )
-                    if syn_strategy not in ("fuzzy", "none"):
-                        # synonym 경로로 유효 매칭 성공
-                        matched, strategy = syn_matched, f"synonym:{syn_strategy}"
-                        logger.info(
-                            "Step B synonym match: '%s' → '%s' (strategy=%s)",
-                            normalized,
-                            synonym_standard,
-                            strategy,
-                        )
-
-        if strategy.startswith("fuzzy"):
-            # Levenshtein fallback — 자동 확정 금지
-            ing.allow_verdict = "unidentified"
+        if verdict in ("allowed", "restricted"):
+            ing.source_api = DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value
+            if warning_template:
+                warnings.append(warning_template.format(name=ing.name))
+            if verdict == "restricted":
+                conditional.append(ing)
+        else:  # unidentified
             ing.source_api = None
             if ing.name not in unidentified:
                 unidentified.append(ing.name)
+
+        # 감사용 성분코드 — 정확 매칭 결과 우선, 없으면 레거시 카테고리 기반
+        if exact_item is not None:
+            ing.component_code = (exact_item.get("CPNT_CD") or "").strip() or None
         else:
-            verdict = resolve_verdict(matched, comp_items=comp_items, gmo_items=gmo_items, normalized=normalized)
-            ing.allow_verdict = verdict
-            if verdict != "unidentified":
-                ing.source_api = ",".join(
-                    [
-                        DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value,
-                        DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value,
-                        DataGoKrEndpoint.FOOD_RAW_MATERIAL.value,
-                    ]
-                )
+            ing.component_code = _pick_component_code(normalized, comp_items)
 
-            if verdict == "restricted":
-                ing.restriction_condition = _primary_condition(matched)
-                ing.edible_parts = _primary_edible_parts(matched)
-                ing.law_source = "식품의 기준 및 규격 (조건부 사용)"
-                conditional.append(ing)
-            elif verdict == "allowed":
-                ing.edible_parts = _primary_edible_parts(matched)
-                ing.law_source = "식품의 기준 및 규격 (사용 가능 원료)"
-                # P6 (2026-04-20): 사용 부위 검증 — 라벨 부위가 식용 가능 부위에
-                # 포함되지 않으면 restricted 강제 (담당자 HITL 확인 유도).
-                # 예: 감초 — 식용=뿌리, 라벨=잎 → 약용 부위 → restricted
-                if not _check_part_compatibility(ing.part, ing.edible_parts):
-                    ing.allow_verdict = "restricted"
-                    ing.restriction_condition = (
-                        f"라벨 사용 부위 '{ing.part}' 가 식용 가능 부위 "
-                        f"'{ing.edible_parts}' 에 포함되지 않음 — 담당자 확인 필요"
-                    )
-                    ing.law_source = "식품의 기준 및 규격 (사용 부위 제한)"
-                    conditional.append(ing)
-            elif verdict == "prohibited":
-                ing.law_source = "식품의 기준 및 규격 [별표 3] 사용할 수 없는 원료"
-                stopped = True
-            elif verdict == "unidentified":
-                if ing.name not in unidentified:
-                    unidentified.append(ing.name)
-
-        # ── 15094202: 성분코드 ────────────────────────────────
-        ing.component_code = _pick_component_code(normalized, comp_items)
-
-        # ── 15111913: GMO 플래그 ──────────────────────────────
+        # ── 15111913 GMO 플래그 ─────────────────────────────────
         ing.is_gmo = _pick_gmo_flag(normalized, gmo_items)
         if ing.is_gmo is True and ing.name not in gmo_ingredients:
             gmo_ingredients.append(ing.name)
 
         enriched.append(ing)
 
-    # code-review 🟡-4 fix: `StepBResult.stopped` 필드로 prohibited 조기 종료
-    # 여부를 명시 반환 (02번 §9). 호출자는 재계산 없이 `result.stopped` 로 판정.
+    # P6-b: prohibited 판정은 Step A 전담이므로 Step B 에서는 stopped=False 기본.
+    # (restricted 만 있으면 Step C 로 계속 진행)
     return StepBResult(
         enriched_ingredients=enriched,
         unidentified=unidentified,
         conditional=conditional,
         gmo_ingredients=gmo_ingredients,
         api_call_stats=api_stats,
-        stopped=stopped,
+        warnings=warnings,
+        stopped=False,
     )
 
 
@@ -731,4 +791,8 @@ __all__ = [
     "flatten_ingredients",
     "resolve_verdict",
     "set_client_for_test",
+    # P6-b 신규 공개
+    "_pick_exact_component_item",
+    "_resolve_verdict_by_category",
+    "_is_foreign_exchange_code",
 ]

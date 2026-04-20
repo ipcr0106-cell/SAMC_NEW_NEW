@@ -31,11 +31,14 @@ from models.f1_types import DataGoKrEndpoint, StepBResult
 from models.judgment import Ingredient
 from services import f1_step_b
 from services.f1_step_b import (
+    _is_foreign_exchange_code,
     _levenshtein,
     _lookup_synonym,
     _match_ingredient_hits,
     _pick_component_code,
+    _pick_exact_component_item,
     _pick_gmo_flag,
+    _resolve_verdict_by_category,
     flatten_ingredients,
     normalize_name,
     resolve_verdict,
@@ -372,86 +375,34 @@ class TestGmoFlag:
 # ============================================================
 
 
+# P6-b (2026-04-20) — 15111777 호출 제거로 기존 ingredient fixture 의존 테스트는 skip.
+# 카테고리 기반 판정은 아래 TestRunStepBCategoryBased 에서 새로 검증.
+_LEGACY_15111777 = pytest.mark.skip(
+    reason="P6-b: 15111777 제거 — ingredient fixture 기반 판정 경로 폐기"
+)
+
+
 @pytest.mark.asyncio
 class TestRunStepB:
+    @_LEGACY_15111777
     async def test_soybean_allowed_with_gmo(self):
-        client = FakeClient(
-            ingredient={"대두": load_fixture("15111777_soybean.json")},
-            component={"대두": load_fixture("15094202_soybean.json")},
-            gmo={"대두": load_fixture("15111913_soybean.json")},
-        )
-        set_client_for_test(client)
+        pass
 
-        result: StepBResult = await run_step_b([Ingredient(name="대두")])
-
-        assert len(result.enriched_ingredients) == 1
-        ing = result.enriched_ingredients[0]
-        assert ing.allow_verdict == "allowed"
-        assert ing.component_code == "A1000001000000"
-        assert ing.is_gmo is True
-        assert "대두" in result.gmo_ingredients
-        assert ing.source_api is not None
-        assert DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value in ing.source_api
-
+    @_LEGACY_15111777
     async def test_opium_prohibited_early_exit(self):
-        client = FakeClient(
-            ingredient={"아편": load_fixture("15111777_opium.json")},
-        )
-        set_client_for_test(client)
+        pass
 
-        result = await run_step_b([Ingredient(name="아편")])
-        ing = result.enriched_ingredients[0]
-        assert ing.allow_verdict == "prohibited"
-        # 호출자는 allow_verdict == "prohibited" 으로 조기 종료 판정
-        assert any(i.allow_verdict == "prohibited" for i in result.enriched_ingredients)
-
+    @_LEGACY_15111777
     async def test_ginseng_restricted_with_condition(self):
-        client = FakeClient(
-            ingredient={"인삼": load_fixture("15111777_ginseng.json")},
-        )
-        set_client_for_test(client)
+        pass
 
-        result = await run_step_b([Ingredient(name="인삼")])
-        ing = result.enriched_ingredients[0]
-        assert ing.allow_verdict == "restricted"
-        assert ing.restriction_condition is not None
-        assert "뿌리" in ing.restriction_condition
-        assert ing.edible_parts == "뿌리"
-        assert ing in result.conditional
-
+    @_LEGACY_15111777
     async def test_sub_ingredients_flattened_and_matched(self):
-        client = FakeClient(
-            ingredient={
-                "대두": load_fixture("15111777_soybean.json"),
-                "아편": load_fixture("15111777_opium.json"),
-            },
-        )
-        set_client_for_test(client)
+        pass
 
-        parent = Ingredient(
-            name="복합원료",
-            sub_ingredients=[Ingredient(name="대두"), Ingredient(name="아편")],
-        )
-        result = await run_step_b([parent])
-
-        names = [i.name for i in result.enriched_ingredients]
-        # 상위 + 하위 2건 = 3건
-        assert "대두" in names
-        assert "아편" in names
-        assert any(
-            i.allow_verdict == "prohibited" for i in result.enriched_ingredients
-        )
-
+    @_LEGACY_15111777
     async def test_homonym_safest_wins(self):
-        client = FakeClient(
-            ingredient={"참꽃": load_fixture("15111777_homonym.json")},
-        )
-        set_client_for_test(client)
-
-        result = await run_step_b([Ingredient(name="참꽃")])
-        ing = result.enriched_ingredients[0]
-        # 동명이인 중 한쪽이 prohibited → 안전측 prohibited
-        assert ing.allow_verdict == "prohibited"
+        pass
 
     async def test_unidentified_when_no_match(self):
         client = FakeClient()  # 모든 엔드포인트 빈 응답
@@ -462,35 +413,15 @@ class TestRunStepB:
         assert ing.allow_verdict == "unidentified"
         assert "가공의원재료" in result.unidentified
 
+    @_LEGACY_15111777
     async def test_fuzzy_fallback_does_not_auto_confirm(self):
-        """02번 §5 — Levenshtein fallback 은 자동 확정 금지 → unidentified."""
-        # '대두' 조회 시 '대주' 만 응답 → exact 불일치, fuzzy 후보 존재
-        fuzzy_fixture = {
-            "items": [
-                {
-                    "INGD_SN": "X",
-                    "INGD_NM": "대주",
-                    "NKNM_NM": "",
-                    "EDIBLE_INFO": "가능",
-                    "EDIBLE_Y": "o",
-                }
-            ],
-            "total_count": 1,
-        }
-        client = FakeClient(ingredient={"대두": fuzzy_fixture})
-        set_client_for_test(client)
-
-        result = await run_step_b([Ingredient(name="대두")])
-        ing = result.enriched_ingredients[0]
-        # fuzzy 매칭은 자동 confirm 금지 → unidentified 로 HITL-1
-        assert ing.allow_verdict == "unidentified"
-        assert "대두" in result.unidentified
+        pass
 
     async def test_api_failure_isolated_per_endpoint(self):
         """15111913 GMO 엔드포인트 실패해도 verdict·component_code 는 채워져야."""
         client = FakeClient(
-            ingredient={"대두": load_fixture("15111777_soybean.json")},
             component={"대두": load_fixture("15094202_soybean.json")},
+            gmo={"대두": load_fixture("15111913_soybean.json")},
             errors={"gmo:대두": DataGoKrTimeoutError(
                 "boom", endpoint="15111913", timeout_s=15.0
             )},
@@ -499,6 +430,7 @@ class TestRunStepB:
 
         result = await run_step_b([Ingredient(name="대두")])
         ing = result.enriched_ingredients[0]
+        # 대두 fixture 는 식품원료 + USE_DIVS_CD_NM=사용가능 → allowed
         assert ing.allow_verdict == "allowed"
         assert ing.component_code == "A1000001000000"
         assert ing.is_gmo is None  # GMO 조회 실패 → None
@@ -512,18 +444,12 @@ class TestRunStepB:
         ing = result.enriched_ingredients[0]
         assert ing.allow_verdict == "unidentified"
         assert "합성향료" in result.unidentified
-        # 합성향료는 API 호출도 하지 않음 — 효율성은 부차, 여기선 verdict 만 확인
 
     async def test_whitespace_name_strip_before_lookup(self):
-        """02번 §6 — KOR_NM 앞 공백 strip. run_step_b 전처리에서 이름 정규화."""
-        soybean = load_fixture("15111777_soybean.json")
+        """KOR_NM 앞 공백 strip — run_step_b 전처리에서 이름 정규화."""
         component = load_fixture("15094202_soybean.json")
-        # API 응답에 앞 공백이 들어와도 매칭 성공해야
         component["items"][0]["KOR_NM"] = "  대두"
-        client = FakeClient(
-            ingredient={"대두": soybean},
-            component={"대두": component},
-        )
+        client = FakeClient(component={"대두": component})
         set_client_for_test(client)
 
         result = await run_step_b([Ingredient(name="  대두  ")])
@@ -540,10 +466,10 @@ class TestRunStepB:
         assert result.unidentified == []
         assert result.conditional == []
         assert result.gmo_ingredients == []
+        assert result.warnings == []
 
     async def test_api_call_stats_populated(self):
         client = FakeClient(
-            ingredient={"대두": load_fixture("15111777_soybean.json")},
             component={"대두": load_fixture("15094202_soybean.json")},
             gmo={"대두": load_fixture("15111913_soybean.json")},
         )
@@ -551,22 +477,26 @@ class TestRunStepB:
 
         result = await run_step_b([Ingredient(name="대두")])
         stats = result.api_call_stats
-        # 3 엔드포인트 × 1 이름 = 3 호출
-        assert stats[DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value] >= 1
+        # P6-b: 2 엔드포인트만 × 1 이름 = 2 호출
         assert stats[DataGoKrEndpoint.IMPORT_FOOD_COMPONENT.value] >= 1
         assert stats[DataGoKrEndpoint.FOOD_RAW_MATERIAL.value] >= 1
+        # 15111777 stats 자체가 없어야 함
+        assert DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value not in stats
 
     async def test_parallel_dedup_same_name(self):
-        """동일 이름 N개 → 이름별 3 호출 (dedup)."""
+        """동일 이름 N개 → 이름별 2 호출 (15094202/15111913)."""
         client = FakeClient(
-            ingredient={"대두": load_fixture("15111777_soybean.json")},
+            component={"대두": load_fixture("15094202_soybean.json")},
         )
         set_client_for_test(client)
 
         await run_step_b([Ingredient(name="대두"), Ingredient(name="대두")])
-        # 같은 normalized name '대두' → 각 엔드포인트 1번씩만 호출
+        # 같은 normalized name '대두' → 15094202 1회만
+        comp_calls = [c for c in client.calls if c[0] == "15094202"]
+        assert len(comp_calls) == 1
+        # 15111777 호출은 없어야 함
         ingd_calls = [c for c in client.calls if c[0] == "15111777"]
-        assert len(ingd_calls) == 1
+        assert len(ingd_calls) == 0
 
     async def test_no_api_key_env_raises(self, monkeypatch):
         set_client_for_test(None)
@@ -673,9 +603,14 @@ class TestLookupSynonym:
 
 # ============================================================
 # run_step_b 통합 — synonym 경로 (T3)
+# P6-b: 15111777 exact-miss 를 트리거로 synonym 이 발동하는 경로였음.
+# 15111777 제거로 발동 조건이 사라짐 → 전체 skip. 필요 시 재설계.
 # ============================================================
 
 
+@pytest.mark.skip(
+    reason="P6-b: synonym lookup 통합 경로는 15111777 exact-miss 트리거에 의존 — 재설계 필요"
+)
 @pytest.mark.asyncio
 class TestRunStepBSynonym:
     """synonym 조회 경로가 run_step_b 에 올바르게 통합되었는지 검증.
@@ -751,3 +686,399 @@ class TestRunStepBSynonym:
         ing = result.enriched_ingredients[0]
         # synonym/API 모두 없으면 unidentified (정상 fallback)
         assert ing.allow_verdict == "unidentified"
+
+
+# ============================================================
+# P6-b 신규 — 외화획득용 코드 판정
+# ============================================================
+
+
+class TestForeignExchangeCode:
+    def test_az_prefix(self):
+        assert _is_foreign_exchange_code("AZ000083000000") is True
+
+    def test_bz_prefix(self):
+        assert _is_foreign_exchange_code("BZ000094000000") is True
+
+    def test_cz_prefix(self):
+        assert _is_foreign_exchange_code("CZ000000000000") is True
+
+    def test_normal_food_raw_material_is_false(self):
+        # 일반 식품원료 (A1...) 은 외화획득용 아님
+        assert _is_foreign_exchange_code("A1000911000501") is False
+
+    def test_normal_additive_is_false(self):
+        # 일반 식품첨가물 (B3...) 은 외화획득용 아님
+        assert _is_foreign_exchange_code("B3000035000000") is False
+
+    def test_empty_is_false(self):
+        assert _is_foreign_exchange_code("") is False
+        assert _is_foreign_exchange_code("   ") is False
+
+    def test_single_char_is_false(self):
+        assert _is_foreign_exchange_code("Z") is False
+
+
+# ============================================================
+# P6-b 신규 — 카테고리 기반 verdict
+# ============================================================
+
+
+class TestResolveVerdictByCategory:
+    def test_none_item_unidentified(self):
+        verdict, law, warn = _resolve_verdict_by_category(None)
+        assert verdict == "unidentified"
+        assert law is None
+        assert warn is None
+
+    def test_foreign_exchange_restricted(self):
+        item = {
+            "CPNT_CD": "AZ000083000000",
+            "CPNT_LCLS_CD_NM": "식품원료",
+            "USE_DIVS_CD_NM": "사용가능",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "restricted"
+        assert "외화획득용" in law
+        assert warn is not None
+
+    def test_food_raw_material_allowed(self):
+        item = {
+            "CPNT_CD": "A1000911000501",
+            "CPNT_LCLS_CD_NM": "식품원료",
+            "USE_DIVS_CD_NM": "사용가능",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "allowed"
+        assert "사용 가능 원료" in law
+        assert warn is None
+
+    def test_food_raw_material_non_usable_restricted(self):
+        item = {
+            "CPNT_CD": "A1000000000000",
+            "CPNT_LCLS_CD_NM": "식품원료",
+            "USE_DIVS_CD_NM": "기타",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "restricted"
+        assert "사용 제한" in law
+
+    def test_additive_allowed_with_warning(self):
+        """에탄올 케이스 — 식품첨가물 + USE_DIVS=기타 → allowed + 경고."""
+        item = {
+            "CPNT_CD": "B3000035000000",
+            "KOR_NM": "에탄올",
+            "CPNT_LCLS_CD_NM": "식품첨가물",
+            "USE_DIVS_CD_NM": "기타",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "allowed"
+        assert law == "식품첨가물의 기준 및 규격"
+        assert warn is not None
+        assert "사용량 제한" in warn
+
+    def test_food_type_allowed_with_warning(self):
+        """정제수 케이스 — 식품유형 → allowed + 경고."""
+        item = {
+            "CPNT_CD": "P0000001000000",
+            "KOR_NM": "정제수",
+            "CPNT_LCLS_CD_NM": "식품유형",
+            "USE_DIVS_CD_NM": "기타",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "allowed"
+        assert "식품유형" in law
+        assert warn is not None
+
+    def test_health_food_restricted(self):
+        item = {
+            "CPNT_CD": "C2000131000000",
+            "CPNT_LCLS_CD_NM": "건강기능식품",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "restricted"
+        assert "건강기능식품" in law
+        assert warn is not None
+
+    def test_container_allowed(self):
+        item = {
+            "CPNT_CD": "K1000000000000",
+            "CPNT_LCLS_CD_NM": "기구 및 용기포장",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "allowed"
+
+    def test_unknown_category_unidentified(self):
+        item = {
+            "CPNT_CD": "X0000000000000",
+            "CPNT_LCLS_CD_NM": "미지의카테고리",
+        }
+        verdict, law, warn = _resolve_verdict_by_category(item)
+        assert verdict == "unidentified"
+        assert law is None
+
+
+# ============================================================
+# P6-b 신규 — 정확 매칭 (F0 코드 우선)
+# ============================================================
+
+
+class TestPickExactComponentItem:
+    def test_f0_code_priority(self):
+        """F0 코드가 있으면 CPNT_CD 정확 매칭이 최우선."""
+        ing = Ingredient(name="대두", ingredient_code_f0="A1000001000000")
+        items = [
+            {"CPNT_CD": "DIFFERENT", "KOR_NM": "대두"},  # 이름 매칭은 되지만 코드 틀림
+            {"CPNT_CD": "A1000001000000", "KOR_NM": "오타"},  # 코드 정확 일치
+        ]
+        matched = _pick_exact_component_item(ing, "대두", items)
+        assert matched["CPNT_CD"] == "A1000001000000"
+
+    def test_kor_nm_match_when_no_f0_code(self):
+        ing = Ingredient(name="에탄올")
+        items = [
+            {"CPNT_CD": "OTHER", "KOR_NM": "다른이름"},
+            {"CPNT_CD": "B3000035000000", "KOR_NM": "에탄올"},
+        ]
+        matched = _pick_exact_component_item(ing, "에탄올", items)
+        assert matched["CPNT_CD"] == "B3000035000000"
+
+    def test_kor_nm_strip_matching(self):
+        ing = Ingredient(name="대두")
+        items = [{"CPNT_CD": "X", "KOR_NM": " 대두"}]
+        matched = _pick_exact_component_item(ing, "대두", items)
+        assert matched is not None
+
+    def test_eng_nm_fallback(self):
+        ing = Ingredient(name="ethanol")
+        items = [{"CPNT_CD": "X", "KOR_NM": "에탄올", "ENG_NM": "ETHANOL"}]
+        matched = _pick_exact_component_item(ing, "ethanol", items)
+        assert matched["CPNT_CD"] == "X"
+
+    def test_no_match_returns_none(self):
+        ing = Ingredient(name="없는원료")
+        items = [{"CPNT_CD": "X", "KOR_NM": "다른것"}]
+        assert _pick_exact_component_item(ing, "없는원료", items) is None
+
+    def test_empty_items_returns_none(self):
+        ing = Ingredient(name="대두")
+        assert _pick_exact_component_item(ing, "대두", []) is None
+
+
+# ============================================================
+# P6-b 신규 — run_step_b 골든 시나리오 (에탄올·정제수·밀가루)
+# ============================================================
+
+
+@pytest.mark.asyncio
+class TestRunStepBCategoryBased:
+    async def test_ethanol_food_additive_allowed(self):
+        """에탄올 (B3000035000000, 식품첨가물) → allowed + 경고."""
+        client = FakeClient(
+            component={
+                "에탄올": {
+                    "items": [
+                        {
+                            "CPNT_CD": "B3000035000000",
+                            "KOR_NM": "에탄올",
+                            "CPNT_LCLS_CD_NM": "식품첨가물",
+                            "USE_DIVS_CD_NM": "기타",
+                        }
+                    ],
+                    "total_count": 1,
+                }
+            },
+        )
+        set_client_for_test(client)
+
+        # F0 가 넘긴 matched_name_ko 로 API 호출되어야 함
+        ing = Ingredient(
+            name="에탄올 (Ethanol)",
+            matched_name_ko="에탄올",
+            ingredient_code_f0="B3000035000000",
+        )
+        result = await run_step_b([ing])
+
+        out = result.enriched_ingredients[0]
+        assert out.allow_verdict == "allowed"
+        assert out.law_source == "식품첨가물의 기준 및 규격"
+        assert out.component_code == "B3000035000000"
+        assert any("에탄올 (Ethanol)" in w for w in result.warnings)
+
+    async def test_water_food_type_allowed(self):
+        """정제수 (P0000001000000, 식품유형) → allowed + 경고."""
+        client = FakeClient(
+            component={
+                "정제수": {
+                    "items": [
+                        {
+                            "CPNT_CD": "P0000001000000",
+                            "KOR_NM": "정제수",
+                            "ENG_NM": "WATER",
+                            "CPNT_LCLS_CD_NM": "식품유형",
+                            "USE_DIVS_CD_NM": "기타",
+                        }
+                    ],
+                    "total_count": 1,
+                }
+            },
+        )
+        set_client_for_test(client)
+
+        ing = Ingredient(
+            name="물 (Water)",
+            matched_name_ko="정제수",
+            ingredient_code_f0="P0000001000000",
+        )
+        result = await run_step_b([ing])
+
+        out = result.enriched_ingredients[0]
+        assert out.allow_verdict == "allowed"
+        assert "식품유형" in out.law_source
+        assert out.component_code == "P0000001000000"
+
+    async def test_baked_flour_food_raw_material_allowed(self):
+        """구운밀가루 (A1000911000501, 식품원료 사용가능) → allowed, 경고 없음."""
+        client = FakeClient(
+            component={
+                "구운밀가루": {
+                    "items": [
+                        {
+                            "CPNT_CD": "A1000911000501",
+                            "KOR_NM": "구운밀가루",
+                            "ENG_NM": "BAKED WHEAT FLOUR",
+                            "CPNT_LCLS_CD_NM": "식품원료",
+                            "USE_DIVS_CD_NM": "사용가능",
+                        }
+                    ],
+                    "total_count": 1,
+                }
+            },
+        )
+        set_client_for_test(client)
+
+        ing = Ingredient(
+            name="구운밀가루",
+            matched_name_ko="구운밀가루",
+            ingredient_code_f0="A1000911000501",
+        )
+        result = await run_step_b([ing])
+
+        out = result.enriched_ingredients[0]
+        assert out.allow_verdict == "allowed"
+        assert "사용 가능 원료" in out.law_source
+        # 식품원료 사용가능은 경고 없음
+        assert result.warnings == []
+
+    async def test_foreign_exchange_code_restricted(self):
+        """*Z* 코드 → restricted + '외화획득용' law_source."""
+        client = FakeClient(
+            component={
+                "특수성분": {
+                    "items": [
+                        {
+                            "CPNT_CD": "AZ000083000000",
+                            "KOR_NM": "특수성분",
+                            "CPNT_LCLS_CD_NM": "식품원료",
+                            "USE_DIVS_CD_NM": "사용가능",
+                        }
+                    ],
+                    "total_count": 1,
+                }
+            },
+        )
+        set_client_for_test(client)
+
+        ing = Ingredient(
+            name="특수성분",
+            matched_name_ko="특수성분",
+            ingredient_code_f0="AZ000083000000",
+        )
+        result = await run_step_b([ing])
+
+        out = result.enriched_ingredients[0]
+        assert out.allow_verdict == "restricted"
+        assert "외화획득용" in out.law_source
+        assert out in result.conditional
+
+    async def test_query_key_uses_matched_name_ko(self):
+        """raw name 이 괄호 병기인 경우 matched_name_ko 로 API 호출되어야."""
+        client = FakeClient(
+            component={
+                "에탄올": {
+                    "items": [
+                        {
+                            "CPNT_CD": "B3000035000000",
+                            "KOR_NM": "에탄올",
+                            "CPNT_LCLS_CD_NM": "식품첨가물",
+                            "USE_DIVS_CD_NM": "기타",
+                        }
+                    ]
+                }
+            },
+        )
+        set_client_for_test(client)
+
+        ing = Ingredient(name="에탄올 (Ethanol)", matched_name_ko="에탄올")
+        await run_step_b([ing])
+
+        # API 호출이 "에탄올" 로 되었는지 확인 (괄호 원본 아님)
+        comp_calls = [c for c in client.calls if c[0] == "15094202"]
+        assert comp_calls == [("15094202", "에탄올")]
+
+    async def test_f0_code_wins_over_name_match(self):
+        """동명이원료: F0 코드로 정확 매칭하여 타깃 레코드 선택."""
+        client = FakeClient(
+            component={
+                "다목적": {
+                    "items": [
+                        {
+                            "CPNT_CD": "AZ999999000000",
+                            "KOR_NM": "다목적",
+                            "CPNT_LCLS_CD_NM": "식품원료",
+                            "USE_DIVS_CD_NM": "사용가능",
+                        },
+                        {
+                            "CPNT_CD": "A1234567000000",
+                            "KOR_NM": "다목적",
+                            "CPNT_LCLS_CD_NM": "식품원료",
+                            "USE_DIVS_CD_NM": "사용가능",
+                        },
+                    ]
+                }
+            },
+        )
+        set_client_for_test(client)
+
+        ing = Ingredient(
+            name="다목적",
+            matched_name_ko="다목적",
+            ingredient_code_f0="A1234567000000",
+        )
+        result = await run_step_b([ing])
+
+        out = result.enriched_ingredients[0]
+        # F0 코드가 일반 A1 이므로 allowed, *Z* 아님
+        assert out.allow_verdict == "allowed"
+        assert out.component_code == "A1234567000000"
+
+    async def test_no_component_response_unidentified(self):
+        """15094202 미매칭 → unidentified (15111777 제거로 fallback 없음)."""
+        client = FakeClient()
+        set_client_for_test(client)
+
+        result = await run_step_b([Ingredient(name="존재하지않는원료")])
+        out = result.enriched_ingredients[0]
+        assert out.allow_verdict == "unidentified"
+        assert "존재하지않는원료" in result.unidentified
+
+    async def test_15111777_not_called(self):
+        """15111777 은 절대 호출하지 않아야 (P6-b 설계)."""
+        client = FakeClient(
+            component={"대두": load_fixture("15094202_soybean.json")},
+        )
+        set_client_for_test(client)
+
+        await run_step_b([Ingredient(name="대두")])
+        ingd_calls = [c for c in client.calls if c[0] == "15111777"]
+        assert len(ingd_calls) == 0
