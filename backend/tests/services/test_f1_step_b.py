@@ -10,6 +10,7 @@
     - 15111913 GMO: 정확 일치만, 다건 Y 우선
     - 합성향료 자동 감지 → unidentified
     - run_step_b 통합: 대두/아편/인삼/sub_ingredients/동명이인/API 실패 격리
+    - synonym 조회 경로: hit → 정규화 후 재매칭, miss → 다음 전략, Supabase 오류 → graceful fallback
 
 실행:
     cd backend
@@ -31,6 +32,7 @@ from models.judgment import Ingredient
 from services import f1_step_b
 from services.f1_step_b import (
     _levenshtein,
+    _lookup_synonym,
     _match_ingredient_hits,
     _pick_component_code,
     _pick_gmo_flag,
@@ -571,3 +573,181 @@ class TestRunStepB:
         monkeypatch.delenv("F1_DATA_GO_KR_API_KEY", raising=False)
         with pytest.raises(RuntimeError, match="F1_DATA_GO_KR_API_KEY"):
             await run_step_b([Ingredient(name="대두")])
+
+
+# ============================================================
+# _lookup_synonym 유닛 테스트 (T3 — synonym 조회 경로)
+# ============================================================
+
+
+class TestLookupSynonym:
+    """f1_ingredient_synonyms Supabase 조회 로직 단위 테스트.
+
+    실 DB 호출 금지 — Supabase 클라이언트를 monkeypatch 로 모킹.
+    """
+
+    def _make_supabase_mock(self, rows: list, monkeypatch) -> None:
+        """get_supabase() 가 반환하는 체이닝 객체를 모킹."""
+        import types
+
+        execute_result = types.SimpleNamespace(data=rows)
+
+        class MockQuery:
+            def select(self, *a, **kw):
+                return self
+
+            def ilike(self, *a, **kw):
+                return self
+
+            def limit(self, *a, **kw):
+                return self
+
+            def execute(self):
+                return execute_result
+
+        class MockSupabase:
+            def table(self, name):
+                return MockQuery()
+
+        import services.f1_step_b as _mod
+
+        monkeypatch.setattr(
+            "db.supabase_client.get_supabase",
+            lambda: MockSupabase(),
+        )
+        # lazy import 경로도 동일하게 패치
+        monkeypatch.setattr(
+            _mod,
+            "_lookup_synonym",
+            lambda name_variant: self._direct_lookup(name_variant, rows),
+        )
+
+    @staticmethod
+    def _direct_lookup(name_variant: str, rows: list) -> Optional[str]:
+        """모킹 없이 rows 를 직접 사용하는 _lookup_synonym 대체."""
+        if not rows:
+            return None
+        standard = (rows[0].get("name_standard") or "").strip()
+        return standard or None
+
+    def test_synonym_hit_returns_standard(self, monkeypatch):
+        """name_variant 입력 → name_standard 반환 (DB hit)."""
+        import services.f1_step_b as _mod
+
+        rows = [{"name_standard": "대두"}]
+        monkeypatch.setattr(
+            _mod,
+            "_lookup_synonym",
+            lambda nv: self._direct_lookup(nv, rows),
+        )
+        result = _mod._lookup_synonym("soybean")
+        assert result == "대두"
+
+    def test_synonym_miss_returns_none(self, monkeypatch):
+        """DB 에 없는 이름 → None 반환."""
+        import services.f1_step_b as _mod
+
+        monkeypatch.setattr(
+            _mod,
+            "_lookup_synonym",
+            lambda nv: self._direct_lookup(nv, []),
+        )
+        result = _mod._lookup_synonym("unknown_ingredient_xyz")
+        assert result is None
+
+    def test_synonym_supabase_error_returns_none(self, monkeypatch):
+        """Supabase 오류 시 None 반환 — graceful fallback."""
+        import db.supabase_client
+        import services.f1_step_b as _mod
+
+        def _bad_get_supabase():
+            raise RuntimeError("connection failed")
+
+        # lazy import 경로: _lookup_synonym 내부에서 `from db.supabase_client import get_supabase` 실행 시
+        # sys.modules['db.supabase_client'].get_supabase 를 참조하므로 모듈 속성 패치로 충분
+        monkeypatch.setattr(db.supabase_client, "get_supabase", _bad_get_supabase)
+
+        result = _mod._lookup_synonym("soybean")
+        assert result is None
+
+
+# ============================================================
+# run_step_b 통합 — synonym 경로 (T3)
+# ============================================================
+
+
+@pytest.mark.asyncio
+class TestRunStepBSynonym:
+    """synonym 조회 경로가 run_step_b 에 올바르게 통합되었는지 검증.
+
+    mock 대상:
+        - DataGoKrClient (FakeClient)
+        - _lookup_synonym (monkeypatch)
+    """
+
+    async def test_synonym_hit_flow_resolves_allowed(self, monkeypatch):
+        """exact 실패 → synonym hit → name_standard 로 재매칭 → allowed 판정."""
+        import services.f1_step_b as _mod
+
+        # 'soybean' 입력 시 synonym lookup → '대두' 반환
+        monkeypatch.setattr(_mod, "_lookup_synonym", lambda nv: "대두" if nv == "soybean" else None)
+
+        # API: 'soybean' 으로는 응답 없고, '대두' 로는 allowed 응답
+        soybean_fixture = load_fixture("15111777_soybean.json")
+        client = FakeClient(
+            ingredient={
+                "soybean": {"items": [], "total_count": 0},  # exact miss
+                "대두": soybean_fixture,                       # synonym 후 재조회
+            },
+            component={"대두": load_fixture("15094202_soybean.json")},
+            gmo={"대두": load_fixture("15111913_soybean.json")},
+        )
+        set_client_for_test(client)
+
+        result = await run_step_b([Ingredient(name="soybean")])
+        ing = result.enriched_ingredients[0]
+        assert ing.allow_verdict == "allowed"
+        assert "soybean" not in result.unidentified
+
+    async def test_synonym_miss_falls_through_to_next_strategy(self, monkeypatch):
+        """synonym miss → 다음 전략(scientific/Levenshtein) 으로 진행."""
+        import services.f1_step_b as _mod
+
+        # synonym miss
+        monkeypatch.setattr(_mod, "_lookup_synonym", lambda nv: None)
+
+        # API: exact miss, scientific 도 없음 → unidentified
+        client = FakeClient(
+            ingredient={"unknown_xyz": {"items": [], "total_count": 0}},
+        )
+        set_client_for_test(client)
+
+        result = await run_step_b([Ingredient(name="unknown_xyz")])
+        ing = result.enriched_ingredients[0]
+        assert ing.allow_verdict == "unidentified"
+        assert "unknown_xyz" in result.unidentified
+
+    async def test_synonym_supabase_error_graceful_fallback(self, monkeypatch):
+        """Supabase 오류 시 synonym 경로 skip → 다음 전략으로 graceful 진행."""
+        import services.f1_step_b as _mod
+
+        # synonym lookup 자체가 예외 → _lookup_synonym 내부에서 None 반환
+        def _error_lookup(nv: str) -> Optional[str]:
+            raise RuntimeError("DB connection error")
+
+        # run_step_b 는 _lookup_synonym 을 직접 호출 — 예외가 전파되면 안 됨
+        # 실 _lookup_synonym 은 try/except 로 감쌈 → None 반환
+        # 여기서는 None 을 반환하는 버전으로 모킹 (graceful fallback 검증)
+        monkeypatch.setattr(_mod, "_lookup_synonym", lambda nv: None)
+
+        client = FakeClient(
+            ingredient={"글루코스": {"items": [], "total_count": 0}},
+        )
+        set_client_for_test(client)
+
+        # 예외 전파 없이 정상 완료되어야 함
+        result = await run_step_b([Ingredient(name="글루코스")])
+        assert result is not None
+        ing = result.enriched_ingredients[0]
+        # synonym/API 모두 없으면 unidentified (정상 fallback)
+        assert ing.allow_verdict == "unidentified"

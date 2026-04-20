@@ -61,7 +61,50 @@ _PAGE_SIZE = 50
 _MAX_PAGES = 5  # numOfRows=50 × 5 = 250 → 한 품목 실제 건수 충분히 커버
 
 # 식품유형 매칭 일반 키워드 — 한정 표현이어도 "일반"이면 공통 취급
-_GENERIC_FOOD_TYPE_TOKENS = ("일반", "모든 식품", "전체")
+_GENERIC_FOOD_TYPE_TOKENS = ("일반", "모든 식품", "전체", "식품일반", "모든식품", "공통")
+
+# 식품유형 상위 카테고리 매핑 (fallback용)
+# 현재 food_type 이 하위 카테고리일 때 상위 카테고리로 재매칭 시도
+_FOOD_TYPE_PARENT_MAP: dict[str, tuple[str, ...]] = {
+    # 주류 계열
+    "탁주": ("주류",),
+    "청주": ("주류",),
+    "맥주": ("주류",),
+    "과실주": ("주류",),
+    "소주": ("주류",),
+    "위스키": ("주류", "증류주"),
+    "브랜디": ("주류", "증류주"),
+    "일반증류주": ("주류", "증류주"),
+    # 유제품 계열
+    "우유": ("유가공품", "유류"),
+    "발효유": ("유가공품",),
+    "치즈": ("유가공품",),
+    "버터": ("유가공품",),
+    "분유": ("유가공품",),
+    # 음료 계열
+    "탄산음료": ("음료류",),
+    "과채음료": ("음료류",),
+    "혼합음료": ("음료류",),
+    "인삼음료": ("음료류",),
+    # 과자류 계열
+    "과자": ("과자류",),
+    "캔디류": ("과자류",),
+    "빙과류": ("과자류",),
+    "초콜릿류": ("과자류",),
+    # 면류 계열
+    "국수": ("면류",),
+    "냉면": ("면류",),
+    "당면": ("면류",),
+    # 식용유지 계열
+    "대두유": ("식용유지류", "식용유지"),
+    "옥수수유": ("식용유지류", "식용유지"),
+    "올리브유": ("식용유지류", "식용유지"),
+    "해바라기유": ("식용유지류", "식용유지"),
+    # 수산물 계열
+    "어류": ("수산물", "수산가공품"),
+    "패류": ("수산물", "수산가공품"),
+    "갑각류": ("수산물", "수산가공품"),
+}
 
 
 # ============================================================
@@ -141,11 +184,13 @@ def _pick_latest(specs: list[AdditiveSpec]) -> AdditiveSpec:
 
 
 def _is_applicable(spec: AdditiveSpec, food_type: Optional[str]) -> bool:
-    """식품유형 매칭 (03번 §7).
+    """식품유형 매칭 (03번 §7, T2 fallback 보강).
 
     SPEC_VAL_SUMUP / FNPRT_ITM_NM 에 식품유형 한정 표현이 있으면
     - 해당 food_type 이 포함된 경우에만 채택
     - 한정 표현이 없거나 "일반/모든 식품" 류면 공통으로 채택
+    - 직접 매칭 실패 시 상위 카테고리로 재매칭 시도 (fallback a)
+    - 상위 카테고리도 miss 시 review_needed 처리를 위해 False 반환 (fallback b)
     food_type 이 None 이면 필터 없음 (모두 공통으로 간주).
     """
     summary_parts = [spec.spec_val_sumup or "", spec.fnprt_itm_nm or ""]
@@ -159,7 +204,16 @@ def _is_applicable(spec: AdditiveSpec, food_type: Optional[str]) -> bool:
     # food_type 미지정이면 공통 간주 (보수적)
     if not food_type:
         return True
-    return food_type in summary
+    # 직접 매칭
+    if food_type in summary:
+        return True
+    # fallback (a): 상위 카테고리로 재매칭 시도
+    parent_types = _FOOD_TYPE_PARENT_MAP.get(food_type, ())
+    for parent in parent_types:
+        if parent in summary:
+            return True
+    # fallback (b): 매칭 실패 → False (호출자가 review_needed 처리)
+    return False
 
 
 def _coerce_float(value: Any) -> Optional[float]:

@@ -39,6 +39,58 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# synonym 조회 (f1_ingredient_synonyms 테이블)
+# ---------------------------------------------------------------------------
+
+
+def _lookup_synonym(name_variant: str) -> Optional[str]:
+    """f1_ingredient_synonyms 테이블에서 name_variant → name_standard 변환.
+
+    Supabase ilike 쿼리로 대소문자 무관 일치 검색.
+    hit 이면 name_standard 반환, miss/오류 이면 None 반환.
+
+    인자:
+        name_variant: 정규화된 원재료명 입력값 (normalize_name 적용 후)
+
+    반환:
+        name_standard (str) — DB hit 시 표준명
+        None              — miss 또는 Supabase 오류 (graceful fallback)
+    """
+    if not name_variant:
+        return None
+    try:
+        from db.supabase_client import get_supabase  # lazy import (테스트 격리)
+
+        supabase = get_supabase()
+        result = (
+            supabase.table("f1_ingredient_synonyms")
+            .select("name_standard")
+            .ilike("name_variant", name_variant)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data if result and hasattr(result, "data") else []
+        if rows:
+            standard = (rows[0].get("name_standard") or "").strip()
+            if standard:
+                logger.info(
+                    "Step B synonym hit: '%s' → '%s'",
+                    name_variant,
+                    standard,
+                )
+                return standard
+        logger.debug("Step B synonym miss: '%s'", name_variant)
+        return None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Step B synonym lookup failed for '%s': %s — falling back to next strategy",
+            name_variant,
+            exc,
+        )
+        return None
+
+
+# ---------------------------------------------------------------------------
 # 정규화 & 평탄화
 # ---------------------------------------------------------------------------
 
@@ -178,23 +230,27 @@ def _match_ingredient_hits(
     return [], "none"
 
 
-def resolve_verdict(hits: List[dict]) -> Verdict:
-    """15111777 매칭 결과 hits 에서 verdict 를 **안전측**으로 산출 (02번 §4).
+def resolve_verdict(
+    hits: List[dict],
+    comp_items: Optional[List[dict]] = None,
+    gmo_items: Optional[List[dict]] = None,
+    normalized: str = "",
+) -> Verdict:
+    """3개 API 결과를 합산해 verdict 를 **안전측**으로 산출.
 
     우선순위: prohibited > restricted > allowed > unidentified.
 
-    prohibited 조건:
-        `EDIBLE_INFO == "불가"` 또는 `EDIBLE_N == "o"`
-    restricted 조건:
-        `CHRTR_INFO_CONT` 텍스트가 존재 (공백 제외 비어있지 않음)
-    allowed 조건:
-        `EDIBLE_INFO == "가능"` 또는 `EDIBLE_Y == "o"`
+    prohibited:  15111777 EDIBLE_INFO="불가" 또는 EDIBLE_N="o"
+    restricted:  15111777 CHRTR_INFO_CONT 존재
+    allowed:     15111777 "가능" OR
+                 15094202 USE_DIVS_CD_NM="사용가능" (가공품 커버) OR
+                 15111913 ORM_STD_NM 정확 일치 레코드 존재 (식약처 등재 사실만으로 인정)
+    unidentified: 위 어느 조건도 미충족
 
-    다건 매칭(동명이인) 시 안전측 채택 — 하나라도 prohibited 면 prohibited.
+    prohibited·restricted 는 15111777만 — 안전측 판정 소스는 단일하게 유지.
+    allowed 확장은 15094202/15111913 으로 커버 (가공품·파생품 누락 보완).
     """
-    if not hits:
-        return "unidentified"
-
+    # ── prohibited (15111777만, 안전측 소스 단일 유지) ─────────────────
     has_prohibited = any(
         (h.get("EDIBLE_INFO") == "불가")
         or ((h.get("EDIBLE_N") or "").lower() == "o")
@@ -203,16 +259,30 @@ def resolve_verdict(hits: List[dict]) -> Verdict:
     if has_prohibited:
         return "prohibited"
 
+    # ── restricted (15111777만) ─────────────────────────────────────────
     has_condition = any((h.get("CHRTR_INFO_CONT") or "").strip() for h in hits)
     if has_condition:
         return "restricted"
 
-    has_allowed = any(
+    # ── allowed (3 API 합집합) ──────────────────────────────────────────
+    # 1) 15111777: 명시적 가능 판정
+    has_allowed_1777 = any(
         (h.get("EDIBLE_INFO") == "가능")
         or ((h.get("EDIBLE_Y") or "").lower() == "o")
         for h in hits
     )
-    if has_allowed:
+    # 2) 15094202: 식약처 성분코드 DB에 "사용가능"으로 등재 (가공품 커버)
+    has_allowed_94202 = any(
+        (it.get("USE_DIVS_CD_NM") or "").strip() == "사용가능"
+        and (it.get("KOR_NM") or "").strip() == normalized
+        for it in (comp_items or [])
+    )
+    # 3) 15111913: 식약처 원재료 DB에 ORM_STD_NM 정확 등재 (등재 사실만으로 인정)
+    has_allowed_1913 = any(
+        (it.get("ORM_STD_NM") or "").strip() == normalized
+        for it in (gmo_items or [])
+    )
+    if has_allowed_1777 or has_allowed_94202 or has_allowed_1913:
         return "allowed"
 
     return "unidentified"
@@ -512,6 +582,15 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
             (DataGoKrEndpoint.FOOD_RAW_MATERIAL.value, normalized)
         )
 
+        # ── 15094202/15111913 items 선추출 (resolve_verdict 에 전달) ────
+        comp_items: List[dict] = []
+        if isinstance(comp_payload, dict):
+            comp_items = [it for it in comp_payload.get("items", []) if isinstance(it, dict)]
+
+        gmo_items: List[dict] = []
+        if isinstance(gmo_payload, dict):
+            gmo_items = [it for it in gmo_payload.get("items", []) if isinstance(it, dict)]
+
         # ── 15111777: verdict 판정 ─────────────────────────────
         ingd_items: List[dict] = []
         if isinstance(ingd_payload, dict):
@@ -519,14 +598,57 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
 
         matched, strategy = _match_ingredient_hits(normalized, ingd_items)
 
-        if strategy == "fuzzy":
+        # ── synonym lookup (exact/alias 실패 시) ──────────────
+        # 전략 순서: exact → alias → synonym lookup → scientific → Levenshtein fallback
+        # exact 또는 alias 로 매칭되지 않은 경우 f1_ingredient_synonyms 조회
+        if strategy in ("scientific", "fuzzy", "none"):
+            synonym_standard = _lookup_synonym(normalized)
+            if synonym_standard and synonym_standard != normalized:
+                # name_standard 로 재조회 (캐시된 responses 에 없으면 신규 API 호출)
+                synonym_payload = responses.get(
+                    (DataGoKrEndpoint.IMPORT_FOOD_INGREDIENT.value, synonym_standard)
+                )
+                if synonym_payload is None:
+                    # 캐시 미스 — 동기 블로킹 없이 새 비동기 호출
+                    try:
+                        synonym_payload = await _get_client().get_import_food_ingredient(
+                            synonym_standard
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning(
+                            "Step B synonym API call failed for '%s': %s",
+                            synonym_standard,
+                            exc,
+                        )
+                        synonym_payload = None
+
+                if isinstance(synonym_payload, dict):
+                    synonym_items = [
+                        it
+                        for it in synonym_payload.get("items", [])
+                        if isinstance(it, dict)
+                    ]
+                    syn_matched, syn_strategy = _match_ingredient_hits(
+                        synonym_standard, synonym_items
+                    )
+                    if syn_strategy not in ("fuzzy", "none"):
+                        # synonym 경로로 유효 매칭 성공
+                        matched, strategy = syn_matched, f"synonym:{syn_strategy}"
+                        logger.info(
+                            "Step B synonym match: '%s' → '%s' (strategy=%s)",
+                            normalized,
+                            synonym_standard,
+                            strategy,
+                        )
+
+        if strategy.startswith("fuzzy"):
             # Levenshtein fallback — 자동 확정 금지
             ing.allow_verdict = "unidentified"
             ing.source_api = None
             if ing.name not in unidentified:
                 unidentified.append(ing.name)
         else:
-            verdict = resolve_verdict(matched)
+            verdict = resolve_verdict(matched, comp_items=comp_items, gmo_items=gmo_items, normalized=normalized)
             ing.allow_verdict = verdict
             if verdict != "unidentified":
                 ing.source_api = ",".join(
@@ -550,19 +672,9 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
                     unidentified.append(ing.name)
 
         # ── 15094202: 성분코드 ────────────────────────────────
-        comp_items: List[dict] = []
-        if isinstance(comp_payload, dict):
-            comp_items = [
-                it for it in comp_payload.get("items", []) if isinstance(it, dict)
-            ]
         ing.component_code = _pick_component_code(normalized, comp_items)
 
         # ── 15111913: GMO 플래그 ──────────────────────────────
-        gmo_items: List[dict] = []
-        if isinstance(gmo_payload, dict):
-            gmo_items = [
-                it for it in gmo_payload.get("items", []) if isinstance(it, dict)
-            ]
         ing.is_gmo = _pick_gmo_flag(normalized, gmo_items)
         if ing.is_gmo is True and ing.name not in gmo_ingredients:
             gmo_ingredients.append(ing.name)

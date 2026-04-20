@@ -640,6 +640,61 @@ class TestRunStepC:
         assert "함량" in categories
 
 
+# ============================================================
+# T2 신규: 식품유형 매칭 fallback edge case 5건
+# ============================================================
+
+
+class TestFoodTypeMatchingFallback:
+    """T2 — _is_applicable 식품유형 매칭 fallback edge case."""
+
+    # F-01: 상위 카테고리 fallback — 탁주 → 주류 매칭
+    def test_f01_parent_category_fallback(self) -> None:
+        """탁주(food_type)가 '주류'만 언급하는 기준에 fallback 매칭."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="주류의 함량은 0.1 mg/kg 이하",
+        )
+        # 탁주 → 상위 카테고리 주류로 fallback
+        assert _is_applicable(spec, "탁주") is True
+
+    # F-02: 하위 카테고리가 상위와 다른 경우 미매칭
+    def test_f02_unrelated_category_miss(self) -> None:
+        """음료류 기준에 유가공품을 매칭 시도 → False (fallback 없음)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="음료류에 한하여 적용",
+        )
+        assert _is_applicable(spec, "유가공품") is False
+
+    # F-03: 공통 키워드 "공통" 추가 인식
+    def test_f03_generic_keyword_gongtoong(self) -> None:
+        """'공통 기준 적용' → 공통 취급 (True)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="공통 기준 적용",
+        )
+        assert _is_applicable(spec, "음료류") is True
+
+    # F-04: 공통 키워드 "식품일반" 인식
+    def test_f04_generic_keyword_sikpum_general(self) -> None:
+        """'식품일반에 적용' → 공통 취급 (True)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            FNPRT_ITM_NM="식품일반",
+        )
+        assert _is_applicable(spec, "탁주") is True
+
+    # F-05: food_type=None 일 때 모두 통과
+    def test_f05_none_food_type_passes_all(self) -> None:
+        """food_type=None 이면 한정 표현이 있어도 True (필터 없음)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="유가공품에만 적용",
+        )
+        assert _is_applicable(spec, None) is True
+
+
 class TestExtractItemsFromRaw:
     def test_empty_response(self) -> None:
         from services.f1_step_c import _extract_items_from_raw
