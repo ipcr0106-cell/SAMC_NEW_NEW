@@ -53,10 +53,14 @@ export const STANDARDS_STATUS_LABEL = {
   pass: "적합",
   fail: "초과",
   no_threshold: "기준 미등록",
+  review_needed: "검토 필요",
+  no_data: "데이터 없음",
 } as const;
 
 export const STANDARDS_STATUS_COLOR = {
   pass: "text-green-600",
   fail: "text-red-600 font-semibold",
   no_threshold: "text-gray-500",
+  review_needed: "text-yellow-600",
+  no_data: "text-gray-400",
 } as const;
