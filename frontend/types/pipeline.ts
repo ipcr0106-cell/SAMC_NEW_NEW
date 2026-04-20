@@ -151,49 +151,27 @@ export interface LabelIssue {
   law_ref: string;        // 근거 법령
   law_excerpt?: string;   // 근거 법령 원문 구절
   severity: "must_fix" | "review_needed";
+  law_ref?: string;       // 관련 법령
+  reason?: string;        // 위반 이유
+  law_excerpt?: string;   // 참고 법령 원문
 }
 
 export interface ImageIssue {
-  description: string;    // 이미지 요소 설명
-  location?: string;      // 라벨 상 위치
-  violation_type: string; // ①~㉖ 위반 유형
-  law_ref: string;        // 근거 법령
-  law_excerpt?: string;   // 근거 법령 원문 구절
-  reasoning: string;      // 위반 판단 근거 (사용자에게 보이는 설명)
   severity: "must_fix" | "review_needed";
-  recommendation?: string; // 수정 권고
-  // confirmed: 확정 위반 유형 분석 결과
-  // suggested: 법령 개정으로 추가된 낮은 신뢰도 항목 — AI 불확실, 사용자 직접 확인 권고
-  review_level?: "confirmed" | "suggested";
-}
-
-export interface ValidationConflict {
-  law_refs: string[];
+  law_ref?: string;
   description: string;
+  location?: string;
   reasoning: string;
-  recommendation: string;
-}
-
-export interface ValidationDependency {
-  selected_law_ref: string;
-  required_law_ref: string;
-  description: string;
-  reasoning: string;
-}
-
-export interface ValidationResult {
-  is_valid: boolean;
-  conflicts: ValidationConflict[];
-  dependencies: ValidationDependency[];
-  applied_principles?: string;
-  summary: string;
+  recommendation?: string;
+  law_excerpt?: string;
+  review_level?: "confirmed" | "suggested"; // suggested = 낮은 신뢰도 AI 권고
 }
 
 export interface CrossCheckItem {
-  field: "product_name" | "ingredients" | "content_volume" | "origin" | "manufacturer";
-  label_value: string;    // 라벨에 표기된 값
-  doc_value: string;      // 제출 서류의 값
+  field: string;          // 교차검증 필드명 (product_name, ingredients, ...)
   match: boolean;
+  label_value?: string;
+  doc_value?: string;
   note?: string;
 }
 
@@ -202,107 +180,82 @@ export interface Feature4Result {
   issues: LabelIssue[];
   image_issues?: ImageIssue[];
   cross_check: CrossCheckItem[];
-  translation_note?: string;  // 다국어 번역 적용 시 표시
-  label_image_url?: string;   // Supabase Storage에 저장된 라벨 이미지 경로
+}
+
+export interface ConflictItem {
+  law_refs: string[];
+  description: string;
+  reasoning: string;
+  recommendation: string;
+}
+
+export interface DependencyItem {
+  selected_law_ref: string;
+  required_law_ref: string;
+  description: string;
+  reasoning: string;
+}
+
+export interface ValidationResult {
+  is_valid: boolean;
+  summary: string;
+  conflicts: ConflictItem[];
+  dependencies: DependencyItem[];
+  applied_principles?: string;
 }
 
 // ──────────────────────────────────────────────────
-// 기능1 HITL 타입 (Wave 3 — backend/models/f1_hitl.py 1:1 매핑)
-// F2~F5 영역 금지 — F1 HITL만 추가
+// 기능5: 한글표시사항 시안 (담당: 세연)
 // ──────────────────────────────────────────────────
 
-/**
- * pipeline_steps.status 확장값 (migration 017, 05번 §6)
- * backend/models/f1_hitl.py PipelineStepStatus 와 동일.
- */
+export interface Feature5Result {
+  draft_text?: string;
+  sections?: Record<string, string>;
+  status?: string;
+}
+
+// ──────────────────────────────────────────────────
+// 파이프라인 공통 상태 타입
+// ──────────────────────────────────────────────────
+
 export type PipelineStepStatus =
   | "pending"
   | "running"
-  | "completed"
-  | "approved"         // HITL-0 승인 (F0 전용)
   | "waiting_review"
-  | "needs_review"     // HITL-1 필요 (에스컬레이션 있음)
-  | "confirmed"        // HITL-2 완료
-  | "locked";          // 확정 후 잠김
+  | "needs_review"   // HITL-1 에스컬레이션 발생
+  | "completed"
+  | "approved"       // F0 승인 완료
+  | "confirmed"      // 담당자 HITL-2 확정
+  | "locked"         // 수정 불가 잠금
+  | "error";
 
-/**
- * HITL-1: 미확인 원재료 담당자 판정 (IngredientDecision)
- * backend/models/f1_hitl.py IngredientDecision 1:1 매핑.
- */
+// ──────────────────────────────────────────────────
+// HITL 요청 타입
+// ──────────────────────────────────────────────────
+
 export interface IngredientDecision {
-  name: string;
+  name: string;               // ingredient name (key used in decisions map)
   decision: "allow" | "deny" | "skip";
   alternative_name?: string | null;
   note?: string | null;
 }
 
-/**
- * HITL-1: 조건부 원재료 사용 조건 평가 결과 (ConditionalResolution)
- * backend/models/f1_hitl.py ConditionalResolution 1:1 매핑.
- */
-export interface HITLConditionalResolution {
-  ingredient_name: string;
-  meets_condition: boolean;
-  reasoning: string;
-}
-
-/**
- * HITL-1: 비수치 기준값 담당자 판정 (QualitativeResolution)
- * backend/models/f1_hitl.py QualitativeResolution 1:1 매핑.
- */
-export interface QualitativeResolution {
-  ingredient_name: string;
-  test_category: string;
-  resolution: "pass" | "fail" | "unknown";
-  note?: string | null;
-}
-
-/**
- * HITL-1 decisions 요청 바디
- * POST /api/v1/cases/{case_id}/pipeline/feature/1/hitl1-decisions
- * backend/models/f1_hitl.py HITL1DecisionsRequest 1:1 매핑.
- */
 export interface HITL1DecisionsRequest {
   ingredient_decisions: IngredientDecision[];
-  conditional_resolutions: HITLConditionalResolution[];
-  qualitative_resolutions: QualitativeResolution[];
+  conditional_resolutions: {
+    ingredient_name: string;
+    meets_condition: boolean | null;
+    reasoning: string;
+  }[];
+  qualitative_resolutions: unknown[];
   escalation_acknowledgements: string[];
   reviewer_id: string;
 }
 
-/**
- * HITL-2 confirm 요청 바디
- * POST /api/v1/cases/{case_id}/pipeline/feature/1/confirm
- * backend/models/f1_hitl.py HITL2ConfirmRequest 1:1 매핑.
- */
 export interface HITL2ConfirmRequest {
-  user_verdict: UserVerdict;
+  user_verdict: "수입가능" | "수입불가" | "보류";
   final_reason: string;
   selected_citations: string[];
   signer_id: string;
-  signed_at: string; // ISO 8601 문자열 (프론트 → 백엔드 datetime 직렬화)
-}
-
-/**
- * HITL-2 최종 판정 값
- * backend/models/f1_hitl.py UserVerdict 와 동일.
- */
-export type UserVerdict = "수입가능" | "수입불가" | "보류";
-
-// ──────────────────────────────────────────────────
-// 기능5: 한글표시사항 검토 및 시안 (담당: 세연)
-// ──────────────────────────────────────────────────
-
-export interface AllergyWarning {
-  ingredient: string;
-  status: "confirmed" | "needs_confirmation";
-  reason?: string;
-}
-
-export interface Feature5Result {
-  label_draft: string;              // 한글 라벨 시안 전문
-  allergy_warnings: AllergyWarning[];
-  gmo_notice?: string;
-  law_refs: string[];
-  uncertain_items: string[];        // "⚠️ 확인 필요" 항목
+  signed_at: string;
 }

@@ -320,8 +320,6 @@ export function useImportCheck(caseId: string) {
 
   return {
     state,
-    fetchResult,
-    runWithPayload,
     toggleLawRef,
     setUserVerdict,
     setEditReason,
@@ -329,7 +327,7 @@ export function useImportCheck(caseId: string) {
     confirm,
     handleDownloadPdf,
     submitHITLDecision,
-    // Wave 4 P2: HITL API 함수들
+    runWithPayload,
     editF0,
     approveF0,
     submitHitl1,

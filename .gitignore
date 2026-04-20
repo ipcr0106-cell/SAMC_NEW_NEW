@@ -50,6 +50,9 @@ build/
 Thumbs.db
 desktop.ini
 
+# F3 작업 폴더 (분석 스크립트·데이터·리포트 — 공유 불필요)
+f3_작업/
+
 # 로그
 *.log
 
