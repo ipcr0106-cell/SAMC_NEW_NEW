@@ -340,6 +340,8 @@ export const getFeature1 = async (caseId: string) => {
 // ── 기능 2: 식품유형 분류 ──────────────────────────
 /**
  * @deprecated F2 스텝이 F1 페이지로 통합됨 (f1f2 병합). FoodTypeSection에서 getFeature2 직접 사용.
+ * TODO(Wave 5): samcbc step0_food_type BE 이식 완료 후 삭제.
+ * 현재는 FoodTypeSection 의 임시 실행 버튼에서 호출 (Wave 4 P4 보완 계획 T1).
  */
 export const runFeature2 = async (caseId: string) => {
   const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2/run`, {

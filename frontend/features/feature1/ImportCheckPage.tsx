@@ -41,7 +41,7 @@ import type { IngredientDecision, FoodTypeHierarchy } from "@/types/pipeline";
 import type { ConditionalResolution } from "./components/ConditionalResolutionPanel";
 import type { EscalationItem } from "./components/EscalationAckList";
 import { isConfirmedStatus } from "./types";
-import { getFeature2 } from "@/lib/api";
+import { getFeature2, runFeature2 } from "@/lib/api";
 
 interface Props {
   caseId: string;
@@ -81,6 +81,9 @@ export default function ImportCheckPage({ caseId }: Props) {
   // ── F2 식품유형 분류 state (f1f2 병합) ───────────────────────────────
   const [foodTypeHierarchy, setFoodTypeHierarchy] = useLocalState<FoodTypeHierarchy | null>(null);
   const [showFoodTypeEdit, setShowFoodTypeEdit] = useLocalState(false);
+  // TODO(Wave 5): samcbc step0_food_type BE 이식 완료 후 아래 F2 실행 트리거 상태 제거.
+  const [isRunningF2, setIsRunningF2] = useLocalState(false);
+  const [f2RunError, setF2RunError] = useLocalState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -99,6 +102,26 @@ export default function ImportCheckPage({ caseId }: Props) {
     })();
     return () => { cancelled = true; };
   }, [caseId]);
+
+  // TODO(Wave 5): F2 가 F1 파이프라인에 통합되면 제거. 현재는 사용자 수동 트리거.
+  const handleRunF2 = useCallback(async () => {
+    setIsRunningF2(true);
+    setF2RunError(null);
+    try {
+      await runFeature2(caseId);
+      const row = (await getFeature2(caseId)) as {
+        ai_result: FoodTypeHierarchy | null;
+        final_result: FoodTypeHierarchy | null;
+      };
+      const picked = row.final_result ?? row.ai_result;
+      if (picked) setFoodTypeHierarchy(picked);
+      else setF2RunError("분류 결과를 가져오지 못했습니다.");
+    } catch (e) {
+      setF2RunError(e instanceof Error ? e.message : "F2 실행 중 오류가 발생했습니다.");
+    } finally {
+      setIsRunningF2(false);
+    }
+  }, [caseId, setFoodTypeHierarchy, setIsRunningF2, setF2RunError]);
 
   // ── HITL-1 로컬 결정 상태 ──────────────────────────────────────────
   const [ingredientDecisions, setIngredientDecisions] = useLocalState<readonly IngredientDecision[]>([]);
@@ -255,6 +278,9 @@ export default function ImportCheckPage({ caseId }: Props) {
           hierarchy={foodTypeHierarchy}
           onEdit={() => setShowFoodTypeEdit(true)}
           isEditable={!isConfirmed}
+          onRun={handleRunF2}
+          isRunning={isRunningF2}
+          runError={f2RunError}
         />
         {showFoodTypeEdit && foodTypeHierarchy && (
           <FoodTypeEditDialog
