@@ -3,7 +3,7 @@
 커버 시나리오 (03번 §10 테스트 포인트):
     - L-아스코르브산 + 87% → pass (기준 85% 이상)
     - L-아스코르브산 + 80% → fail
-    - 성상/확인시험 행 → review_needed (자동 판정 불가)
+    - 성상/확인시험 행 → 출력 제외 (중간재 메타데이터 판정 범위 밖)
     - g/L 기준 + 비중 주입 → mg/kg 변환 정확
     - VALD_END_DT="99991231" → 적용
     - VALD_END_DT 오늘보다 과거 → 제외
@@ -385,14 +385,13 @@ class TestRunStepC:
             client=client,
             today=date(2026, 4, 20),
         )
-        # 3 checks (함량 pass, 성상 review, 확인시험 review)
-        assert len(result.checks) == 3
+        # 함량 pass 1건만 출력 (성상/확인시험은 중간재 메타데이터로 제외)
+        assert len(result.checks) == 1
         statuses = {c.test_category: c.status for c in result.checks}
         assert statuses["함량"] == "pass"
-        assert statuses["성상"] == "review_needed"
-        assert statuses["확인시험"] == "review_needed"
-        # 하나라도 review_needed 있으므로 overall = review_needed (fail 없음)
-        assert result.overall_status == "review_needed"
+        assert "성상" not in statuses
+        assert "확인시험" not in statuses
+        assert result.overall_status == "pass"
 
     async def test_ascorbic_acid_fail_scenario(self) -> None:
         client = make_client_for_fixture("ascorbic_acid.json")
@@ -495,13 +494,15 @@ class TestRunStepC:
             client=client,
             today=date(2026, 4, 20),
         )
-        # 실측값 없음 → 함량은 no_data, 성상/확인시험 review_needed
-        quant = next(c for c in result.checks if c.test_category == "함량")
+        # 실측값 없음 + 성상/확인시험은 제외 → 함량만 no_data
+        assert len(result.checks) == 1
+        quant = result.checks[0]
+        assert quant.test_category == "함량"
         assert quant.status == "no_data"
         assert quant.actual_value is None
         assert quant.threshold_value == 85.0 * 10_000
-        # 성상/확인 이 review_needed 이므로 overall = review_needed
-        assert result.overall_status == "review_needed"
+        # 함량만 no_data → overall no_data
+        assert result.overall_status == "no_data"
 
     async def test_api_error_propagates_to_review_reasons(self) -> None:
         """data.go.kr 장애 → api_error:{name} 사유 누적 + checks 비어있음."""
@@ -634,9 +635,9 @@ class TestRunStepC:
         )
         # pagination 호출됐는지 확인
         client.call.assert_called_once()
-        # 순도시험(page2) + 함량(page1 의 최신 LAST_UPDT_DTM 1건) = 2 categories
+        # 순도시험은 중간재 메타데이터로 제외 → 함량(page1 최신 1건)만 남음
         categories = {c.test_category for c in result.checks}
-        assert "순도시험" in categories
+        assert "순도시험" not in categories
         assert "함량" in categories
 
 

@@ -12,7 +12,8 @@ Wave 2 W2-C 트랙 구현. `run_step_c` 시그니처는 Day 0 스켈레톤(4c547
     6. 수치 비교: MIMM_VAL/MXMM_VAL 우선, 없으면 parse_numeric_spec(SPEC_VAL).
        unit_converter.normalize_to_common_unit 으로 mg/kg 정규화.
        density 는 food_type_hierarchy.food_type → DENSITY_BY_FOOD_TYPE.
-    7. 시험항목 분기: "함량" 수치 비교, "성상"/"확인시험"/"순도시험" 비수치 review_needed.
+    7. 시험항목 분기: "함량"만 수치 비교, "성상"/"확인시험"/"순도시험" 등 비수치
+       메타데이터는 중간재 판정 범위 밖으로 출력에서 제외.
     8. INJRY_YN=="Y" → is_dangerous=True 플래그 + review_reasons 경고.
     9. overall_status: 모두 pass → pass, 하나라도 fail → fail,
        review_needed 존재 → review_needed, 기준 0건 → no_data.
@@ -429,12 +430,19 @@ def _evaluate_specs_for_test_category(
     measured: Optional[MeasuredValue],
     density: float,
     ingredient_name: str,
-) -> StandardCheck:
+) -> Optional[StandardCheck]:
     """T_KOR_NM 1건 분기.
 
     - '함량' → 수치 비교
-    - '성상' / '확인시험' / '순도시험' / 기타 → 비수치 (review_needed)
+    - '성상' / '확인시험' / '순도시험' → None (중간재 메타데이터는 판정 범위 외)
+    - 기타: MIMM/MXMM 값이 있으면 수치 비교, 없으면 None
     """
+    # 비수치 메타데이터는 판정 대상 아님 (중간재 물성 검증은 F1 범위 밖)
+    if test_category == _QUALITATIVE_TEST_CATEGORY:
+        return None
+    if test_category in _HITL_TEST_CATEGORIES:
+        return None
+
     # 유효 + 단일 채택
     latest = _pick_latest(specs)
 
@@ -442,18 +450,14 @@ def _evaluate_specs_for_test_category(
         return _evaluate_numeric(
             latest, measured, density=density, ingredient_name=ingredient_name
         )
-    if test_category == _QUALITATIVE_TEST_CATEGORY:
-        return _evaluate_non_numeric(latest, ingredient_name=ingredient_name)
-    if test_category in _HITL_TEST_CATEGORIES:
-        return _evaluate_non_numeric(latest, ingredient_name=ingredient_name)
 
-    # 알 수 없는 test_category — 수치로 시도해보고 실패하면 비수치
+    # 알 수 없는 test_category — 수치 값 있으면 평가, 없으면 스킵
     min_raw, max_raw = _extract_min_max(latest)
     if min_raw is not None or max_raw is not None:
         return _evaluate_numeric(
             latest, measured, density=density, ingredient_name=ingredient_name
         )
-    return _evaluate_non_numeric(latest, ingredient_name=ingredient_name)
+    return None
 
 
 # ============================================================
@@ -465,56 +469,49 @@ async def _fetch_all_specs_for_ingredient(
     client: DataGoKrClient,
     name: str,
 ) -> tuple[list[AdditiveSpec], Optional[str]]:
-    """한 원재료의 모든 페이지 조회 → AdditiveSpec 리스트.
+    """safetydata.go.kr 식품공전 스냅샷(f1_safetydata_food_code)에서 조회.
 
-    첫 페이지는 `get_additive_standard(name)` (Day 0 고수준 API 사용).
-    후속 페이지는 `client.call(ADDITIVE_STANDARD, {"PC_KOR_NM": name,
-    "pageNo": n})` 로 명시 순회. 결과는 response body (raw) 로 돌아오므로
-    `response.body.items` 평탄화 필요.
+    배경: data.go.kr 15116583 `PC_KOR_NM` 필터가 서버측에서 미작동하여
+    엉뚱한 기준치가 반환되는 버그를 회피. safetydata.go.kr 전수 스냅샷을
+    Supabase에 적재 후 ILIKE/trgm 검색.
+
+    `client` 인자는 시그니처 호환을 위해 유지하지만 실제로 사용하지 않음.
 
     Returns:
-        (specs, error_reason). error_reason 이 있으면 API 장애 (no_data).
+        (specs, error_reason). error_reason 이 있으면 조회 장애 (no_data).
+
+    참조:
+        .omc/research/f1_api_15111777_filter_issue.md
+        backend/scripts/f1_sync_safetydata.py
     """
-    # 지연 import — 순환 회피 및 테스트 단순화
-    from services.data_go_kr import ADDITIVE_STANDARD
+    from services.safetydata_client import lookup_food_code
 
     aggregated: list[AdditiveSpec] = []
     try:
-        # 1페이지: 고수준 API — items 리스트 + total_count 반환
-        first = await client.get_additive_standard(name)
-        first_items = first.get("items") or []
-        total = int(first.get("total_count") or 0)
-        for item in first_items:
-            try:
-                aggregated.append(AdditiveSpec.model_validate(item))
-            except Exception:  # pragma: no cover - defensive
-                logger.warning("Step C: AdditiveSpec validate failed item=%s", item)
-
-        # 2페이지 이상 필요 여부: total > 첫페이지 items 수
-        if total > len(first_items) and len(first_items) >= _PAGE_SIZE:
-            for page_no in range(2, _MAX_PAGES + 1):
-                body = await client.call(
-                    ADDITIVE_STANDARD,
-                    {"PC_KOR_NM": name, "pageNo": str(page_no)},
-                )
-                items = _extract_items_from_raw(body)
-                if not items:
-                    break
-                for item in items:
-                    try:
-                        aggregated.append(AdditiveSpec.model_validate(item))
-                    except Exception:  # pragma: no cover - defensive
-                        logger.warning(
-                            "Step C: AdditiveSpec validate failed item=%s", item
-                        )
-                if len(items) < _PAGE_SIZE or len(aggregated) >= total:
-                    break
-    except DataGoKrError as exc:
-        logger.warning("Step C: data.go.kr error for %s: %s", name, exc)
-        return aggregated, f"api_error:{exc.__class__.__name__}"
+        records = await lookup_food_code(name)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.exception("Step C: unexpected error for %s", name)
-        return aggregated, f"unexpected:{exc.__class__.__name__}"
+        logger.exception("Step C: safetydata lookup failed for %s", name)
+        return aggregated, f"safetydata_error:{exc.__class__.__name__}"
+
+    for r in records:
+        raw = {
+            "PC_KOR_NM": r.item_nm,
+            "T_KOR_NM": r.test_artcl,
+            "FNPRT_ITM_NM": r.spcs_artcl,
+            "SPEC_VAL": r.crtr_spcfct_vl,
+            "SPEC_VAL_SUMUP": r.spcfct_vl_smry,
+            "MIMM_VAL": r.min_vl,
+            "MXMM_VAL": r.max_vl,
+            "UNIT_NM": r.unit_nm,
+            "INJRY_YN": r.hzr_yn,
+            "VALD_BEGN_DT": r.vld_strt_ymd,
+            "VALD_END_DT": r.vld_end_ymd,
+            "SORC": "식품공전",
+        }
+        try:
+            aggregated.append(AdditiveSpec.model_validate(raw))
+        except Exception:  # pragma: no cover - defensive
+            logger.warning("Step C: AdditiveSpec adapter validate failed raw=%s", raw)
     return aggregated, None
 
 
@@ -656,6 +653,8 @@ async def run_step_c(
                 density=density,
                 ingredient_name=ing.name,
             )
+            if check is None:
+                continue
             # INJRY_YN=Y 경고 누적
             if check.is_dangerous:
                 review_reasons.append(
