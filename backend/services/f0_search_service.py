@@ -106,11 +106,11 @@ def _search_supabase_exact(query: str, top_k: int) -> list[IngredientSearchItem]
         ]
 
     try:
-        # 1단계: 완전일치 (name_ko 또는 code 가 query와 동일)
+        # 1단계: 완전일치 (name_ko, name_en, code 가 query와 동일)
         eq_result = (
             sb.table("f0_ingredient_codes")
             .select("code, name_ko, name_en, category, code_prefix")
-            .or_(f"name_ko.eq.{query},code.eq.{query}")
+            .or_(f"name_ko.eq.{query},name_en.ilike.{query},code.eq.{query}")
             .limit(top_k)
             .execute()
         )

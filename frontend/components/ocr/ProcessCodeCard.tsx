@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Cog, Globe2, Search, CheckSquare, Square, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useMemo, useRef, useEffect } from "react";
+import { Cog, Globe2, Search, CheckSquare, Square, ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import Card from "@/components/ui/Card";
 import Input from "@/components/ui/Input";
 import Toggle from "@/components/ui/Toggle";
@@ -194,6 +194,87 @@ function CandidateList({
   );
 }
 
+/** 단계 내 코드 검색 인라인 드롭다운 */
+function StepCodeSearch({
+  processCodes,
+  onAdd,
+  onClose,
+}: {
+  processCodes: string[];
+  onAdd: (code: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return PROCESS_CODE_GROUPS;
+    const q = query.toLowerCase();
+    return PROCESS_CODE_GROUPS.map((g) => ({
+      ...g,
+      codes: g.codes.filter(
+        (c) => c.value.toLowerCase().includes(q) || c.label.toLowerCase().includes(q)
+      ),
+    })).filter((g) => g.codes.length > 0);
+  }, [query]);
+
+  return (
+    <div className="mt-1.5 border border-blue-200 rounded-xl bg-white shadow-md overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+        <Search size={13} className="text-slate-400 shrink-0" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="공정명 또는 코드 검색... (예: 살균, 01)"
+          className="flex-1 text-xs outline-none placeholder-slate-400"
+        />
+        <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
+          <X size={13} />
+        </button>
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {filtered.length === 0 ? (
+          <div className="p-3 text-center text-xs text-slate-400">일치하는 코드 없음</div>
+        ) : (
+          filtered.map((group) => (
+            <div key={group.category}>
+              <div className="px-3 py-1 bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0">
+                {group.category}
+              </div>
+              {group.codes.map((code) => {
+                const added = processCodes.includes(code.value);
+                return (
+                  <button
+                    key={code.value}
+                    type="button"
+                    onClick={() => !added && onAdd(code.value)}
+                    disabled={added}
+                    className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-2 ${
+                      added
+                        ? "text-slate-300 cursor-default bg-slate-50"
+                        : "text-slate-700 hover:bg-blue-50 hover:text-blue-700"
+                    }`}
+                  >
+                    <span className="font-mono text-[10px] text-slate-400 w-6 shrink-0">{code.value}</span>
+                    <span className="flex-1">{code.label.split(" - ")[1]}</span>
+                    {added && <span className="text-[10px] text-blue-400 font-medium shrink-0">추가됨</span>}
+                  </button>
+                );
+              })}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 /** 단계별 공정 코드 표시 컴포넌트 */
 function ProcessStepList({
   steps,
@@ -208,6 +289,8 @@ function ProcessStepList({
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(
     () => new Set(steps.map((s) => s.step_number))
   );
+  // 코드 직접 검색창이 열린 step number (null이면 닫힘)
+  const [searchOpenStep, setSearchOpenStep] = useState<number | null>(null);
 
   const toggleStep = (stepNum: number) => {
     setExpandedSteps((prev) => {
@@ -226,12 +309,20 @@ function ProcessStepList({
     }
   };
 
+  const addCodeForStep = (code: string, stepNum: number) => {
+    if (!processCodes.includes(code)) {
+      onProcessCodesChange([...processCodes, code]);
+    }
+    setSearchOpenStep(null);
+  };
+
   return (
     <div className="space-y-2">
       {steps.map((step) => {
         const recChecked = processCodes.includes(step.recommended_code);
         const hasSimilar = step.similar_codes.length > 0;
         const expanded = expandedSteps.has(step.step_number);
+        const isSearchOpen = searchOpenStep === step.step_number;
         const codeName = step.recommended_code_name || getProcessCodeLabel(step.recommended_code).replace(/^[\w\d]+\s*[-–]\s*/, "");
 
         return (
@@ -244,14 +335,37 @@ function ProcessStepList({
               <span className="text-[10px] font-bold text-slate-400 shrink-0">
                 {step.step_number}번 공정
               </span>
-              <span className="text-xs font-semibold text-slate-700 truncate">
+              <span className="text-xs font-semibold text-slate-700 truncate flex-1">
                 {step.step_name_original
                   ? `${step.step_name_original}${step.step_name_ko && step.step_name_ko !== step.step_name_original ? ` (${step.step_name_ko})` : ""}`
                   : step.step_name_ko}
               </span>
+              {/* 코드 직접 검색 버튼 */}
+              <button
+                type="button"
+                onClick={() => setSearchOpenStep(isSearchOpen ? null : step.step_number)}
+                title="다른 코드 검색"
+                className={`shrink-0 flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-lg border transition-all ${
+                  isSearchOpen
+                    ? "bg-blue-50 border-blue-300 text-blue-600"
+                    : "bg-white border-slate-200 text-slate-500 hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50"
+                }`}
+              >
+                <Search size={10} />
+                코드 검색
+              </button>
             </div>
 
             <div className="px-3 py-2 space-y-1.5">
+              {/* 인라인 코드 검색창 */}
+              {isSearchOpen && (
+                <StepCodeSearch
+                  processCodes={processCodes}
+                  onAdd={(code) => addCodeForStep(code, step.step_number)}
+                  onClose={() => setSearchOpenStep(null)}
+                />
+              )}
+
               {/* 추천 코드 */}
               <button
                 type="button"

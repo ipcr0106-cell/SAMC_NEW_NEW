@@ -471,6 +471,16 @@ async def list_documents(case_id: str):
 # 성분코드 자동 조회 헬퍼
 # ─────────────────────────────────────────────
 
+
+# DB에 다른 명칭으로 저장된 한국어 성분명 동의어 매핑
+# 예: "물" → DB에는 "정제수"로 저장되어 있음
+_KO_SYNONYMS: dict[str, str] = {
+    "물": "정제수",
+    "식용수": "정제수",
+    "음용수": "정제수",
+}
+
+
 async def _enrich_ingredient_codes(parsed_result) -> object:
     """파싱 완료 후 각 IngredientItem의 ingredient_code를 자동 조회하여 채워넣는다.
 
@@ -510,6 +520,12 @@ async def _enrich_ingredient_codes(parsed_result) -> object:
                 search_query = raw_name
                 en_name = ""
 
+            # 동의어 적용: "물" → "정제수" 등 DB에 다른 명칭으로 저장된 경우
+            canonical = _KO_SYNONYMS.get(search_query)
+            if canonical:
+                logger.debug(f"성분 동의어 적용: {search_query!r} → {canonical!r}")
+                search_query = canonical
+
             result = await search_ingredient_codes(
                 query=search_query,
                 top_k=5,
@@ -526,10 +542,13 @@ async def _enrich_ingredient_codes(parsed_result) -> object:
                     if rn == sq:
                         return True
                     # 결과명이 검색어로 시작 (에탄올 → 에탄올류 등)
-                    if rn.startswith(sq):
+                    # 단, 검색어가 2자 이하인 경우 false positive 방지를 위해 스킵
+                    # (예: "물" 검색 시 "물냉이" 매칭 방지)
+                    if len(sq) >= 3 and rn.startswith(sq):
                         return True
                     # 검색어가 결과명으로 시작 (에탄올추출물 → 에탄올 검색 시)
-                    if sq.startswith(rn):
+                    # 마찬가지로 결과명이 너무 짧으면 스킵
+                    if len(rn) >= 3 and sq.startswith(rn):
                         return True
                     # semantic 결과는 score로만 판단
                     if r.match_type == "semantic":
