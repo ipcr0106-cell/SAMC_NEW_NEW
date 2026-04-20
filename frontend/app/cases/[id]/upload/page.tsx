@@ -46,10 +46,25 @@ interface ParsedData {
     origin: string;
     ins_number: string;
     cas_number: string;
+    ingredient_code?: string;
+    ingredient_code_name?: string;
   }>;
   process_info: {
     process_codes: string[];
+    process_code_reasons?: Array<{ code: string; name: string; reason: string }>;
+    process_code_candidates?: Array<{ code: string; name: string; reason: string; is_recommended: boolean; confusion_note: string }>;
+    process_steps?: Array<{
+      step_number: number;
+      step_name_original: string;
+      step_name_ko: string;
+      recommended_code: string;
+      recommended_code_name: string;
+      recommended_reason: string;
+      similar_codes: Array<{ code: string; name: string; reason: string; is_recommended: boolean; confusion_note: string }>;
+    }>;
     raw_process_text: string;
+    is_incomplete?: boolean;
+    incomplete_reason?: string;
   };
   label_info?: {
     export_country: string;
@@ -204,8 +219,8 @@ export default function UploadPage() {
         if (parseStatus === "done") {
           setNewUploadsSinceParse((prev) => prev + 1);
         }
-      } catch (e: any) {
-        const msg = e?.message || "업로드 실패";
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : "업로드 실패";
         console.error(`[Upload] ${docType} 업로드 실패:`, msg);
         setUploadErrors((prev) => ({ ...prev, [docType]: msg }));
         throw e;
@@ -248,9 +263,9 @@ export default function UploadPage() {
         }
 
         console.log(`[Delete] ${docId} 삭제 완료`);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error(`[Delete] ${docId} 삭제 실패:`, e);
-        alert(`파일 삭제 실패: ${e?.message || "알 수 없는 오류"}`);
+        alert(`파일 삭제 실패: ${e instanceof Error ? e.message : "알 수 없는 오류"}`);
       }
     },
     [parseStatus]
@@ -271,6 +286,10 @@ export default function UploadPage() {
         setParsedData(result.parsed_result);
         setParseStatus("done");
         setNewUploadsSinceParse(0);
+        // 제목 자동 추천: 백엔드가 파싱 후 생성한 suggested_title을 caseName에 반영
+        if (result.suggested_title) {
+          setCaseName(result.suggested_title);
+        }
         // OCR 실패 파일 목록 저장
         if (result.extraction_errors && result.extraction_errors.length > 0) {
           setExtractionErrors(result.extraction_errors);
@@ -280,10 +299,10 @@ export default function UploadPage() {
         setParseStatus("error");
         setParseError(result.error_message || "파싱 결과가 비어있습니다.");
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error("[Parse] 파싱 실패:", e);
       setParseStatus("error");
-      setParseError(e?.message || "서버에 연결할 수 없습니다.");
+      setParseError(e instanceof Error ? e.message : "서버에 연결할 수 없습니다.");
     } finally {
       setParsing(false);
     }

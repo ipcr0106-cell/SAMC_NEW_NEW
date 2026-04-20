@@ -11,7 +11,7 @@ from typing import Optional
 import anthropic
 from dotenv import load_dotenv
 
-from services.f5_rag import search_and_format
+from services.f5_rag import search_and_format_with_status
 
 load_dotenv()
 
@@ -93,6 +93,10 @@ cross_result 값:
 severity 값: error(수정필수) | warning(검토필요) | info(참고)"""
 
 
+# 시안 생성에 사용하는 공통 법령 검색 쿼리
+LAW_QUERY = "한글표시사항 원재료명 알레르기 GMO 소비기한 영양성분 표시기준 수입자 원산지"
+
+
 # ── 유틸 ──────────────────────────────────────────────────────────────────────
 
 def _docs_text(documents: list[dict]) -> str:
@@ -122,15 +126,14 @@ def generate_label(
 ) -> dict:
     """
     2단계 교차검증 시안 생성
-    반환값: {"phase1": {...}, "phase2": {...}}
+    반환값: {"phase1": {...}, "phase2": {...}, "rag_failed": bool}
     """
     client = anthropic.Anthropic(api_key=os.getenv("F5_ANTHROPIC_API_KEY"))
     docs = _docs_text(documents)
 
-    # 법령 컨텍스트 (Pinecone RAG)
-    law_context = search_and_format(
-        query="한글표시사항 원재료명 알레르기 GMO 소비기한 영양성분 표시기준 수입자 원산지"
-    )
+    # 법령 컨텍스트 (Pinecone RAG) - 실패 여부 체크
+    law_context, rag_success = search_and_format_with_status(query=LAW_QUERY)
+    rag_failed = not rag_success
 
     food_type_str = f"\n\n## 식품유형 (담당자 입력)\n{food_type}" if food_type else ""
     draft_str = f"\n\n## 한글 가안 (담당자 입력)\n{draft_label}" if draft_label else ""
@@ -171,6 +174,7 @@ def generate_label(
     return {
         "phase1": phase1,
         "phase2": phase2,
+        "rag_failed": rag_failed,
     }
 
 
@@ -185,9 +189,14 @@ def generate_label_stream(
 
     client = anthropic.Anthropic(api_key=os.getenv("F5_ANTHROPIC_API_KEY"))
     docs = _docs_text(documents)
-    law_context = search_and_format(
-        query="한글표시사항 원재료명 알레르기 GMO 소비기한 영양성분 표시기준 수입자 원산지"
-    )
+
+    # 법령 컨텍스트 (Pinecone RAG) - 실패 여부 체크
+    law_context, rag_success = search_and_format_with_status(query=LAW_QUERY)
+    rag_failed = not rag_success
+
+    # RAG 실패 시 즉시 클라이언트에 알림 (UI 경고 표시용)
+    if rag_failed:
+        yield f"data: {json.dumps({'step': 'rag_warning', 'message': '법령 DB 조회에 실패했습니다. 시안은 생성되지만 법령 근거 없이 일반 지식만으로 판단됩니다.'}, ensure_ascii=False)}\n\n"
 
     food_type_str = f"\n\n## 식품유형 (담당자 입력)\n{food_type}" if food_type else ""
     draft_str = f"\n\n## 한글 가안 (담당자 입력)\n{draft_label}" if draft_label else ""
@@ -237,7 +246,11 @@ def generate_label_stream(
 
     try:
         phase2 = _parse_json(full_text)
-        result = {"phase1": phase1, "phase2": phase2}
+        result = {
+            "phase1": phase1,
+            "phase2": phase2,
+            "rag_failed": rag_failed,
+        }
 
         get_client().table("pipeline_steps").upsert(
             {

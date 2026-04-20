@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "INGD_SN": "100",
+      "INGD_NM": "대두",
+      "NKNM_NM": "콩, Soybean",
+      "SCNNM_NM": "Glycine max",
+      "DRNM": "-",
+      "EDIBLE_INFO": "가능",
+      "EDIBLE_Y": "o",
+      "EDIBLE_N": "x",
+      "EDIBLE_USE_CONT": "종자",
+      "CHRTR_INFO_CONT": null,
+      "ANML_INFO": "식물성"
+    }
+  ],
+  "total_count": 1,
+  "raw": {}
+}

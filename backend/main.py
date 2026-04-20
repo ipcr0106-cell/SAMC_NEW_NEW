@@ -25,6 +25,7 @@ from routers.feature3 import router as feature3_router
 from routers.feature3_admin import router as feature3_admin_router
 from routers.feature5 import router as feature5_router
 from routers.dummy_seed import router as dummy_seed_router
+from middleware.error_handler import register_error_handlers
 
 
 app = FastAPI(
@@ -36,16 +37,14 @@ app = FastAPI(
 # CORS — 프론트엔드(localhost:3000, Vercel 배포 URL) 허용
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# F1 파이프라인 에러 핸들러 등록 (08_에러_처리_설계.md §4)
+register_error_handlers(app)
 
 # 라우터 등록
 app.include_router(upload_router)

@@ -1,0 +1,20 @@
+{
+  "_comment": "F0 파싱 결과 고정 픽스처. HITL-0 승인 후 run_feature1_v2 에 전달되는 형태.",
+  "v3_case_id": "v3_case_006_sesame_permitted",
+  "v2_source_id": "g036",
+  "food_type": "기타가공품",
+  "process_conditions": {
+    "is_heated": false
+  },
+  "ingredients": [
+    {
+      "name": "참깨",
+      "percentage": 10.0
+    }
+  ],
+  "doc_types": [
+    "원재료_명세서",
+    "성분_분석표"
+  ],
+  "hitl0_approved": true
+}

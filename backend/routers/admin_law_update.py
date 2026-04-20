@@ -96,41 +96,47 @@ LAW_FEATURE_MAP = {
     #       LAW_FEATURE_MAP 은 dict 라 나중 정의가 먼저 정의를 덮어쓰므로,
     #       같은 키를 여기서 중복 선언하지 않고 F1/F2 섹션 features 리스트에 "F3" 를 추가함.
 
-    # ── F1 + F4 공통 ──
+    # ── F1 공통 ──
     "식품등의 한시적 기준 및 규격 인정 기준": {
-        "features": ["F1", "F4", "F5"],
+        "features": ["F1", "F5"],
         "tier": "고시",
         "description": "한시적 기준 및 규격 인정 기준",
+        # F4는 API 자동 동기화로 분리됨 (backend/services/law_api_client.py)
     },
 
-    # ── F4 + F5 ──
+    # ── F4 법령은 API 자동 동기화로 분리 ──
+    # F4 법령 7개는 국가법령정보센터 API에서 자동으로 가져옴
+    # 동기화 스크립트: python -m backend.scripts.f4_sync_laws
+    # 상세: backend/services/law_api_client.py
+
+    # ── F5 (F4와 공유하던 법령 — F5용 파일 업로드는 유지) ──
     "식품 등의 표시·광고에 관한 법률": {
-        "features": ["F4"],
+        "features": ["F5"],
         "tier": "법률",
         "description": "표시·광고에 관한 법률",
     },
     "식품 등의 표시·광고에 관한 법률 시행령": {
-        "features": ["F4"],
+        "features": ["F5"],
         "tier": "시행령",
         "description": "표시·광고법 시행령",
     },
     "식품 등의 표시·광고에 관한 법률 시행규칙": {
-        "features": ["F4"],
+        "features": ["F5"],
         "tier": "시행규칙",
         "description": "표시·광고법 시행규칙",
     },
     "식품등의 표시기준": {
-        "features": ["F4", "F5"],
+        "features": ["F5"],
         "tier": "고시",
         "description": "식품등의 표시기준 고시",
     },
     "식품등의 부당한 표시 또는 광고의 내용 기준": {
-        "features": ["F4", "F5"],
+        "features": ["F5"],
         "tier": "고시",
         "description": "부당한 표시·광고 내용 기준",
     },
     "부당한 표시 또는 광고로 보지 아니하는 식품등의 기능성 표시 또는 광고에 관한 규정": {
-        "features": ["F4", "F5"],
+        "features": ["F5"],
         "tier": "고시",
         "description": "기능성 표시·광고 허용 규정",
     },
@@ -320,6 +326,8 @@ _F1_LAW_NAME_TO_NAMESPACE = {
     "식품첨가물공전": "additive_code_text",
     "건강기능식품공전": "health_food_text",
     "식품등의 한시적 기준 및 규격 인정 기준": "temporary_standard",
+    # W2-D: 14번 §11-3 결정 10 A' — functional_labeling 쿼리 유지 + 재인덱싱 경로 확보
+    "부당한 표시 또는 광고로 보지 아니하는 식품등의 기능성 표시 또는 광고에 관한 규정": "functional_labeling",
 }
 
 # namespace별 ASCII-only vector_id prefix (Pinecone 제약)
