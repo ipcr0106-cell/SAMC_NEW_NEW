@@ -193,7 +193,7 @@ export default function VerdictPanel({
               onChange={(e) => !isLocked && onChangeSignerId?.(e.target.value)}
               disabled={isLocked}
               placeholder="담당자 사용자 ID"
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none disabled:bg-gray-50"
+              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none disabled:bg-gray-50"
             />
           </div>
         </div>

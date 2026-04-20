@@ -3,20 +3,26 @@
 import { useCallback, useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-  ArrowRight,
-  Save,
   Loader2,
   Play,
   RefreshCw,
   AlertTriangle,
   Package,
+  CheckCircle,
+  XCircle,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  FileText,
+  UploadCloud,
 } from "lucide-react";
-import StepNavigation from "@/components/layout/StepNavigation";
 import DocumentUploadGrid from "@/components/upload/DocumentUploadGrid";
 import LabelImageCard from "@/components/upload/LabelImageCard";
 import OcrResultEditor from "@/components/ocr/OcrResultEditor";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
+import LabelDraftPage from "@/features/feature5/LabelDraftPage";
 import {
   getCase,
   updateCase,
@@ -27,9 +33,20 @@ import {
   saveParsedResult,
   getParsedResult,
   getLabelImages,
+  getFeature1,
+  getFeature3,
+  getFeature4,
+  runFeature1,
+  runFeature2,
+  runFeature3,
+  runFeature4,
+  runFeature5,
   type LabelImageData,
 } from "@/lib/api";
 import type { UploadedFile } from "@/components/upload/FileDropzone";
+
+// ── 뷰 상태 ──────────────────────────────────────────────
+type PageView = "upload" | "running" | "result";
 
 interface ParsedData {
   basic_info: {
@@ -38,6 +55,8 @@ interface ParsedData {
     is_first_import: boolean;
     is_organic: boolean;
     is_oem: boolean;
+    /** 일본산일 때 F3 전달용 도·현 코드 ("후쿠시마" 또는 "일본34개도부현") */
+    japan_prefecture_code?: string;
   };
   ingredients: Array<{
     id: string;
@@ -76,60 +95,108 @@ interface ParsedData {
   selected_label_image_ids?: string[];
 }
 
+// ── 오른쪽 미니바 아이템 ─────────────────────────────────
+function MiniBarSection({
+  title,
+  children,
+  defaultOpen = false,
+  onEdit,
+  statusIcon,
+}: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  onEdit?: () => void;
+  statusIcon?: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="rounded-xl border overflow-hidden"
+      style={{ borderColor: "var(--ds-color-border)", background: "var(--ds-color-bg)" }}>
+      <button
+        className="w-full flex items-center gap-2 px-3.5 py-3 text-left"
+        style={{ borderBottom: open ? "1px solid var(--ds-color-border-subtle)" : "none" }}
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="flex-1 text-[13px] font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>
+          {title}
+        </span>
+        {statusIcon}
+        {open ? <ChevronUp size={13} style={{ color: "var(--ds-color-text-tertiary)" }} />
+               : <ChevronDown size={13} style={{ color: "var(--ds-color-text-tertiary)" }} />}
+      </button>
+      {open && (
+        <div className="px-3.5 py-3 space-y-2.5">
+          {children}
+          {onEdit && (
+            <button
+              onClick={onEdit}
+              className="w-full flex items-center justify-center gap-1.5 text-[12px] font-medium py-2 rounded-lg mt-1 transition-colors"
+              style={{ background: "var(--ds-color-surface)", color: "var(--ds-color-primary-text)" }}
+            >
+              <Edit2 size={11} /> 수정하기
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+// ── 메인 페이지 ───────────────────────────────────────────
 export default function UploadPage() {
   const router = useRouter();
   const params = useParams();
   const caseId = params?.id as string;
 
-  // ── 검역건 정보 ──
+  const [view, setView] = useState<PageView>("upload");
   const [caseName, setCaseName] = useState<string>("");
 
-  // ── 업로드 상태 ──
-  // uploadedFiles: doc_type → 대표 doc_id (파싱 버튼 활성화 체크용)
+  // 업로드 상태
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
-  // restoredFileNames: doc_type → 파일 객체 배열 (id + name, 삭제/표시용)
   const [restoredFileNames, setRestoredFileNames] = useState<Record<string, UploadedFile[]>>({});
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
-  // ── 파싱 상태 ──
+  // 파싱 상태
   const [parsing, setParsing] = useState(false);
   const [parsedData, setParsedData] = useState<ParsedData | null>(null);
-  const [parseStatus, setParseStatus] = useState<
-    "idle" | "parsing" | "done" | "error"
-  >("idle");
+  const [parseStatus, setParseStatus] = useState<"idle" | "parsing" | "done" | "error">("idle");
   const [parseError, setParseError] = useState<string>("");
   const [extractionErrors, setExtractionErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
-
-  // ── 제목 편집 ──
   const [savingName, setSavingName] = useState(false);
 
-  // ── 라벨 이미지 (Vision 추출 결과) ──
+  // 라벨 이미지
   const [labelImages, setLabelImages] = useState<LabelImageData[]>([]);
   const [labelImagesLoading, setLabelImagesLoading] = useState(false);
 
-  // ── 재분석 추적 ──
+  // 재분석 추적
   const [newUploadsSinceParse, setNewUploadsSinceParse] = useState(0);
 
-  // ── 초기 로딩 ──
+
+  // 파이프라인 결과 (미니바용)
+  const [f1Data, setF1Data] = useState<Record<string, unknown> | null>(null);
+  const [f3Data, setF3Data] = useState<Record<string, unknown> | null>(null);
+  const [f4Data, setF4Data] = useState<Record<string, unknown> | null>(null);
+
+  // F5 다운로드
+  const [downloading, setDownloading] = useState(false);
+
+  // 초기 로딩
   const [initialLoading, setInitialLoading] = useState(true);
 
-  // ─────────────────────────────────────────────
-  // 페이지 진입 시: 기존 데이터 복원
-  // ─────────────────────────────────────────────
+  // ── 초기 데이터 복원 ─────────────────────────────────
   useEffect(() => {
     if (!caseId) return;
-
-    const loadExistingData = async () => {
+    const load = async () => {
       try {
-        // 1) 검역건 정보 로드
         const caseData = await getCase(caseId);
         setCaseName(caseData.product_name || "");
 
-        // 2) 업로드된 문서 목록 복원
         const docsData = await listDocuments(caseId);
-        if (docsData.documents && docsData.documents.length > 0) {
+        if (docsData.documents?.length > 0) {
           const files: Record<string, string> = {};
           const fileMap: Record<string, UploadedFile[]> = {};
           for (const doc of docsData.documents) {
@@ -141,139 +208,98 @@ export default function UploadPage() {
           setRestoredFileNames(fileMap);
         }
 
-        // 3) 파싱 결과 복원
         try {
           const parsedRes = await getParsedResult(caseId);
           if (parsedRes.parsed_result) {
             setParsedData(parsedRes.parsed_result);
             setParseStatus("done");
           }
-        } catch {
-          // 파싱 결과 없으면 무시
-        }
+        } catch { /* 무시 */ }
 
-        // 4) 기존 라벨 이미지 복원
         try {
           const imgs = await getLabelImages(caseId);
           if (imgs.length > 0) setLabelImages(imgs);
-        } catch {
-          // 라벨 이미지 없으면 무시
-        }
+        } catch { /* 무시 */ }
+
+        // 이미 F1~F5 결과가 있으면 result 뷰로
+        try {
+          const f1 = await getFeature1(caseId);
+          if (f1?.ai_result || f1?.final_result) {
+            setF1Data(f1);
+            const f3 = await getFeature3(caseId).catch(() => null);
+            if (f3) setF3Data(f3);
+            const f4 = await getFeature4(caseId).catch(() => null);
+            if (f4) setF4Data(f4);
+            setView("result");
+          }
+        } catch { /* 아직 결과 없음 */ }
+
       } catch (e) {
-        console.error("[Init] 기존 데이터 로드 실패:", e);
+        console.error("[Init] 로드 실패:", e);
       } finally {
         setInitialLoading(false);
       }
     };
-
-    loadExistingData();
+    load();
   }, [caseId]);
 
-  // ─────────────────────────────────────────────
-  // 파일 업로드 핸들러
-  // ─────────────────────────────────────────────
-  const handleFileSelect = useCallback(
-    async (docType: string, file: File) => {
-      setUploading((prev) => ({ ...prev, [docType]: true }));
-      setUploadErrors((prev) => {
-        const next = { ...prev };
-        delete next[docType];
+  // ── 파일 업로드 ─────────────────────────────────────
+  const handleFileSelect = useCallback(async (docType: string, file: File) => {
+    setUploading(prev => ({ ...prev, [docType]: true }));
+    setUploadErrors(prev => { const n = { ...prev }; delete n[docType]; return n; });
+    try {
+      const result = await uploadDocument(caseId, file, docType);
+      setUploadedFiles(prev => ({ ...prev, [docType]: result.doc_id }));
+      setRestoredFileNames(prev => ({
+        ...prev,
+        [docType]: [...(prev[docType] || []), { id: result.doc_id, name: file.name }],
+      }));
+      if (docType === "label") {
+        setLabelImagesLoading(true);
+        let attempts = 0;
+        const poll = async () => {
+          try {
+            const imgs = await getLabelImages(caseId);
+            if (imgs.length > 0) { setLabelImages(imgs); setLabelImagesLoading(false); return; }
+          } catch { /* 무시 */ }
+          if (++attempts < 8) setTimeout(poll, 2000); else setLabelImagesLoading(false);
+        };
+        setTimeout(poll, 2000);
+      }
+      if (parseStatus === "done") setNewUploadsSinceParse(n => n + 1);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "업로드 실패";
+      setUploadErrors(prev => ({ ...prev, [docType]: msg }));
+      throw e;
+    } finally {
+      setUploading(prev => ({ ...prev, [docType]: false }));
+    }
+  }, [caseId, parseStatus]);
+
+  // ── 파일 삭제 ─────────────────────────────────────
+  const handleFileDelete = useCallback(async (docId: string) => {
+    try {
+      await deleteDocument(docId);
+      setRestoredFileNames(prev => {
+        const next: Record<string, UploadedFile[]> = {};
+        for (const [dt, files] of Object.entries(prev)) {
+          const filtered = files.filter(f => f.id !== docId);
+          if (filtered.length > 0) next[dt] = filtered;
+        }
         return next;
       });
-      try {
-        const result = await uploadDocument(caseId, file, docType);
-        setUploadedFiles((prev) => ({ ...prev, [docType]: result.doc_id }));
-        setRestoredFileNames((prev) => ({
-          ...prev,
-          [docType]: [...(prev[docType] || []), { id: result.doc_id, name: file.name }],
-        }));
-        console.log(`[Upload] ${docType} 업로드 완료: ${result.doc_id}`);
+      setUploadedFiles(prev => {
+        const next = { ...prev };
+        for (const [dt, id] of Object.entries(next)) { if (id === docId) delete next[dt]; }
+        return next;
+      });
+      if (parseStatus === "done") setNewUploadsSinceParse(n => n + 1);
+    } catch (e) {
+      alert(`파일 삭제 실패: ${e instanceof Error ? e.message : "알 수 없는 오류"}`);
+    }
+  }, [parseStatus]);
 
-        // 라벨 파일이면 Vision 처리 완료 대기 후 이미지 로드 (폴링)
-        if (docType === "label") {
-          setLabelImagesLoading(true);
-          // 백그라운드 처리 완료 대기: 최대 8회 × 2초 = 16초
-          let attempts = 0;
-          const poll = async () => {
-            try {
-              const imgs = await getLabelImages(caseId);
-              if (imgs.length > 0) {
-                setLabelImages(imgs);
-                setLabelImagesLoading(false);
-                return;
-              }
-            } catch {
-              // 무시
-            }
-            attempts++;
-            if (attempts < 8) {
-              setTimeout(poll, 2000);
-            } else {
-              setLabelImagesLoading(false);
-            }
-          };
-          setTimeout(poll, 2000); // 첫 시도는 2초 후
-        }
-
-        // 이미 파싱 완료 상태에서 새 파일 업로드 → 재분석 필요
-        if (parseStatus === "done") {
-          setNewUploadsSinceParse((prev) => prev + 1);
-        }
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : "업로드 실패";
-        console.error(`[Upload] ${docType} 업로드 실패:`, msg);
-        setUploadErrors((prev) => ({ ...prev, [docType]: msg }));
-        throw e;
-      } finally {
-        setUploading((prev) => ({ ...prev, [docType]: false }));
-      }
-    },
-    [caseId, parseStatus]
-  );
-
-  // ─────────────────────────────────────────────
-  // 파일 삭제 핸들러
-  // ─────────────────────────────────────────────
-  const handleFileDelete = useCallback(
-    async (docId: string) => {
-      try {
-        await deleteDocument(docId);
-
-        // 로컬 상태에서 해당 doc_id 제거
-        setRestoredFileNames((prev) => {
-          const next: Record<string, UploadedFile[]> = {};
-          for (const [docType, files] of Object.entries(prev)) {
-            const filtered = files.filter((f) => f.id !== docId);
-            if (filtered.length > 0) next[docType] = filtered;
-          }
-          return next;
-        });
-
-        setUploadedFiles((prev) => {
-          const next = { ...prev };
-          for (const [docType, id] of Object.entries(next)) {
-            if (id === docId) delete next[docType];
-          }
-          return next;
-        });
-
-        // 파싱 완료 상태였다면 재분석 필요 플래그
-        if (parseStatus === "done") {
-          setNewUploadsSinceParse((n) => n + 1);
-        }
-
-        console.log(`[Delete] ${docId} 삭제 완료`);
-      } catch (e: unknown) {
-        console.error(`[Delete] ${docId} 삭제 실패:`, e);
-        alert(`파일 삭제 실패: ${e instanceof Error ? e.message : "알 수 없는 오류"}`);
-      }
-    },
-    [parseStatus]
-  );
-
-  // ─────────────────────────────────────────────
-  // OCR 파싱 실행
-  // ─────────────────────────────────────────────
+  // ── OCR 파싱 ─────────────────────────────────────
   const handleParse = useCallback(async () => {
     setParsing(true);
     setParseStatus("parsing");
@@ -281,26 +307,17 @@ export default function UploadPage() {
     setExtractionErrors([]);
     try {
       const result = await parseDocuments(caseId);
-      console.log("[Parse] 응답:", JSON.stringify(result).slice(0, 200));
       if (result.status === "completed" && result.parsed_result) {
         setParsedData(result.parsed_result);
         setParseStatus("done");
         setNewUploadsSinceParse(0);
-        // 제목 자동 추천: 백엔드가 파싱 후 생성한 suggested_title을 caseName에 반영
-        if (result.suggested_title) {
-          setCaseName(result.suggested_title);
-        }
-        // OCR 실패 파일 목록 저장
-        if (result.extraction_errors && result.extraction_errors.length > 0) {
-          setExtractionErrors(result.extraction_errors);
-          console.log("[Parse] OCR 실패 파일:", result.extraction_errors);
-        }
+        if (result.suggested_title) setCaseName(result.suggested_title);
+        if (result.extraction_errors?.length > 0) setExtractionErrors(result.extraction_errors);
       } else {
         setParseStatus("error");
         setParseError(result.error_message || "파싱 결과가 비어있습니다.");
       }
     } catch (e: unknown) {
-      console.error("[Parse] 파싱 실패:", e);
       setParseStatus("error");
       setParseError(e instanceof Error ? e.message : "서버에 연결할 수 없습니다.");
     } finally {
@@ -308,87 +325,511 @@ export default function UploadPage() {
     }
   }, [caseId]);
 
-  // ─────────────────────────────────────────────
-  // 임시 저장
-  // ─────────────────────────────────────────────
+  // ── 임시 저장 ─────────────────────────────────────
   const handleSaveDraft = useCallback(async () => {
     if (!parsedData) return;
     setSaving(true);
-    try {
-      await saveParsedResult(caseId, parsedData);
-      console.log("[Save] 임시 저장 완료");
-    } catch (e) {
-      console.error("[Save] 저장 실패:", e);
-    } finally {
-      setSaving(false);
-    }
+    try { await saveParsedResult(caseId, parsedData); }
+    catch (e) { console.error("[Save] 저장 실패:", e); }
+    finally { setSaving(false); }
   }, [caseId, parsedData]);
 
-  // ─────────────────────────────────────────────
-  // 다음 단계로 이동
-  // ─────────────────────────────────────────────
-  const handleSubmit = useCallback(async () => {
-    if (parsedData) {
-      try {
-        await saveParsedResult(caseId, parsedData);
-      } catch (e) {
-        console.error("[Save] 저장 실패:", e);
-      }
-    }
-    router.push(`/cases/${caseId}/f1`);
-  }, [router, caseId, parsedData]);
+  // ── 제품명 저장 ──────────────────────────────────
+  const handleCaseNameSave = useCallback(async () => {
+    if (!caseName.trim()) return;
+    setSavingName(true);
+    try { await updateCase(caseId, { product_name: caseName.trim() }); }
+    catch (e) { console.error("[CaseName] 저장 실패:", e); }
+    finally { setSavingName(false); }
+  }, [caseId, caseName]);
 
-  // ─────────────────────────────────────────────
-  // 파싱 데이터 변경 핸들러
-  // ─────────────────────────────────────────────
+  // ── OCR 완료 → F1~F5 파이프라인 자동 실행 ──────────
+  const handleStartPipeline = useCallback(async () => {
+    if (!parsedData) return;
+    setView("running");
+
+    // F0 저장
+    try { await saveParsedResult(caseId, parsedData); } catch { /* 계속 */ }
+
+    try { await runFeature1(caseId); const r = await getFeature1(caseId); setF1Data(r); } catch (e) { console.error("[F1]", e); }
+    try { await runFeature2(caseId); } catch (e) { console.error("[F2]", e); }
+    try { await runFeature3(caseId); const r = await getFeature3(caseId); setF3Data(r); } catch (e) { console.error("[F3]", e); }
+    try { await runFeature4(caseId); const r = await getFeature4(caseId); setF4Data(r); } catch (e) { console.error("[F4]", e); }
+    try { await runFeature5(caseId); } catch (e) { console.error("[F5]", e); }
+
+    // 결과 뷰로
+    setView("result");
+  }, [caseId, parsedData]);
+
+  // ── F5 다운로드 ──────────────────────────────────
+  const handleDownload = async (format: "docx" | "pdf") => {
+    setDownloading(true);
+    try {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+      const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+      const headers: Record<string, string> = {};
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/5/export.${format}`, { headers });
+      if (!res.ok) throw new Error("다운로드 실패");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `한글표시사항_${caseName || caseId}.${format}`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch { alert("다운로드 실패. F5 분석이 완료되었는지 확인하세요."); }
+    finally { setDownloading(false); }
+  };
+
+  // ── 파싱 데이터 변경 ──────────────────────────────
   const handleParsedDataChange = useCallback((updated: ParsedData) => {
     setParsedData(updated);
   }, []);
 
-  // ─────────────────────────────────────────────
-  // 제품명 저장 (blur 시 자동 저장)
-  // ─────────────────────────────────────────────
-  const handleCaseNameSave = useCallback(async () => {
-    if (!caseName.trim()) return;
-    setSavingName(true);
-    try {
-      await updateCase(caseId, { product_name: caseName.trim() });
-      console.log("[CaseName] 제품명 저장:", caseName.trim());
-    } catch (e) {
-      console.error("[CaseName] 저장 실패:", e);
-    } finally {
-      setSavingName(false);
-    }
-  }, [caseId, caseName]);
-
   const uploadedCount = Object.keys(uploadedFiles).length;
   const hasErrors = Object.keys(uploadErrors).length > 0;
-
-  // 버튼 상태 결정
   const showParseButton = uploadedCount > 0 && parseStatus !== "done";
-  // 파싱 완료 후에는 항상 재분석 가능 (파일 추가/삭제 여부 무관)
   const showReParseButton = parseStatus === "done" && uploadedCount > 0;
 
-  // 로딩 중
+  // ── 로딩 ────────────────────────────────────────
   if (initialLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 size={32} className="animate-spin text-blue-500" />
-          <span className="text-sm" style={{ color: "var(--ds-color-text-secondary)" }}>데이터 불러오는 중...</span>
+        <Loader2 size={28} className="animate-spin" style={{ color: "var(--ds-color-primary)" }} />
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // 뷰 1: 파이프라인 실행 중
+  // ═══════════════════════════════════════════
+  if (view === "running") {
+    const ingredients = parsedData?.ingredients || [];
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 py-6">
+        {/* 제목 */}
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+            style={{ background: "var(--ds-color-surface)" }}>
+            <Package size={16} style={{ color: "var(--ds-color-text-secondary)" }} />
+          </div>
+          <p className="text-lg font-bold" style={{ color: "var(--ds-color-text-heading)" }}>
+            {caseName || "검역 분석 중"}
+          </p>
+        </div>
+
+        <div className="flex gap-6 items-start">
+          {/* 좌측: 업로드된 서류 (흐릿하게, 클릭 불가) */}
+          <div className="w-[37%] shrink-0 opacity-30 pointer-events-none select-none">
+            <Card padding="lg">
+              <DocumentUploadGrid
+                onFileSelect={handleFileSelect}
+                restoredFiles={restoredFileNames}
+                onFileDelete={handleFileDelete}
+              />
+            </Card>
+          </div>
+
+          {/* 우측: 로딩 + 파싱 정보 미리보기 */}
+          <div className="flex-1 min-w-0 flex flex-col gap-4">
+            {/* 로딩 헤더 */}
+            <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+              style={{ background: "var(--ds-color-primary-soft)" }}>
+              <div className="relative w-8 h-8 shrink-0">
+                <div className="absolute inset-0 rounded-full animate-ping opacity-30"
+                  style={{ background: "var(--ds-color-primary)" }} />
+                <div className="relative w-8 h-8 rounded-full flex items-center justify-center"
+                  style={{ background: "var(--ds-color-primary)" }}>
+                  <Loader2 size={15} className="animate-spin text-white" />
+                </div>
+              </div>
+              <div>
+                <p className="text-[14px] font-semibold" style={{ color: "var(--ds-color-primary-text)" }}>
+                  AI 검역 분석 중
+                </p>
+                <p className="text-[12px] mt-0.5" style={{ color: "var(--ds-color-primary-text)", opacity: 0.7 }}>
+                  서류를 법령과 대조하고 있어요
+                </p>
+              </div>
+            </div>
+
+            {/* 파싱된 제품 정보 미리보기 */}
+            {parsedData && (
+              <div className="rounded-xl border p-4 space-y-4"
+                style={{ borderColor: "var(--ds-color-border)", background: "var(--ds-color-bg)" }}>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] mb-1" style={{ color: "var(--ds-color-text-tertiary)" }}>제품명</p>
+                    <p className="text-[15px] font-bold" style={{ color: "var(--ds-color-text-heading)" }}>
+                      {parsedData.basic_info.product_name || caseName || "—"}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[11px] mb-1" style={{ color: "var(--ds-color-text-tertiary)" }}>원산지</p>
+                    <p className="text-[14px] font-semibold" style={{ color: "var(--ds-color-text-secondary)" }}>
+                      {parsedData.basic_info.export_country || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {ingredients.length > 0 && (
+                  <div>
+                    <p className="text-[11px] mb-2" style={{ color: "var(--ds-color-text-tertiary)" }}>
+                      원재료 {ingredients.length}종
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {ingredients.map((ing, i) => (
+                        <span key={i}
+                          className="text-[12px] px-2.5 py-1 rounded-full"
+                          style={{
+                            background: "var(--ds-color-surface)",
+                            color: "var(--ds-color-text-secondary)",
+                            border: "1px solid var(--ds-color-border-subtle)",
+                          }}>
+                          {ing.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {[
+                  parsedData.basic_info.is_organic && "유기농",
+                  parsedData.basic_info.is_oem && "OEM",
+                  parsedData.basic_info.is_first_import && "최초수입",
+                ].filter(Boolean).length > 0 && (
+                  <div className="flex gap-1.5 pt-1 border-t"
+                    style={{ borderColor: "var(--ds-color-border-subtle)" }}>
+                    {[
+                      parsedData.basic_info.is_organic && "유기농",
+                      parsedData.basic_info.is_oem && "OEM",
+                      parsedData.basic_info.is_first_import && "최초수입",
+                    ].filter(Boolean).map((tag, i) => (
+                      <span key={i} className="text-[11px] px-2 py-0.5 rounded-full font-medium"
+                        style={{ background: "var(--ds-color-warning-soft)", color: "var(--ds-color-warning-text)" }}>
+                        {tag as string}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     );
   }
 
+  // ═══════════════════════════════════════════
+  // 뷰 2: 결과 화면 (F5 메인 + 우측 F1~F4 미니바)
+  // ═══════════════════════════════════════════
+  if (view === "result") {
+    // F1 요약
+    const f1Result = (f1Data?.final_result || f1Data?.ai_result) as Record<string, unknown> | null;
+    const f1Verdict = f1Result?.verdict as string || (f1Result?.import_possible ? "수입가능" : null);
+    const f1Possible = f1Verdict === "수입가능" || f1Result?.import_possible;
+    const f1Ingredients = (f1Result?.ingredients as Array<Record<string, unknown>>) || [];
+
+    // F3 요약
+    const f3Result = (f3Data?.final_result || f3Data?.ai_result) as Record<string, unknown> | null;
+    const f3Docs = (f3Result?.documents as Array<Record<string, unknown>>) || [];
+    const f3Mandatory = f3Docs.filter(d => d.is_mandatory).length;
+
+    // F4 요약
+    const f4Result = (f4Data?.ai_result || f4Data?.final_result) as Record<string, unknown> | null;
+    const f4Items = ((f4Data?.items || f4Result?.items || []) as Array<Record<string, unknown>>);
+    const f4Errors = f4Items.filter(i => i.severity === "error" || i.status === "fail").length;
+    const f4Warnings = f4Items.filter(i => i.severity === "warning" || i.status === "unclear").length;
+
+    return (
+      <div className="max-w-[1440px] mx-auto px-6 py-5 flex gap-5">
+        {/* ── 메인: F5 결과 ── */}
+        <div className="flex-1 min-w-0">
+          {/* 헤더 */}
+          <div className="mb-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-medium mb-1.5 tracking-wide"
+                  style={{ color: "var(--ds-color-text-tertiary)" }}>
+                  F5 · 한글표시사항 최종결과
+                </p>
+                <h1 className="text-[22px] font-bold leading-tight" style={{ color: "var(--ds-color-text-heading)" }}>
+                  {caseName || "한글표시사항"}
+                </h1>
+              </div>
+              {/* 액션 버튼 */}
+              <div className="flex items-center gap-2 shrink-0 mt-1">
+                <button
+                  onClick={() => handleDownload("docx")}
+                  disabled={downloading}
+                  className="flex items-center gap-1.5 text-[13px] font-semibold px-4 py-2 rounded-lg transition-all disabled:opacity-60"
+                  style={{ background: "var(--ds-color-primary)", color: "#fff" }}
+                  onMouseEnter={e => { if (!downloading) e.currentTarget.style.background = "#005FDB"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--ds-color-primary)"; }}
+                >
+                  {downloading ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                  DOCX
+                </button>
+                <button
+                  onClick={() => handleDownload("pdf")}
+                  disabled={downloading}
+                  className="flex items-center gap-1.5 text-[13px] font-semibold px-4 py-2 rounded-lg transition-all disabled:opacity-60"
+                  style={{ background: "var(--ds-color-primary)", color: "#fff" }}
+                  onMouseEnter={e => { if (!downloading) e.currentTarget.style.background = "#005FDB"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "var(--ds-color-primary)"; }}
+                >
+                  <Download size={14} /> PDF
+                </button>
+                <button
+                  onClick={() => setView("upload")}
+                  className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-2 rounded-lg border transition-all"
+                  style={{ color: "var(--ds-color-text-secondary)", borderColor: "var(--ds-color-border)", background: "var(--ds-color-bg)" }}
+                  onMouseEnter={e => {
+                    e.currentTarget.style.background = "var(--ds-color-surface)";
+                    e.currentTarget.style.borderColor = "var(--ds-color-border-strong)";
+                    e.currentTarget.style.color = "var(--ds-color-text-heading)";
+                  }}
+                  onMouseLeave={e => {
+                    e.currentTarget.style.background = "var(--ds-color-bg)";
+                    e.currentTarget.style.borderColor = "var(--ds-color-border)";
+                    e.currentTarget.style.color = "var(--ds-color-text-secondary)";
+                  }}
+                >
+                  <UploadCloud size={14} /> 재업로드
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* F5 본문 */}
+          <LabelDraftPage />
+        </div>
+
+        {/* ── 우측 미니바 ── */}
+        <div className="w-[240px] shrink-0 space-y-2 sticky top-[72px] self-start">
+          <p className="text-[11px] font-semibold mb-3 tracking-wide"
+            style={{ color: "var(--ds-color-text-tertiary)" }}>
+            분석 결과
+          </p>
+
+          {/* F0 서류 정보 */}
+          <MiniBarSection
+            title="F0 서류 정보"
+            defaultOpen={false}
+            onEdit={() => setView("upload")}
+          >
+            {parsedData ? (
+              <div className="space-y-2.5">
+                <div>
+                  <p className="text-[11px] mb-0.5" style={{ color: "var(--ds-color-text-tertiary)" }}>제품명</p>
+                  <p className="text-[13px] font-semibold leading-snug" style={{ color: "var(--ds-color-text-primary)" }}>
+                    {parsedData.basic_info.product_name || "—"}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px]" style={{ color: "var(--ds-color-text-secondary)" }}>원산지</span>
+                  <span className="text-[12px] font-medium" style={{ color: "var(--ds-color-text-primary)" }}>
+                    {parsedData.basic_info.export_country || "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px]" style={{ color: "var(--ds-color-text-secondary)" }}>원재료</span>
+                  <span className="text-[13px] font-bold" style={{ color: "var(--ds-color-text-heading)" }}>
+                    {parsedData.ingredients.length}종
+                  </span>
+                </div>
+                {[
+                  parsedData.basic_info.is_organic && "유기농",
+                  parsedData.basic_info.is_oem && "OEM",
+                  parsedData.basic_info.is_first_import && "최초수입",
+                ].filter(Boolean).length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1 border-t"
+                    style={{ borderColor: "var(--ds-color-border-subtle)" }}>
+                    {[
+                      parsedData.basic_info.is_organic && "유기농",
+                      parsedData.basic_info.is_oem && "OEM",
+                      parsedData.basic_info.is_first_import && "최초수입",
+                    ].filter(Boolean).map((tag, i) => (
+                      <span key={i} className="text-[11px] px-2 py-0.5 rounded-full"
+                        style={{ background: "var(--ds-color-primary-soft)", color: "var(--ds-color-primary-text)" }}>
+                        {tag as string}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>데이터 없음</p>
+            )}
+          </MiniBarSection>
+
+          {/* F1/F2 수입판정 */}
+          <MiniBarSection
+            title="F1/F2 수입판정"
+            defaultOpen={true}
+            onEdit={() => router.push(`/cases/${caseId}/f1?from=view`)}
+            statusIcon={f1Verdict
+              ? (f1Possible
+                ? <CheckCircle size={13} style={{ color: "var(--ds-color-success)" }} />
+                : <XCircle size={13} style={{ color: "var(--ds-color-error)" }} />)
+              : undefined
+            }
+          >
+            {f1Result ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  {f1Possible
+                    ? <CheckCircle size={15} style={{ color: "var(--ds-color-success)" }} />
+                    : <XCircle size={15} style={{ color: "var(--ds-color-error)" }} />
+                  }
+                  <span className="text-[14px] font-bold"
+                    style={{ color: f1Possible ? "var(--ds-color-success-text)" : "var(--ds-color-error-text)" }}>
+                    {f1Verdict || "—"}
+                  </span>
+                </div>
+                {f1Ingredients.length > 0 && (
+                  <div>
+                    <p className="text-[11px] mb-1.5" style={{ color: "var(--ds-color-text-tertiary)" }}>
+                      원재료 {f1Ingredients.length}종
+                    </p>
+                    <div className="flex flex-wrap gap-1">
+                      {f1Ingredients.slice(0, 5).map((ing, i) => {
+                        const st = (ing.allow_verdict || ing.status) as string;
+                        const ok = st === "allowed";
+                        return (
+                          <span key={i} className="text-[11px] px-2 py-0.5 rounded-full"
+                            style={{
+                              background: ok ? "var(--ds-color-success-soft)" : "var(--ds-color-warning-soft)",
+                              color: ok ? "var(--ds-color-success-text)" : "var(--ds-color-warning-text)",
+                            }}>
+                            {String(ing.name || "")}
+                          </span>
+                        );
+                      })}
+                      {f1Ingredients.length > 5 && (
+                        <span className="text-[11px] px-1.5 py-0.5"
+                          style={{ color: "var(--ds-color-text-tertiary)" }}>
+                          +{f1Ingredients.length - 5}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>결과 없음</p>
+            )}
+          </MiniBarSection>
+
+          {/* F3 필요서류 */}
+          <MiniBarSection
+            title="F3 필요서류"
+            onEdit={() => router.push(`/cases/${caseId}/f3?from=view`)}
+            statusIcon={f3Docs.length > 0
+              ? <FileText size={13} style={{ color: "var(--ds-color-primary)" }} />
+              : undefined}
+          >
+            {f3Result ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px]" style={{ color: "var(--ds-color-text-secondary)" }}>필수 서류</span>
+                  <span className="text-[14px] font-bold" style={{ color: "var(--ds-color-error-text)" }}>
+                    {f3Mandatory}건
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px]" style={{ color: "var(--ds-color-text-secondary)" }}>전체 서류</span>
+                  <span className="text-[14px] font-bold" style={{ color: "var(--ds-color-text-heading)" }}>
+                    {f3Docs.length}건
+                  </span>
+                </div>
+                <div className="space-y-1 pt-1 border-t"
+                  style={{ borderColor: "var(--ds-color-border-subtle)" }}>
+                  {f3Docs.slice(0, 3).map((d, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full shrink-0"
+                        style={{ background: d.is_mandatory ? "var(--ds-color-error)" : "var(--ds-color-text-tertiary)" }} />
+                      <span className="text-[12px] truncate" style={{ color: "var(--ds-color-text-secondary)" }}>
+                        {String(d.doc_name || "")}
+                      </span>
+                    </div>
+                  ))}
+                  {f3Docs.length > 3 && (
+                    <p className="text-[11px]" style={{ color: "var(--ds-color-text-tertiary)" }}>
+                      + {f3Docs.length - 3}개 더
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>결과 없음</p>
+            )}
+          </MiniBarSection>
+
+          {/* F4 라벨검토 */}
+          <MiniBarSection
+            title="F4 라벨검토"
+            onEdit={() => router.push(`/cases/${caseId}/f4?from=view`)}
+            statusIcon={f4Items.length > 0
+              ? (f4Errors > 0
+                ? <XCircle size={13} style={{ color: "var(--ds-color-error)" }} />
+                : <CheckCircle size={13} style={{ color: "var(--ds-color-success)" }} />)
+              : undefined}
+          >
+            {f4Result || f4Items.length > 0 ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px]" style={{ color: "var(--ds-color-text-secondary)" }}>오류</span>
+                  <span className="text-[14px] font-bold"
+                    style={{ color: f4Errors > 0 ? "var(--ds-color-error-text)" : "var(--ds-color-success-text)" }}>
+                    {f4Errors}건
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[12px]" style={{ color: "var(--ds-color-text-secondary)" }}>주의</span>
+                  <span className="text-[14px] font-bold"
+                    style={{ color: f4Warnings > 0 ? "var(--ds-color-warning-text)" : "var(--ds-color-text-tertiary)" }}>
+                    {f4Warnings}건
+                  </span>
+                </div>
+                {f4Errors === 0 && f4Warnings === 0 && (
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <CheckCircle size={13} style={{ color: "var(--ds-color-success)" }} />
+                    <span className="text-[12px]" style={{ color: "var(--ds-color-success-text)" }}>이상 없음</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>결과 없음</p>
+            )}
+          </MiniBarSection>
+
+          {/* 재분석 버튼 */}
+          <button
+            onClick={handleStartPipeline}
+            className="w-full flex items-center justify-center gap-1.5 text-[12px] font-medium py-2.5 rounded-lg border transition-all"
+            style={{ color: "var(--ds-color-text-secondary)", borderColor: "var(--ds-color-border)", background: "var(--ds-color-surface)" }}
+          >
+            <RefreshCw size={12} /> 전체 재분석
+          </button>
+
+          {/* 실무자 최종 확정 포탈 마운트 포인트 */}
+          <div id="f5-confirm-portal" />
+        </div>
+      </div>
+    );
+  }
+
+  // ═══════════════════════════════════════════
+  // 뷰 3: 업로드 화면 (기본)
+  // ═══════════════════════════════════════════
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
-      {/* 상단: Step Navigation */}
-      <StepNavigation currentStep="upload" />
-
       {/* 검역건 제목 입력 */}
-      <div className="mt-4 mb-2 flex items-center gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0" style={{ background: "var(--ds-color-surface)" }}>
+      <div className="mb-4 flex items-center gap-3">
+        <div className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0"
+          style={{ background: "var(--ds-color-surface)" }}>
           <Package size={16} style={{ color: "var(--ds-color-text-secondary)" }} />
         </div>
         <div className="flex-1">
@@ -399,30 +840,20 @@ export default function UploadPage() {
               value={caseName}
               onChange={(e) => setCaseName(e.target.value)}
               onBlur={handleCaseNameSave}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.currentTarget.blur();
-                }
-              }}
+              onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
               placeholder="예: FJ 캡 프론티어 위스키"
-              className="flex-1 text-lg font-bold bg-transparent border-b-2 border-transparent focus:outline-none transition-colors py-0.5 placeholder:font-normal"
+              className="flex-1 text-lg font-bold bg-transparent border-b-2 border-transparent focus:outline-none py-0.5 placeholder:font-normal"
               style={{ color: "var(--ds-color-text-heading)" }}
             />
-            {savingName && (
-              <Loader2 size={14} className="animate-spin shrink-0" style={{ color: "var(--ds-color-text-tertiary)" }} />
-            )}
+            {savingName && <Loader2 size={14} className="animate-spin shrink-0" style={{ color: "var(--ds-color-text-tertiary)" }} />}
           </div>
         </div>
       </div>
 
-      {/* 본문: 좌우 분할 */}
-      <div
-        className="mt-4 flex gap-6 items-start"
-        style={{ minHeight: "calc(100vh - 280px)" }}
-      >
-        {/* 좌측: 서류 업로드 (37%) */}
+      {/* 본문 */}
+      <div className="mt-4 flex gap-6 items-start" style={{ minHeight: "calc(100vh - 280px)" }}>
+        {/* 좌측: 서류 업로드 */}
         <div className="w-[37%] shrink-0 flex flex-col gap-4">
-          {/* 파일 업로드 카드 */}
           <Card padding="lg">
             <DocumentUploadGrid
               onFileSelect={handleFileSelect}
@@ -431,100 +862,52 @@ export default function UploadPage() {
             />
           </Card>
 
-          {/* 업로드 에러 표시 */}
           {hasErrors && (
-            <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)", border: "1px solid var(--ds-color-error-soft)" }}>
+            <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)" }}>
               <div className="flex items-center gap-2 mb-1">
                 <AlertTriangle size={14} style={{ color: "var(--ds-color-error-text)" }} />
-                <span className="text-xs font-semibold" style={{ color: "var(--ds-color-error-text)" }}>
-                  업로드 오류
-                </span>
+                <span className="text-xs font-semibold" style={{ color: "var(--ds-color-error-text)" }}>업로드 오류</span>
               </div>
-              {Object.entries(uploadErrors).map(([docType, msg]) => (
-                <p key={docType} className="text-xs ml-5" style={{ color: "var(--ds-color-error-text)" }}>
-                  {docType}: {msg}
-                </p>
+              {Object.entries(uploadErrors).map(([dt, msg]) => (
+                <p key={dt} className="text-xs ml-5" style={{ color: "var(--ds-color-error-text)" }}>{dt}: {msg}</p>
               ))}
             </div>
           )}
 
-          {/* 라벨 이미지 추출 결과 카드 */}
           {(labelImagesLoading || labelImages.length > 0) && (
-            <LabelImageCard
-              caseId={caseId}
-              images={labelImages}
-              loading={labelImagesLoading}
-            />
+            <LabelImageCard caseId={caseId} images={labelImages} loading={labelImagesLoading} />
           )}
 
-          {/* OCR 분석 시작 버튼 (좌측 패널) */}
           {showParseButton && (
-            <Button
-              variant="primary"
-              size="lg"
-              icon={
-                parsing ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <Play size={16} />
-                )
-              }
-              onClick={handleParse}
-              disabled={parsing}
-              className="w-full"
-            >
-              {parsing
-                ? "AI 분석 중..."
-                : `OCR 분석 시작 (${uploadedCount}개 파일)`}
+            <Button variant="primary" size="lg"
+              icon={parsing ? <Loader2 size={16} className="animate-spin" /> : <Play size={16} />}
+              onClick={handleParse} disabled={parsing} className="w-full">
+              {parsing ? "AI 분석 중..." : `OCR 분석 시작 (${uploadedCount}개 파일)`}
             </Button>
           )}
 
-          {/* 재분석 버튼 — 파싱 완료 후 새 파일 업로드 시 */}
           {showReParseButton && (
-            <Button
-              variant="primary"
-              size="lg"
-              icon={
-                parsing ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <RefreshCw size={16} />
-                )
-              }
-              onClick={handleParse}
-              disabled={parsing}
-              className="w-full"
-            >
-              {parsing
-                ? "AI 재분석 중..."
-                : newUploadsSinceParse > 0
-                ? `재분석 (${newUploadsSinceParse}개 파일 변경됨)`
-                : "재분석"}
+            <Button variant="primary" size="lg"
+              icon={parsing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              onClick={handleParse} disabled={parsing} className="w-full">
+              {parsing ? "AI 재분석 중..." : newUploadsSinceParse > 0 ? `재분석 (${newUploadsSinceParse}개 변경됨)` : "재분석"}
             </Button>
           )}
 
-          {/* 파싱 에러 표시 */}
           {parseStatus === "error" && parseError && (
-            <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)", border: "1px solid var(--ds-color-error-soft)" }}>
+            <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)" }}>
               <div className="flex items-center gap-2 mb-1">
                 <AlertTriangle size={14} style={{ color: "var(--ds-color-error-text)" }} />
-                <span className="text-xs font-semibold" style={{ color: "var(--ds-color-error-text)" }}>
-                  분석 실패
-                </span>
+                <span className="text-xs font-semibold" style={{ color: "var(--ds-color-error-text)" }}>분석 실패</span>
               </div>
               <p className="text-xs ml-5" style={{ color: "var(--ds-color-error-text)" }}>{parseError}</p>
-              <button
-                onClick={handleParse}
-                className="mt-2 ml-5 text-xs font-medium underline"
-                style={{ color: "var(--ds-color-error-text)" }}
-              >
-                다시 시도
-              </button>
+              <button onClick={handleParse} className="mt-2 ml-5 text-xs font-medium underline"
+                style={{ color: "var(--ds-color-error-text)" }}>다시 시도</button>
             </div>
           )}
         </div>
 
-        {/* 우측: OCR 결과 편집 (63%) */}
+        {/* 우측: OCR 결과 편집 */}
         <div className="flex-1 flex flex-col min-w-0">
           <OcrResultEditor
             parsedData={parsedData}
@@ -543,79 +926,40 @@ export default function UploadPage() {
         <div className="max-w-[1440px] mx-auto px-6">
           <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div
-                className={`ds-status-dot ${
-                  parseStatus === "done"
-                    ? "ds-status-dot-done animate-pulse"
-                    : parseStatus === "parsing"
-                    ? "ds-status-dot-progress animate-pulse"
-                    : parseStatus === "error"
-                    ? "ds-status-dot-error"
-                    : ""
-                }`}
-              />
+              <div className={`ds-status-dot ${
+                parseStatus === "done" ? "ds-status-dot-done animate-pulse"
+                : parseStatus === "parsing" ? "ds-status-dot-progress animate-pulse"
+                : parseStatus === "error" ? "ds-status-dot-error" : ""
+              }`} />
               <span className="text-sm" style={{ color: "var(--ds-color-text-secondary)" }}>
                 {parseStatus === "done" && newUploadsSinceParse > 0
-                  ? `${newUploadsSinceParse}개 새 파일 추가됨 · 재분석을 시작하세요`
-                  : parseStatus === "done"
-                  ? "OCR 분석 완료 · 수정사항을 확인해주세요"
-                  : parseStatus === "parsing"
-                  ? "AI 분석 진행 중..."
-                  : parseStatus === "error"
-                  ? "분석 실패 · 파일을 확인해주세요"
-                  : uploadedCount > 0
-                  ? `${uploadedCount}개 파일 업로드됨 · OCR 분석을 시작하세요`
+                  ? `${newUploadsSinceParse}개 파일 변경됨 · 재분석 후 검역 분석 시작`
+                  : parseStatus === "done" ? "OCR 분석 완료 · 내용 확인 후 검역 분석을 시작하세요"
+                  : parseStatus === "parsing" ? "AI 분석 진행 중..."
+                  : parseStatus === "error" ? "분석 실패 · 파일을 확인해주세요"
+                  : uploadedCount > 0 ? `${uploadedCount}개 파일 업로드됨 · OCR 분석을 시작하세요`
                   : "서류를 업로드하고 OCR 분석을 시작하세요"}
               </span>
             </div>
             <div className="flex items-center gap-3">
-              {/* OCR 분석 / 재분석 버튼 (하단바) */}
               {(showParseButton || showReParseButton) && (
-                <Button
-                  variant="primary"
-                  size="lg"
-                  icon={
-                    parsing ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : showReParseButton ? (
-                      <RefreshCw size={16} />
-                    ) : (
-                      <Play size={16} />
-                    )
-                  }
-                  onClick={handleParse}
-                  disabled={parsing}
-                >
-                  {parsing
-                    ? "AI 분석 중..."
-                    : showReParseButton
-                    ? "재분석"
-                    : `OCR 분석 시작 (${uploadedCount}개)`}
+                <Button variant="primary" size="lg"
+                  icon={parsing ? <Loader2 size={16} className="animate-spin" />
+                    : showReParseButton ? <RefreshCw size={16} /> : <Play size={16} />}
+                  onClick={handleParse} disabled={parsing}>
+                  {parsing ? "AI 분석 중..." : showReParseButton ? "재분석" : `OCR 분석 시작 (${uploadedCount}개)`}
                 </Button>
               )}
-              <Button
-                variant="secondary"
-                size="md"
-                icon={
-                  saving ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Save size={16} />
-                  )
-                }
-                onClick={handleSaveDraft}
-                disabled={!parsedData || saving}
-              >
+              <Button variant="secondary" size="md"
+                icon={saving ? <Loader2 size={16} className="animate-spin" /> : undefined}
+                onClick={handleSaveDraft} disabled={!parsedData || saving}>
                 임시 저장
               </Button>
-              <Button
-                variant="primary"
-                size="lg"
-                icon={<ArrowRight size={18} />}
-                onClick={handleSubmit}
-                disabled={!parsedData}
-              >
-                F1 수입판정으로 이동
+              <Button variant="primary" size="lg"
+                icon={<Play size={18} />}
+                onClick={handleStartPipeline}
+                disabled={!parsedData}>
+                검역 분석 시작
               </Button>
             </div>
           </div>
