@@ -51,7 +51,7 @@ interface ParsedData {
   }>;
   process_info: {
     process_codes: string[];
-    process_code_reasons?: Array<{ code: string; name: string; reason: string }>;
+    process_code_reasons?: Array<{ code: string; name?: string; reason: string }>;
     process_code_candidates?: Array<{ code: string; name?: string; reason: string; is_recommended: boolean; confusion_note?: string }>;
     process_steps?: Array<{
       step_number: number;
