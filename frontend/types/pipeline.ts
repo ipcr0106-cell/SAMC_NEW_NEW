@@ -103,6 +103,7 @@ export interface LabelIssue {
   location?: string;      // 라벨 상 위치 설명
   reason: string;         // 삭제/수정 이유
   law_ref: string;        // 근거 법령
+  law_excerpt?: string;   // 근거 법령 원문 구절
   severity: "must_fix" | "review_needed";
 }
 
@@ -111,6 +112,7 @@ export interface ImageIssue {
   location?: string;      // 라벨 상 위치
   violation_type: string; // ①~㉖ 위반 유형
   law_ref: string;        // 근거 법령
+  law_excerpt?: string;   // 근거 법령 원문 구절
   reasoning: string;      // 위반 판단 근거 (사용자에게 보이는 설명)
   severity: "must_fix" | "review_needed";
   recommendation?: string; // 수정 권고

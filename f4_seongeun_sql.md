@@ -255,26 +255,48 @@ F4가 **읽는** 데이터:
 
 ### `case_label_images` (공용, F0 소유)
 
-F4에서 크롭된 라벨 이미지를 조회하여 Vision API로 분석합니다.
+F4에서 라벨 이미지를 조회하여 Vision API로 분석합니다.
+전체 페이지 이미지(크롭 전)를 우선 사용하여 인증마크·성분표·디자인 등 라벨 전체를 분석합니다.
 
 | 필드 | F4 사용 목적 |
 |------|-------------|
 | `id` | 이미지 식별자 → `image_issues[].source_image_id`에 기록 |
 | `case_id` | 케이스별 이미지 필터 |
-| `source_document_id` | dedup 기준 (최신 것만 유지) |
-| `cropped_storage_path` | Supabase Storage에서 이미지 다운로드 / Signed URL 생성 |
+| `cropped_storage_path` | 크롭된 제품 사진 (폴백용) |
+| `full_page_storage_path` | 크롭 전 전체 페이지 이미지 경로 (f4 분석 우선 사용) |
+| `source_hash` | dedup 기준 (파일 MD5 해시) |
+| `image_index` | dedup 기준 (파일 내 이미지 순번, 0-based) |
+| `label_certification_marks` | 인증마크 목록 (쉼표 구분. 예: "Kosher Pareve, USDA Organic") |
+| `label_nutrition_facts` | 영양성분표 원문 텍스트 |
+| `label_product_name` | 라벨 OCR 텍스트 보충용 (제품명) |
+| `label_ingredients` | 라벨 OCR 텍스트 보충용 (원재료) |
+| `label_content_volume` | 라벨 OCR 텍스트 보충용 (내용량) |
+| `label_origin` | 라벨 OCR 텍스트 보충용 (원산지) |
+| `label_manufacturer` | 라벨 OCR 텍스트 보충용 (제조사) |
+| `extracted_texts` | Vision 추출 결과 전체 (JSONB) |
 
 **쿼리 패턴:**
-- SELECT: `id, source_document_id, cropped_storage_path`
+- SELECT (이미지 분석용): `id, source_document_id, cropped_storage_path, full_page_storage_path, source_hash, image_index`
+- SELECT (텍스트 보충용): `label_product_name, label_ingredients, label_content_volume, label_origin, label_manufacturer, label_certification_marks, label_nutrition_facts, extracted_texts`
 - FILTER: `case_id = {케이스ID}`
-- ORDER BY: `created_at DESC`
-- Dedup: `source_document_id` 기준 최신 1개만
+- ORDER BY: `created_at DESC` (이미지 분석용), `image_index` (텍스트 보충용)
+- Dedup: `source_hash + image_index` 기준 — 같은 파일 재업로드만 중복 제거, 같은 파일 내 서로 다른 이미지는 모두 유지
 - LIMIT: 없음 — 코드상 이미지 수 상한 없이 전부 분석
+
+**이미지 분석 우선순위:**
+1. `full_page_storage_path`가 있으면 전체 페이지 이미지 사용 (인증마크·성분표·디자인 포함)
+2. 없으면 `cropped_storage_path` 사용 (폴백)
 
 **이미지 처리 수량:**
 - 코드에 이미지 수 제한 없음. `case_label_images`에 있는 만큼 전부 가져와서 개별 Vision API 호출
-- 단, `source_document_id` 기준 dedup 적용 → **문서당 최신 1장만** 분석
-- 예: 문서A에서 크롭 3장 + 문서B에서 크롭 2장 → 총 2장 분석 (문서당 1장)
+- `source_hash + image_index` 기준 dedup → **동일 파일 내 모든 이미지** 분석
+- 예: xlsx에서 이미지 3장 추출 + 별도 이미지 파일 2장 → 총 5장 분석
+
+**v4 마이그레이션 (2026-04-19):**
+- `label_certification_marks` TEXT 추가 — 인증마크 목록
+- `label_nutrition_facts` TEXT 추가 — 영양성분표 원문
+- `full_page_storage_path` TEXT 추가 — 크롭 전 전체 이미지 경로
+- 마이그레이션 파일: `backend/db/migrate_label_images_v4.sql`
 
 ### `cases` (공용, F0 소유)
 
