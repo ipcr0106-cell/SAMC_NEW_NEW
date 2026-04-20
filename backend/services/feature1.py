@@ -114,8 +114,8 @@ def run_feature1(
 
     if standards.overall_status == "review_needed":
         return Feature1Output(
-            import_possible=False,  # 자동 통과 금지
-            verdict="검토 필요 — 기준치 데이터 부족 또는 경계치",
+            import_possible=None,  # 자동 통과 금지, 수입불가도 아님 → 담당자 검토
+            verdict="검토필요",
             aggregation=step1_result.get("aggregation"),
             conditional_evaluations=step1_result.get("conditional_evaluations", []),
             synthetic_flavor_ingredients=synthetic_names,
@@ -368,7 +368,9 @@ async def run_feature1_v2(
                 food_type=food_type,
                 forbidden_hits=step_a.forbidden_hits,
                 ingredient_names=[
-                    getattr(i, "name", "") for i in ingredients
+                    (getattr(i, "matched_name_ko", "") or "").strip()
+                    or getattr(i, "name", "")
+                    for i in ingredients
                     if getattr(i, "name", "")
                 ],
             )
@@ -444,7 +446,9 @@ async def run_feature1_v2(
                 forbidden_hits=step_a.forbidden_hits,
                 restricted_ingredients=restricted_names,
                 ingredient_names=[
-                    getattr(i, "name", "") for i in enriched
+                    (getattr(i, "matched_name_ko", "") or "").strip()
+                    or getattr(i, "name", "")
+                    for i in enriched
                     if getattr(i, "name", "")
                 ],
                 ingredient_codes=[
@@ -516,7 +520,10 @@ async def run_feature1_v2(
             restricted_ingredients=restricted_names,
             failed_standards=failed_standards,
             ingredient_names=[
-                getattr(i, "name", "") for i in enriched
+                # matched_name_ko 우선 (F0 표준명), 없으면 원본명
+                (getattr(i, "matched_name_ko", "") or "").strip()
+                or getattr(i, "name", "")
+                for i in enriched
                 if getattr(i, "name", "")
             ],
             ingredient_codes=[

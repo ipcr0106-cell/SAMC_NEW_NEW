@@ -35,6 +35,13 @@ interface ParsedData {
     cas_number: string;
     ingredient_code?: string;
     ingredient_code_name?: string;
+    ingredient_code_candidates?: Array<{
+      code: string;
+      name_ko: string;
+      name_en: string;
+      score: number;
+      match_type: string;
+    }>;
   }>;
   process_info: {
     process_codes: string[];
@@ -219,6 +226,13 @@ export default function OcrResultEditor({
         casNumber: ing.cas_number,
         ingredientCode: ing.ingredient_code || "",
         ingredientCodeName: ing.ingredient_code_name || "",
+        ingredientCodeCandidates: (ing.ingredient_code_candidates || []).map((c) => ({
+          code: c.code,
+          name_ko: c.name_ko,
+          name_en: c.name_en,
+          score: c.score,
+          match_type: c.match_type,
+        })),
       }))
     );
 
@@ -286,6 +300,13 @@ export default function OcrResultEditor({
         cas_number: item.casNumber || "",
         ingredient_code: item.ingredientCode || "",
         ingredient_code_name: item.ingredientCodeName || "",
+        ingredient_code_candidates: (item.ingredientCodeCandidates || []).map((c) => ({
+          code: c.code,
+          name_ko: c.name_ko,
+          name_en: c.name_en,
+          score: c.score,
+          match_type: c.match_type,
+        })),
       })),
       process_info: {
         process_codes: codes,

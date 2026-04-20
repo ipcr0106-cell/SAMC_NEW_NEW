@@ -1,6 +1,6 @@
 /**
- * @deprecated F2 식품유형 분류가 F1 ImportCheckPage(FoodTypeSection)로 통합됨 (f1f2 병합).
- * /f2 라우트는 /f1#food-type 으로 리다이렉트됨. 이 컴포넌트는 참조용으로 보존.
+ * F2 식품유형 분류 페이지.
+ * F1(수입 판정) 완료 후, 식품공전에 따라 식품유형을 분류한다.
  */
 'use client';
 

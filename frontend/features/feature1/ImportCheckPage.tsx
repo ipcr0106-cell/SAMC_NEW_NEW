@@ -19,7 +19,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useMemo, useState as useLocalState } from "react";
+import { useCallback, useMemo, useState as useLocalState } from "react";
 import { useImportCheck } from "./hooks/useImportCheck";
 import Button from "@/components/ui/Button";
 import ForbiddenAlert from "./components/ForbiddenAlert";
@@ -35,13 +35,10 @@ import F0ApprovalPanel from "./components/F0ApprovalPanel";
 import UnidentifiedIngredientReview from "./components/UnidentifiedIngredientReview";
 import ConditionalResolutionPanel from "./components/ConditionalResolutionPanel";
 import EscalationAckList from "./components/EscalationAckList";
-import FoodTypeSection from "./components/FoodTypeSection";
-import FoodTypeEditDialog from "./components/FoodTypeEditDialog";
-import type { IngredientDecision, FoodTypeHierarchy } from "@/types/pipeline";
+import type { IngredientDecision } from "@/types/pipeline";
 import type { ConditionalResolution } from "./components/ConditionalResolutionPanel";
 import type { EscalationItem } from "./components/EscalationAckList";
 import { isConfirmedStatus } from "./types";
-import { getFeature2, runFeature2 } from "@/lib/api";
 
 interface Props {
   caseId: string;
@@ -77,51 +74,6 @@ export default function ImportCheckPage({ caseId }: Props) {
   const isConfirmed = isV2
     ? isConfirmedStatus(currentStatus)
     : currentStatus === "completed";
-
-  // ── F2 식품유형 분류 state (f1f2 병합) ───────────────────────────────
-  const [foodTypeHierarchy, setFoodTypeHierarchy] = useLocalState<FoodTypeHierarchy | null>(null);
-  const [showFoodTypeEdit, setShowFoodTypeEdit] = useLocalState(false);
-  // TODO(Wave 5): samcbc step0_food_type BE 이식 완료 후 아래 F2 실행 트리거 상태 제거.
-  const [isRunningF2, setIsRunningF2] = useLocalState(false);
-  const [f2RunError, setF2RunError] = useLocalState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const row = await getFeature2(caseId) as {
-          ai_result: FoodTypeHierarchy | null;
-          final_result: FoodTypeHierarchy | null;
-        };
-        if (cancelled) return;
-        const picked = row.final_result ?? row.ai_result;
-        if (picked) setFoodTypeHierarchy(picked);
-      } catch {
-        // F2 미실행 상태 → null 유지 (오류 표시 없음)
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [caseId]);
-
-  // TODO(Wave 5): F2 가 F1 파이프라인에 통합되면 제거. 현재는 사용자 수동 트리거.
-  const handleRunF2 = useCallback(async () => {
-    setIsRunningF2(true);
-    setF2RunError(null);
-    try {
-      await runFeature2(caseId);
-      const row = (await getFeature2(caseId)) as {
-        ai_result: FoodTypeHierarchy | null;
-        final_result: FoodTypeHierarchy | null;
-      };
-      const picked = row.final_result ?? row.ai_result;
-      if (picked) setFoodTypeHierarchy(picked);
-      else setF2RunError("분류 결과를 가져오지 못했습니다.");
-    } catch (e) {
-      setF2RunError(e instanceof Error ? e.message : "F2 실행 중 오류가 발생했습니다.");
-    } finally {
-      setIsRunningF2(false);
-    }
-  }, [caseId, setFoodTypeHierarchy, setIsRunningF2, setF2RunError]);
 
   // ── F1 재분석 ────────────────────────────────────────────────────────
   const [rerunning, setRerunning] = useLocalState(false);
@@ -199,10 +151,11 @@ export default function ImportCheckPage({ caseId }: Props) {
   // ── canConfirm (HITL-2 v2용) ──────────────────────────────────────
   const canConfirmHitl2 = useMemo(() => {
     if (!state.userVerdict) return false;
-    if (state.hitl2FinalReason.trim().length < 10) return false;
-    if (!state.hitl2SignerId.trim()) return false;
+    // AI 판정과 다른 판정을 선택한 경우에만 사유 입력 필요
+    const aiVerdict = source?.verdict;
+    if (state.userVerdict !== aiVerdict && state.hitl2FinalReason.trim().length < 10) return false;
     return true;
-  }, [state.userVerdict, state.hitl2FinalReason, state.hitl2SignerId]);
+  }, [state.userVerdict, state.hitl2FinalReason, source]);
 
   // ── 미확인 원재료 → UnidentifiedIngredientReview 용 변환 ──────────
   const unidentifiedIngredients = useMemo(() => {
@@ -271,21 +224,33 @@ export default function ImportCheckPage({ caseId }: Props) {
   // ─ 공통 헤더 ────────────────────────────────────────────────────────
   const PageHeader = (
     <header className="pb-3" style={{ borderBottom: "1px solid var(--ds-color-border)" }}>
-      <h1 className="text-xl font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>기능1 — 수입 가능 여부 판정</h1>
-      <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "var(--ds-color-text-secondary)" }}>
-        <span>case: {caseId}</span>
-        <span>·</span>
-        {currentStatus && (
-          <StatusBadge status={currentStatus} />
-        )}
-        {state.data?.updated_at && (
-          <>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-xl font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>기능1 — 수입 가능 여부 판정</h1>
+          <div className="mt-1 flex items-center gap-3 text-xs" style={{ color: "var(--ds-color-text-secondary)" }}>
+            <span>case: {caseId}</span>
             <span>·</span>
-            <span>
-              갱신: {new Date(state.data.updated_at).toLocaleString("ko-KR")}
-            </span>
-          </>
-        )}
+            {currentStatus && (
+              <StatusBadge status={currentStatus} />
+            )}
+            {state.data?.updated_at && (
+              <>
+                <span>·</span>
+                <span>
+                  갱신: {new Date(state.data.updated_at).toLocaleString("ko-KR")}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleRerun}
+          disabled={rerunning}
+          className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          {rerunning ? "재분석 중..." : "F1 재분석"}
+        </button>
       </div>
     </header>
   );
@@ -297,27 +262,6 @@ export default function ImportCheckPage({ caseId }: Props) {
     return (
       <main className="mx-auto max-w-5xl space-y-4 p-6">
         {PageHeader}
-
-        {/* ── F2 식품유형 분류 섹션 (f1f2 병합) ── */}
-        <FoodTypeSection
-          hierarchy={foodTypeHierarchy}
-          onEdit={() => setShowFoodTypeEdit(true)}
-          isEditable={!isConfirmed}
-          onRun={handleRunF2}
-          isRunning={isRunningF2}
-          runError={f2RunError}
-        />
-        {showFoodTypeEdit && foodTypeHierarchy && (
-          <FoodTypeEditDialog
-            caseId={caseId}
-            initial={foodTypeHierarchy}
-            onClose={() => setShowFoodTypeEdit(false)}
-            onSaved={(updated) => {
-              setFoodTypeHierarchy(updated);
-              setShowFoodTypeEdit(false);
-            }}
-          />
-        )}
 
         {/* 오류 메시지 */}
         {state.errorMessage && (
@@ -467,12 +411,6 @@ export default function ImportCheckPage({ caseId }: Props) {
               onChangeSignerId={setHitl2SignerId}
             />
 
-            <LawRefCheckbox
-              lawRefs={internal?.law_refs ?? []}
-              selected={state.hitl2SelectedCitations}
-              onToggle={toggleHitl2Citation}
-            />
-
             <ConfirmActions
               canConfirm={canConfirmHitl2}
               isConfirmed={isConfirmed}
@@ -521,26 +459,6 @@ export default function ImportCheckPage({ caseId }: Props) {
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
       {PageHeader}
-
-      {/* F2 식품유형 섹션 */}
-      {foodTypeHierarchy && (
-        <FoodTypeSection
-          hierarchy={foodTypeHierarchy}
-          onEdit={() => setShowFoodTypeEdit(true)}
-          isEditable={!isConfirmed}
-        />
-      )}
-      {showFoodTypeEdit && foodTypeHierarchy && (
-        <FoodTypeEditDialog
-          caseId={caseId}
-          initial={foodTypeHierarchy}
-          onClose={() => setShowFoodTypeEdit(false)}
-          onSaved={(updated) => {
-            setFoodTypeHierarchy(updated);
-            setShowFoodTypeEdit(false);
-          }}
-        />
-      )}
 
       {internal?.forbidden_hits && internal.forbidden_hits.length > 0 && (
         <ForbiddenAlert hits={internal.forbidden_hits} />

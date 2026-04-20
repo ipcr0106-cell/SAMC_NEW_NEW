@@ -596,27 +596,45 @@ async def run_step_c(
     food_type = _get_food_type(food_type_hierarchy)
     ref_date = today or date.today()
 
-    # 클라이언트 준비
+    # 클라이언트 준비 — Step C는 safetydata.go.kr 로컬 DB를 사용하므로
+    # data.go.kr API 키가 없어도 정상 동작한다.
     owns_client = False
     if client is None:
         api_key = os.environ.get("F1_DATA_GO_KR_API_KEY", "")
-        if not api_key:
-            # 키 없으면 API 호출 자체 불가 → no_data
-            return StepCResult(
-                checks=[],
-                overall_status="no_data",
-                review_reasons=["data_go_kr_api_key_missing"],
-            )
-        client = DataGoKrClient(api_key=api_key)
-        owns_client = True
+        if api_key:
+            client = DataGoKrClient(api_key=api_key)
+            owns_client = True
+        # API 키 없어도 safetydata 조회로 계속 진행
 
     try:
         # 1) 원재료당 병렬 조회
         # 결함 #6 수정: 전체 gather 에 60초 타임아웃 적용.
         # 결함 #1 수정: return_exceptions=True 로 개별 예외를 값으로 수집하여
         #   Silent masking 없이 api_error 사유로 처리.
+        async def _fetch_with_fallback_names(client, ing):
+            """여러 이름 변형으로 시도: matched_name_ko → 원본명 → 괄호제거명."""
+            names_to_try = []
+            matched = (ing.matched_name_ko or "").strip()
+            if matched:
+                names_to_try.append(matched)
+            raw = (ing.name or "").strip()
+            if raw and raw != matched:
+                names_to_try.append(raw)
+            # 괄호 이전 한글명 (예: "이산화황(산화방지제)" → "이산화황")
+            paren = raw.find("(") if raw else -1
+            if paren > 0:
+                short = raw[:paren].strip()
+                if short and short not in names_to_try:
+                    names_to_try.append(short)
+
+            for name in names_to_try:
+                result = await _fetch_all_specs_for_ingredient(client, name)
+                if result[0]:  # specs가 있으면 반환
+                    return result
+            return ([], None)
+
         fetch_tasks = [
-            _fetch_all_specs_for_ingredient(client, ing.name)
+            _fetch_with_fallback_names(client, ing)
             for ing in target_ingredients
         ]
         fetch_results = await asyncio.wait_for(

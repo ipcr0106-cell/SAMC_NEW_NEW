@@ -1,28 +1,76 @@
-/**
- * F2 페이지 — /f1#food-type 리다이렉트
- *
- * f1f2 병합으로 F2 식품유형 분류가 F1 ImportCheckPage에 통합됨.
- * /f2 접속 시 즉시 /f1#food-type 으로 이동.
- */
 "use client";
 
-import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { ArrowRight, Save, ChevronLeft } from "lucide-react";
+import StepNavigation from "@/components/layout/StepNavigation";
+import CaseSummaryPanel from "@/components/layout/CaseSummaryPanel";
+import Button from "@/components/ui/Button";
+import FoodClassificationPage from "@/features/feature2/FoodClassificationPage";
 
-export default function F2RedirectPage() {
+export default function F2FoodTypePage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const caseId = params?.id as string;
-
-  useEffect(() => {
-    if (caseId) {
-      router.replace(`/cases/${caseId}/f1#food-type`);
-    }
-  }, [caseId, router]);
+  const fromView = searchParams?.get("from") === "view";
 
   return (
-    <div className="flex items-center justify-center min-h-screen">
-      <p className="text-sm text-slate-500">식품유형 분류 페이지로 이동 중...</p>
+    <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
+      <StepNavigation currentStep="F2" completedSteps={["upload", "F1"]} />
+
+      <div className="mt-6 grid lg:grid-cols-3 gap-6">
+        {/* 좌측: F2 식품유형 분류 본문 */}
+        <div className="lg:col-span-2">
+          <FoodClassificationPage caseId={caseId} />
+        </div>
+
+        {/* 우측: 케이스 요약 */}
+        <div className="space-y-4">
+          <CaseSummaryPanel caseId={caseId} />
+        </div>
+      </div>
+
+      {/* 하단 액션바 */}
+      <div className="fixed bottom-0 left-0 right-0 z-50">
+        <div className="max-w-[1440px] mx-auto px-6">
+          <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
+            {fromView ? (
+              <Button variant="secondary" size="md" icon={<ChevronLeft size={16} />}
+                onClick={() => router.push(`/cases/${caseId}/view`)}>
+                결과로 돌아가기
+              </Button>
+            ) : (
+              <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f1`)}>
+                이전: 수입 판정
+              </Button>
+            )}
+            <div className="flex items-center gap-3">
+              <Button variant="secondary" size="md" icon={<Save size={16} />}>
+                임시 저장
+              </Button>
+              {fromView ? (
+                <Button
+                  variant="primary"
+                  size="lg"
+                  icon={<ArrowRight size={18} />}
+                  onClick={() => router.push(`/cases/${caseId}/view`)}
+                >
+                  수정 확정 → 결과 보기
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  size="lg"
+                  icon={<ArrowRight size={18} />}
+                  onClick={() => router.push(`/cases/${caseId}/f3`)}
+                >
+                  F3 필요서류로 이동
+                </Button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

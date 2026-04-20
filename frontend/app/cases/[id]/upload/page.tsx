@@ -48,6 +48,23 @@ import type { UploadedFile } from "@/components/upload/FileDropzone";
 // ── 뷰 상태 ──────────────────────────────────────────────
 type PageView = "upload" | "running" | "result";
 
+// ── 파이프라인 스텝 상태 ─────────────────────────────────
+type StepStatus = "pending" | "running" | "done" | "error";
+interface PipelineStep {
+  key: string;
+  label: string;
+  description: string;
+  status: StepStatus;
+  error?: string;
+}
+const INITIAL_PIPELINE_STEPS: PipelineStep[] = [
+  { key: "f1", label: "F1 수입가능 여부", description: "원재료·첨가물 적합성 검사", status: "pending" },
+  { key: "f2", label: "F2 식품유형 분류", description: "식품공전 기반 유형 판정", status: "pending" },
+  { key: "f3", label: "F3 필요서류 판정", description: "수입 필요 서류 목록 산출", status: "pending" },
+  { key: "f4", label: "F4 라벨 검토", description: "수출국 라벨 표시사항 검토", status: "pending" },
+  { key: "f5", label: "F5 한글표시사항", description: "한글 라벨 초안 생성", status: "pending" },
+];
+
 interface ParsedData {
   basic_info: {
     product_name: string;
@@ -180,6 +197,9 @@ export default function UploadPage() {
   const [f1Data, setF1Data] = useState<Record<string, unknown> | null>(null);
   const [f3Data, setF3Data] = useState<Record<string, unknown> | null>(null);
   const [f4Data, setF4Data] = useState<Record<string, unknown> | null>(null);
+
+  // 파이프라인 진행 상태
+  const [pipelineSteps, setPipelineSteps] = useState<PipelineStep[]>(INITIAL_PIPELINE_STEPS);
 
   // F5 다운로드
   const [downloading, setDownloading] = useState(false);
@@ -343,23 +363,79 @@ export default function UploadPage() {
     finally { setSavingName(false); }
   }, [caseId, caseName]);
 
+  // ── 파이프라인 스텝 상태 업데이트 헬퍼 ──────────────
+  const updateStep = useCallback((key: string, update: Partial<PipelineStep>) => {
+    setPipelineSteps(prev => prev.map(s => s.key === key ? { ...s, ...update } : s));
+  }, []);
+
   // ── OCR 완료 → F1~F5 파이프라인 자동 실행 ──────────
   const handleStartPipeline = useCallback(async () => {
     if (!parsedData) return;
+    setPipelineSteps(INITIAL_PIPELINE_STEPS);
     setView("running");
 
     // F0 저장
     try { await saveParsedResult(caseId, parsedData); } catch { /* 계속 */ }
 
-    try { await runFeature1(caseId); const r = await getFeature1(caseId); setF1Data(r); } catch (e) { console.error("[F1]", e); }
-    try { await runFeature2(caseId); } catch (e) { console.error("[F2]", e); }
-    try { await runFeature3(caseId); const r = await getFeature3(caseId); setF3Data(r); } catch (e) { console.error("[F3]", e); }
-    try { await runFeature4(caseId); const r = await getFeature4(caseId); setF4Data(r); } catch (e) { console.error("[F4]", e); }
-    try { await runFeature5(caseId); } catch (e) { console.error("[F5]", e); }
+    // F1
+    updateStep("f1", { status: "running" });
+    try {
+      await runFeature1(caseId);
+      const r = await getFeature1(caseId);
+      setF1Data(r);
+      updateStep("f1", { status: "done" });
+    } catch (e) {
+      console.error("[F1]", e);
+      updateStep("f1", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
+
+    // F2
+    updateStep("f2", { status: "running" });
+    try {
+      await runFeature2(caseId);
+      updateStep("f2", { status: "done" });
+    } catch (e) {
+      console.error("[F2]", e);
+      updateStep("f2", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
+
+    // F3
+    updateStep("f3", { status: "running" });
+    try {
+      await runFeature3(caseId);
+      const r = await getFeature3(caseId);
+      setF3Data(r);
+      updateStep("f3", { status: "done" });
+    } catch (e) {
+      console.error("[F3]", e);
+      updateStep("f3", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
+
+    // F4
+    updateStep("f4", { status: "running" });
+    try {
+      await runFeature4(caseId);
+      const r = await getFeature4(caseId);
+      setF4Data(r);
+      updateStep("f4", { status: "done" });
+    } catch (e) {
+      console.error("[F4]", e);
+      updateStep("f4", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
+
+    // F5
+    updateStep("f5", { status: "running" });
+    try {
+      await runFeature5(caseId);
+      updateStep("f5", { status: "done" });
+    } catch (e) {
+      console.error("[F5]", e);
+      updateStep("f5", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
 
     // 결과 뷰로
     setView("result");
-  }, [caseId, parsedData]);
+  }, [caseId, parsedData, updateStep]);
 
   // ── F5 다운로드 ──────────────────────────────────
   const handleDownload = async (format: "docx" | "pdf") => {
@@ -431,27 +507,100 @@ export default function UploadPage() {
             </Card>
           </div>
 
-          {/* 우측: 로딩 + 파싱 정보 미리보기 */}
+          {/* 우측: 진행 상태 + 파싱 정보 미리보기 */}
           <div className="flex-1 min-w-0 flex flex-col gap-4">
             {/* 로딩 헤더 */}
-            <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
-              style={{ background: "var(--ds-color-primary-soft)" }}>
-              <div className="relative w-8 h-8 shrink-0">
-                <div className="absolute inset-0 rounded-full animate-ping opacity-30"
-                  style={{ background: "var(--ds-color-primary)" }} />
-                <div className="relative w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ background: "var(--ds-color-primary)" }}>
-                  <Loader2 size={15} className="animate-spin text-white" />
+            {(() => {
+              const currentStep = pipelineSteps.find(s => s.status === "running");
+              const doneCount = pipelineSteps.filter(s => s.status === "done").length;
+              const errorCount = pipelineSteps.filter(s => s.status === "error").length;
+              return (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl"
+                  style={{ background: "var(--ds-color-primary-soft)" }}>
+                  <div className="relative w-8 h-8 shrink-0">
+                    <div className="absolute inset-0 rounded-full animate-ping opacity-30"
+                      style={{ background: "var(--ds-color-primary)" }} />
+                    <div className="relative w-8 h-8 rounded-full flex items-center justify-center"
+                      style={{ background: "var(--ds-color-primary)" }}>
+                      <Loader2 size={15} className="animate-spin text-white" />
+                    </div>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-[14px] font-semibold" style={{ color: "var(--ds-color-primary-text)" }}>
+                      {currentStep ? `${currentStep.label} 분석 중...` : "AI 검역 분석 중"}
+                    </p>
+                    <p className="text-[12px] mt-0.5" style={{ color: "var(--ds-color-primary-text)", opacity: 0.7 }}>
+                      {currentStep?.description || "서류를 법령과 대조하고 있어요"}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-[13px] font-bold tabular-nums" style={{ color: "var(--ds-color-primary-text)" }}>
+                      {doneCount + errorCount} / {pipelineSteps.length}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <div>
-                <p className="text-[14px] font-semibold" style={{ color: "var(--ds-color-primary-text)" }}>
-                  AI 검역 분석 중
-                </p>
-                <p className="text-[12px] mt-0.5" style={{ color: "var(--ds-color-primary-text)", opacity: 0.7 }}>
-                  서류를 법령과 대조하고 있어요
-                </p>
-              </div>
+              );
+            })()}
+
+            {/* 스텝별 진행 목록 */}
+            <div className="rounded-xl border overflow-hidden"
+              style={{ borderColor: "var(--ds-color-border)", background: "var(--ds-color-bg)" }}>
+              {pipelineSteps.map((step, idx) => (
+                <div key={step.key}
+                  className="flex items-center gap-3 px-4 py-3"
+                  style={{
+                    borderTop: idx > 0 ? "1px solid var(--ds-color-border-subtle)" : "none",
+                    background: step.status === "running" ? "var(--ds-color-primary-soft)" : "transparent",
+                    opacity: step.status === "pending" ? 0.45 : 1,
+                  }}>
+                  {/* 아이콘 */}
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0"
+                    style={{
+                      background: step.status === "done" ? "var(--ds-color-success)"
+                        : step.status === "error" ? "var(--ds-color-error)"
+                        : step.status === "running" ? "var(--ds-color-primary)"
+                        : "var(--ds-color-border)",
+                    }}>
+                    {step.status === "done" && <CheckCircle size={14} className="text-white" />}
+                    {step.status === "error" && <XCircle size={14} className="text-white" />}
+                    {step.status === "running" && <Loader2 size={14} className="animate-spin text-white" />}
+                    {step.status === "pending" && (
+                      <span className="text-[11px] font-bold text-white">{idx + 1}</span>
+                    )}
+                  </div>
+                  {/* 텍스트 */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold" style={{
+                      color: step.status === "running" ? "var(--ds-color-primary-text)"
+                        : step.status === "error" ? "var(--ds-color-error-text)"
+                        : "var(--ds-color-text-heading)",
+                    }}>
+                      {step.label}
+                    </p>
+                    <p className="text-[11px] mt-0.5" style={{
+                      color: step.status === "error" ? "var(--ds-color-error-text)"
+                        : "var(--ds-color-text-tertiary)",
+                    }}>
+                      {step.status === "error" ? step.error : step.description}
+                    </p>
+                  </div>
+                  {/* 상태 뱃지 */}
+                  <span className="text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0"
+                    style={{
+                      background: step.status === "done" ? "var(--ds-color-success-soft)"
+                        : step.status === "error" ? "var(--ds-color-error-soft)"
+                        : step.status === "running" ? "var(--ds-color-primary-soft)"
+                        : "transparent",
+                      color: step.status === "done" ? "var(--ds-color-success-text)"
+                        : step.status === "error" ? "var(--ds-color-error-text)"
+                        : step.status === "running" ? "var(--ds-color-primary-text)"
+                        : "var(--ds-color-text-tertiary)",
+                      border: step.status === "pending" ? "1px solid var(--ds-color-border)" : "none",
+                    }}>
+                    {step.status === "done" ? "완료" : step.status === "error" ? "오류" : step.status === "running" ? "진행 중" : "대기"}
+                  </span>
+                </div>
+              ))}
             </div>
 
             {/* 파싱된 제품 정보 미리보기 */}
@@ -491,26 +640,6 @@ export default function UploadPage() {
                         </span>
                       ))}
                     </div>
-                  </div>
-                )}
-
-                {[
-                  parsedData.basic_info.is_organic && "유기농",
-                  parsedData.basic_info.is_oem && "OEM",
-                  parsedData.basic_info.is_first_import && "최초수입",
-                ].filter(Boolean).length > 0 && (
-                  <div className="flex gap-1.5 pt-1 border-t"
-                    style={{ borderColor: "var(--ds-color-border-subtle)" }}>
-                    {[
-                      parsedData.basic_info.is_organic && "유기농",
-                      parsedData.basic_info.is_oem && "OEM",
-                      parsedData.basic_info.is_first_import && "최초수입",
-                    ].filter(Boolean).map((tag, i) => (
-                      <span key={i} className="text-[11px] px-2 py-0.5 rounded-full font-medium"
-                        style={{ background: "var(--ds-color-warning-soft)", color: "var(--ds-color-warning-text)" }}>
-                        {tag as string}
-                      </span>
-                    ))}
                   </div>
                 )}
               </div>
@@ -664,9 +793,9 @@ export default function UploadPage() {
             )}
           </MiniBarSection>
 
-          {/* F1/F2 수입판정 */}
+          {/* F1 수입판정 */}
           <MiniBarSection
-            title="F1/F2 수입판정"
+            title="F1 수입판정"
             defaultOpen={true}
             onEdit={() => router.push(`/cases/${caseId}/f1?from=view`)}
             statusIcon={f1Verdict
@@ -720,6 +849,16 @@ export default function UploadPage() {
             ) : (
               <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>결과 없음</p>
             )}
+          </MiniBarSection>
+
+          {/* F2 식품유형 분류 */}
+          <MiniBarSection
+            title="F2 식품유형"
+            onEdit={() => router.push(`/cases/${caseId}/f2?from=view`)}
+          >
+            <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>
+              F1 판정 후 식품유형 분류
+            </p>
           </MiniBarSection>
 
           {/* F3 필요서류 */}

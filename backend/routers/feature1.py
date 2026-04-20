@@ -92,6 +92,7 @@ def _upsert_pipeline_step(
             "step_name": "import_check",
             "status": status,
             "ai_result": ai_result,  # supabase-py가 dict를 JSONB로 자동 직렬화
+            "final_result": None,    # 재실행 시 이전 수정본 초기화
         },
         on_conflict="case_id,step_key"
     ).execute()
@@ -547,6 +548,31 @@ _DISTILL_CODES = {"35", "41", "42"}
 _FERMENT_CODES = {"10", "16", "17", "18"}
 
 
+def _fetch_f2_food_type(case_id: str) -> tuple[Optional[str], Optional[dict]]:
+    """F2(step_key='2')의 확정 식품유형과 계층 데이터를 가져온다.
+
+    final_result 우선 (담당자 수정 반영), 없으면 ai_result 사용.
+    F2 미실행이면 (None, None) 반환.
+
+    Returns:
+        (food_type, food_type_hierarchy)
+    """
+    supabase = get_supabase()
+    result = supabase.table("pipeline_steps") \
+        .select("ai_result, final_result") \
+        .eq("case_id", case_id) \
+        .eq("step_key", "2") \
+        .limit(1) \
+        .execute()
+    if not result.data:
+        return None, None
+    row = result.data[0]
+    data = row.get("final_result") or row.get("ai_result")
+    if not data or not isinstance(data, dict):
+        return None, None
+    return data.get("food_type"), data
+
+
 def _fetch_f0_parsed_result(case_id: str) -> Optional[dict]:
     """f0(step_key='0')의 ai_result에서 ParsedResult를 가져온다."""
     supabase = get_supabase()
@@ -695,6 +721,14 @@ def run_feature1_endpoint(
         if not process_conditions:
             process_conditions = _convert_f0_to_process_conditions(parsed)
 
+    # ── 2-pass 로직: food_type 자동 조회 ──────────────────────
+    # 1st pass: F2 미실행 → food_type=None → Step A+B만 유의미 (보수적 판정)
+    # 2nd pass: F2 완료 → food_type 자동 획득 → Step C+D 정밀 판정
+    resolved_food_type = body.food_type
+    resolved_food_type_hierarchy = None
+    if not resolved_food_type:
+        resolved_food_type, resolved_food_type_hierarchy = _fetch_f2_food_type(case_id)
+
     try:
         # 옵션 B: f1_수정_요청_사항 §7 "async def 엔드포인트 금지" 룰 준수.
         # 엔드포인트는 sync 로 유지하고, async 서비스는 asyncio.run() 으로 호출.
@@ -703,8 +737,8 @@ def run_feature1_endpoint(
             v2_out: F1Output = asyncio.run(
                 run_feature1_v2(
                     ingredients=ingredients,
-                    food_type=body.food_type,
-                    food_type_hierarchy=None,
+                    food_type=resolved_food_type,
+                    food_type_hierarchy=resolved_food_type_hierarchy,
                     process_conditions=process_conditions or ProcessConditions(),
                 )
             )
@@ -720,11 +754,11 @@ def run_feature1_endpoint(
             out, rag, conflict_status = asyncio.run(
                 run_feature1_with_rag(
                     ingredients=ingredients,
-                    food_type=body.food_type,
+                    food_type=resolved_food_type,
                     process_conditions=process_conditions or ProcessConditions(),
                     payload_for_rag={
                         "ingredients": [i.name for i in ingredients],
-                        "food_type": body.food_type,
+                        "food_type": resolved_food_type,
                     },
                 )
             )

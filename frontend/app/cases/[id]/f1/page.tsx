@@ -62,9 +62,9 @@ export default function F1ImportCheckPage() {
                   variant="primary"
                   size="lg"
                   icon={<ArrowRight size={18} />}
-                  onClick={() => router.push(`/cases/${caseId}/f3`)}
+                  onClick={() => router.push(`/cases/${caseId}/f2`)}
                 >
-                  F3 필요서류로 이동
+                  F2 식품유형 분류로 이동
                 </Button>
               )}
             </div>
