@@ -9,6 +9,11 @@ import {
   PROCESS_CODE_GROUPS,
   getProcessCodeLabel,
 } from "@/lib/process-codes";
+import {
+  JAPAN_PREFECTURES,
+  prefectureToCode,
+  codeToSelectedName,
+} from "@/lib/japan-prefectures";
 
 interface ProcessCodeReason {
   code: string;
@@ -40,6 +45,9 @@ interface ProcessCodeCardProps {
   onExportCountryChange: (country: string) => void;
   isOem: boolean;
   onOemChange: (isOem: boolean) => void;
+  /** 일본산일 때 F3 전달용 도·현 코드 (예: "후쿠시마" 또는 "일본34개도부현") */
+  japanPrefectureCode?: string;
+  onJapanPrefectureCodeChange?: (code: string) => void;
   /** OCR에서 읽은 공정 원문 (표시용) */
   rawProcessText?: string;
   /** AI가 각 공정 코드를 선택한 근거 목록 (하위 호환) */
@@ -473,6 +481,8 @@ export default function ProcessCodeCard({
   onExportCountryChange,
   isOem,
   onOemChange,
+  japanPrefectureCode,
+  onJapanPrefectureCodeChange,
   rawProcessText,
   processCodeReasons,
   processCodeCandidates,
@@ -701,6 +711,68 @@ export default function ProcessCodeCard({
             />
           </div>
         </div>
+
+        {/* 일본산일 때: 생산 도·현 선택 */}
+        {exportCountry === "일본" && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-500 mt-0.5 shrink-0 text-base leading-none">⚠</span>
+              <div>
+                <p className="text-[13px] font-semibold text-amber-800">일본산 — 생산 도·현 선택 필요</p>
+                <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                  도·현에 따라 필요 서류가 다릅니다. 미선택 시 F3에서 경고가 발생합니다.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-medium text-slate-700 block">생산 도·현</label>
+              <select
+                value={codeToSelectedName(japanPrefectureCode ?? "") ?? ""}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) {
+                    onJapanPrefectureCodeChange?.("");
+                    return;
+                  }
+                  const found = JAPAN_PREFECTURES.find((p) => p.name === val);
+                  if (found) onJapanPrefectureCodeChange?.(prefectureToCode(found));
+                }}
+                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+              >
+                <option value="">-- 도·현을 선택하세요 --</option>
+                <optgroup label="13개 도·현 (방사성물질 검사성적서 + 일본 정부증명서)">
+                  {JAPAN_PREFECTURES.filter((p) => p.group === "13").map((p) => (
+                    <option key={p.name} value={p.name}>{p.label}</option>
+                  ))}
+                </optgroup>
+                <optgroup label="34개 도·부·현 (비오염 생산지 증명서)">
+                  {JAPAN_PREFECTURES.filter((p) => p.group === "34").map((p) => (
+                    <option key={p.name} value={p.name}>{p.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* 선택 결과 뱃지 */}
+            {japanPrefectureCode && (
+              <div className="flex items-center gap-2 pt-1">
+                {japanPrefectureCode === "일본34개도부현" ? (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                    비오염 생산지 증명서 필요
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-full bg-red-100 text-red-700">
+                    방사성물질 검사성적서 + 일본 정부증명서 필요
+                  </span>
+                )}
+                <span className="text-[11px] text-slate-400">
+                  전달 코드: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-600">{japanPrefectureCode}</code>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );

@@ -196,8 +196,8 @@ export default function CaseSummaryPanel({ caseId }: CaseSummaryPanelProps) {
                 <div>
                   <p className="text-[10px]" style={{ color: "var(--ds-color-text-tertiary)" }}>공정 코드</p>
                   <div className="flex flex-wrap gap-1 mt-0.5">
-                    {summary.process_codes.map((c) => (
-                      <span key={c} className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--ds-color-primary-soft)", color: "var(--ds-color-primary-text)" }}>
+                    {summary.process_codes.map((c, i) => (
+                      <span key={`${c}-${i}`} className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--ds-color-primary-soft)", color: "var(--ds-color-primary-text)" }}>
                         {c}
                       </span>
                     ))}
@@ -222,8 +222,8 @@ export default function CaseSummaryPanel({ caseId }: CaseSummaryPanelProps) {
             </span>
           </div>
           <div className="space-y-2">
-            {labelImages.map((img) => (
-              <LabelImageThumb key={img.id} img={img} />
+            {labelImages.map((img, idx) => (
+              <LabelImageThumb key={img.id != null ? `img-${img.id}` : `img-${idx}`} img={img} />
             ))}
           </div>
         </div>

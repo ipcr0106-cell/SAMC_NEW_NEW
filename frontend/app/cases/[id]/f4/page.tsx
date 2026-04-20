@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
-import { ArrowRight, Save, Globe, Loader2 } from "lucide-react";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
+import { ArrowRight, Save, Globe, Loader2, ChevronLeft } from "lucide-react";
 import StepNavigation from "@/components/layout/StepNavigation";
 import CaseSummaryPanel from "@/components/layout/CaseSummaryPanel";
 import Button from "@/components/ui/Button";
@@ -95,7 +95,9 @@ function ImageIssueCard({
 export default function F4LabelReviewPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const caseId = params?.id as string;
+  const fromView = searchParams?.get("from") === "view";
 
   const {
     state,
@@ -511,9 +513,16 @@ export default function F4LabelReviewPage() {
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="max-w-[1440px] mx-auto px-6">
           <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
-            <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f3`)}>
-              이전: 필요서류
-            </Button>
+            {fromView ? (
+              <Button variant="secondary" size="md" icon={<ChevronLeft size={16} />}
+                onClick={() => router.push(`/cases/${caseId}/view`)}>
+                결과로 돌아가기
+              </Button>
+            ) : (
+              <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f3`)}>
+                이전: 필요서류
+              </Button>
+            )}
             <div className="flex items-center gap-3">
               <Button
                 variant="secondary" size="md"
@@ -523,13 +532,17 @@ export default function F4LabelReviewPage() {
               >
                 임시 저장
               </Button>
-              <Button
-                variant="primary" size="lg"
-                icon={<ArrowRight size={18} />}
-                onClick={() => router.push(`/cases/${caseId}/f5`)}
-              >
-                F5 한글시안으로 이동
-              </Button>
+              {fromView ? (
+                <Button variant="primary" size="lg" icon={<ArrowRight size={18} />}
+                  onClick={() => router.push(`/cases/${caseId}/view`)}>
+                  수정 확정 → 결과 보기
+                </Button>
+              ) : (
+                <Button variant="primary" size="lg" icon={<ArrowRight size={18} />}
+                  onClick={() => router.push(`/cases/${caseId}/f5`)}>
+                  F5 한글시안으로 이동
+                </Button>
+              )}
             </div>
           </div>
         </div>

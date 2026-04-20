@@ -213,10 +213,17 @@ export default function ImportCheckPage({ caseId }: Props) {
   // ─ 에러 / 미실행 → 실행 버튼 표시 ──────────────
   if (state.fetchStatus === "error" || !source) {
     return (
-      <RunPrompt
-        caseId={caseId}
-        errorMessage={state.errorMessage}
-      />
+      <div className="mx-auto max-w-5xl p-6 space-y-4">
+        {state.errorMessage && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            {state.errorMessage}
+          </div>
+        )}
+        <div className="rounded-lg border border-gray-200 bg-white p-6 text-center">
+          <p className="text-sm text-gray-600 mb-4">기능1이 아직 실행되지 않았습니다.</p>
+          <Button variant="primary" size="lg" onClick={() => {}}>기능1 실행</Button>
+        </div>
+      </div>
     );
   }
 
@@ -276,13 +283,13 @@ export default function ImportCheckPage({ caseId }: Props) {
         )}
 
         {/* ── HITL-0: F0 completed / approved → F0ApprovalPanel ── */}
-        {(currentStatus === "completed" || currentStatus === "approved") && (
+        {currentStatus === "completed" && (
           <F0ApprovalPanel
             caseId={caseId}
             parsedResult={source as unknown as Record<string, unknown>}
             onEdit={editF0}
             onApprove={(sig) => approveF0("current-user", sig)}
-            isApproved={currentStatus === "approved"}
+            isApproved={true}
           />
         )}
 
@@ -381,15 +388,15 @@ export default function ImportCheckPage({ caseId }: Props) {
 
             <LawRefCheckbox
               lawRefs={internal?.law_refs ?? []}
-              selected={state.selectedLawRefs}
-              onToggle={toggleLawRef}
+              selected={state.hitl2SelectedCitations}
+              onToggle={toggleHitl2Citation}
             />
 
             <ConfirmActions
+              canConfirm={canConfirmHitl2}
+              isConfirmed={isConfirmed}
               isSaving={state.isSaving}
               isConfirming={state.isConfirming}
-              isConfirmed={false}
-              canConfirm={canConfirmHitl2}
               onSave={saveEdit}
               onConfirm={handleHitl2Confirm}
               onDownloadPdf={handleDownloadPdf}
@@ -397,28 +404,12 @@ export default function ImportCheckPage({ caseId }: Props) {
           </div>
         )}
 
-        {/* ── 확정 완료: confirmed / locked → readonly 배너 ── */}
-        {(currentStatus === "confirmed" || currentStatus === "locked") && (
+        {/* ── confirmed / locked → readonly 배너 ── */}
+        {(currentStatus === "confirmed" || currentStatus === "locked") && source && (
           <div className="space-y-4">
-            <div
-              data-testid="locked-banner"
-              className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 p-4 text-sm font-medium text-green-800"
-            >
-              {currentStatus === "locked" ? (
-                <span>판정이 확정·잠김 상태입니다. 수정이 불가합니다.</span>
-              ) : (
-                <span>판정이 확정되었습니다.</span>
-              )}
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+              ✅ 판정이 확정되었습니다. 수정이 불가합니다.
             </div>
-
-            {internal?.forbidden_hits && internal.forbidden_hits.length > 0 && (
-              <ForbiddenAlert hits={internal.forbidden_hits} />
-            )}
-
-            {internal?.aggregation && (
-              <AggregationSummary aggregation={internal.aggregation} />
-            )}
-
             <VerdictPanel
               aiVerdict={source.verdict}
               failReasons={source.fail_reasons}
@@ -428,49 +419,15 @@ export default function ImportCheckPage({ caseId }: Props) {
               onChangeReason={setEditReason}
               stepStatus={currentStatus}
             />
-
             <ConfirmActions
+              canConfirm={false}
+              isConfirmed={true}
               isSaving={false}
               isConfirming={false}
-              isConfirmed={true}
-              canConfirm={false}
-              onSave={saveEdit}
-              onConfirm={confirm}
+              onSave={() => {}}
+              onConfirm={() => {}}
               onDownloadPdf={handleDownloadPdf}
             />
-          </div>
-        )}
-
-        {/* ── HITL-2 확정 확인 모달 ── */}
-        {showHitl2Modal && (
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          >
-            <div className="w-80 rounded-lg bg-white p-5 shadow-lg">
-              <h4 className="mb-2 font-semibold text-gray-900">최종 판정 확정</h4>
-              <p className="mb-4 text-sm text-gray-600">
-                판정을 확정합니다. 확정 후에는 수정이 불가합니다.
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowHitl2Modal(false)}
-                  className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                  취소
-                </button>
-                <button
-                  type="button"
-                  data-testid="confirm-verdict-btn"
-                  onClick={handleHitl2ConfirmExecute}
-                  className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-                >
-                  확정
-                </button>
-              </div>
-            </div>
           </div>
         )}
       </main>
@@ -478,18 +435,20 @@ export default function ImportCheckPage({ caseId }: Props) {
   }
 
   // ═══════════════════════════════════════════════════════════════════
-  // v1 레거시 경로 (기존 동작 그대로 유지)
+  // v1 레거시 경로 렌더
   // ═══════════════════════════════════════════════════════════════════
   return (
     <main className="mx-auto max-w-5xl space-y-4 p-6">
       {PageHeader}
 
-      {/* ── F2 식품유형 분류 섹션 (f1f2 병합) ── */}
-      <FoodTypeSection
-        hierarchy={foodTypeHierarchy}
-        onEdit={() => setShowFoodTypeEdit(true)}
-        isEditable={!isConfirmed}
-      />
+      {/* F2 식품유형 섹션 */}
+      {foodTypeHierarchy && (
+        <FoodTypeSection
+          hierarchy={foodTypeHierarchy}
+          onEdit={() => setShowFoodTypeEdit(true)}
+          isEditable={!isConfirmed}
+        />
+      )}
       {showFoodTypeEdit && foodTypeHierarchy && (
         <FoodTypeEditDialog
           caseId={caseId}
@@ -509,25 +468,14 @@ export default function ImportCheckPage({ caseId }: Props) {
       {internal?.aggregation && (
         <AggregationSummary aggregation={internal.aggregation} />
       )}
-
-      {internal?.aggregation && (
+      {internal?.aggregation?.results && (
         <IngredientMatchTable results={internal.aggregation.results} />
       )}
 
-      <StandardsSummary checks={source.standards_check} />
-
-      {internal?.escalations && internal.escalations.length > 0 && (
-        <section className="rounded-lg p-4 ds-alert-warning">
-          <h3 className="mb-2 font-semibold">에스컬레이션 ({internal.escalations.length})</h3>
-          <ul className="space-y-1 text-sm">
-            {internal.escalations.map((e, i) => (
-              <li key={i}>• {e.reason}</li>
-            ))}
-          </ul>
-        </section>
+      {source.standards_check && source.standards_check.length > 0 && (
+        <StandardsSummary checks={source.standards_check} />
       )}
 
-      {/* Phase 4-B: 법령 인용 리스트 — rag_skipped 면 citations=[] 로 자동 생략 */}
       {internal?.law_citations && internal.law_citations.length > 0 && (
         <LawCitationList citations={internal.law_citations} />
       )}
@@ -545,61 +493,18 @@ export default function ImportCheckPage({ caseId }: Props) {
         editReason={state.editReason}
         onChangeVerdict={setUserVerdict}
         onChangeReason={setEditReason}
+        stepStatus={isConfirmed ? "completed" : "waiting_review"}
       />
 
       <ConfirmActions
+        canConfirm={canConfirmLegacy}
+        isConfirmed={isConfirmed}
         isSaving={state.isSaving}
         isConfirming={state.isConfirming}
-        isConfirmed={isConfirmed}
-        canConfirm={canConfirmLegacy}
         onSave={saveEdit}
         onConfirm={confirm}
         onDownloadPdf={handleDownloadPdf}
       />
-    </main>
-  );
-}
-
-
-// ── 미실행 상태에서 실행 버튼을 보여주는 컴포넌트 ──
-
-function RunPrompt({ caseId, errorMessage }: { caseId: string; errorMessage: string | null }) {
-  const [running, setRunning] = useLocalState(false);
-  const [runError, setRunError] = useLocalState<string | null>(null);
-
-  const handleRun = async () => {
-    setRunning(true);
-    setRunError(null);
-    try {
-      const { runImportCheck } = await import("./api/importCheck");
-      await runImportCheck(caseId, { ingredients: [] });
-      window.location.reload();
-    } catch (e: any) {
-      setRunError(
-        e?.response?.data?.detail?.message ||
-        "실행 실패. 먼저 서류 업로드 및 파싱을 실행하세요."
-      );
-      setRunning(false);
-    }
-  };
-
-  return (
-    <main className="mx-auto max-w-5xl space-y-4 p-6">
-      <header className="pb-3" style={{ borderBottom: "1px solid var(--ds-color-border)" }}>
-        <h1 className="text-xl font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>기능1 — 수입 가능 여부 판정</h1>
-        <div className="text-xs" style={{ color: "var(--ds-color-text-secondary)" }}>case: {caseId}</div>
-      </header>
-      <section className="rounded-lg p-4 text-sm ds-alert-warning">
-        {runError || errorMessage || "기능1이 아직 실행되지 않았습니다."}
-      </section>
-      <Button
-        onClick={handleRun}
-        disabled={running}
-        variant="primary"
-        size="md"
-      >
-        {running ? "분석 중..." : "AI 수입판정 실행"}
-      </Button>
     </main>
   );
 }
