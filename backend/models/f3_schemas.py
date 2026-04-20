@@ -49,6 +49,13 @@ class ProductInfo(BaseModel):
         default_factory=list,
         description="원재료/성분 키워드 목록. 예: ['돼지','soy lecithin']",
     )
+    product_ingredients: list[dict] = Field(
+        default_factory=list,
+        description=(
+            "F0 구조화 원재료 목록. 각 항목: {code, name_ko, ocr_name}. "
+            "LLM 광의↔협의 포섭 판정(f3_llm_subsumption)에서 사용."
+        ),
+    )
     reference_date: Optional[str] = Field(
         None,
         description="effective_from/until 필터 기준일 (YYYY-MM-DD). 없으면 오늘 날짜.",
@@ -98,6 +105,14 @@ class RequiredDoc(BaseModel):
     law_explanation: Optional[dict] = Field(
         None,
         description="LLM 생성 자연어 설명 — enrich_with_llm=True 일 때만 채워짐",
+    )
+    subsumption: Optional[dict] = Field(
+        None,
+        description=(
+            "LLM 광의↔협의 포섭 판정 결과 — 직접 키워드 매칭은 실패했으나 "
+            "LLM이 협의 재료를 광의 법령용어에 포함시킨 경우에만 채워짐. "
+            "검역관 검토용 reasoning 포함."
+        ),
     )
 
 
