@@ -64,6 +64,12 @@ F1_RAG_VERDICT_DISABLED: bool = env_bool("F1_RAG_VERDICT_DISABLED", default=True
 # 0~100. 신규 로직 적용 트래픽 비율 (Wave 4 P6 에서 점진 증가)
 F1_CANARY_PERCENTAGE: int = env_int("F1_CANARY_PERCENTAGE", default=0)
 
+# Step D 필터 강화 — 최소 RAG 유사도 점수 (결함 #16, Phase 2에서 f1_step_d.py 참조 예정)
+F1_STEP_D_MIN_SCORE: float = float(os.getenv("F1_STEP_D_MIN_SCORE", "0.4"))
+
+# Step D 필터 강화 — 전역 Top-K 후보 수
+F1_STEP_D_TOP_K_GLOBAL: int = int(os.getenv("F1_STEP_D_TOP_K_GLOBAL", "3"))
+
 
 # ============================================================
 # Canary 라우팅 헬퍼

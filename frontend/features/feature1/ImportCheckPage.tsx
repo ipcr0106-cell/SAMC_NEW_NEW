@@ -41,7 +41,7 @@ import type { IngredientDecision, FoodTypeHierarchy } from "@/types/pipeline";
 import type { ConditionalResolution } from "./components/ConditionalResolutionPanel";
 import type { EscalationItem } from "./components/EscalationAckList";
 import { isConfirmedStatus } from "./types";
-import { getFeature2 } from "@/lib/api";
+import { getFeature2, runFeature2 } from "@/lib/api";
 
 interface Props {
   caseId: string;
@@ -81,6 +81,9 @@ export default function ImportCheckPage({ caseId }: Props) {
   // ── F2 식품유형 분류 state (f1f2 병합) ───────────────────────────────
   const [foodTypeHierarchy, setFoodTypeHierarchy] = useLocalState<FoodTypeHierarchy | null>(null);
   const [showFoodTypeEdit, setShowFoodTypeEdit] = useLocalState(false);
+  // TODO(Wave 5): samcbc step0_food_type BE 이식 완료 후 아래 F2 실행 트리거 상태 제거.
+  const [isRunningF2, setIsRunningF2] = useLocalState(false);
+  const [f2RunError, setF2RunError] = useLocalState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +101,44 @@ export default function ImportCheckPage({ caseId }: Props) {
       }
     })();
     return () => { cancelled = true; };
+  }, [caseId]);
+
+  // TODO(Wave 5): F2 가 F1 파이프라인에 통합되면 제거. 현재는 사용자 수동 트리거.
+  const handleRunF2 = useCallback(async () => {
+    setIsRunningF2(true);
+    setF2RunError(null);
+    try {
+      await runFeature2(caseId);
+      const row = (await getFeature2(caseId)) as {
+        ai_result: FoodTypeHierarchy | null;
+        final_result: FoodTypeHierarchy | null;
+      };
+      const picked = row.final_result ?? row.ai_result;
+      if (picked) setFoodTypeHierarchy(picked);
+      else setF2RunError("분류 결과를 가져오지 못했습니다.");
+    } catch (e) {
+      setF2RunError(e instanceof Error ? e.message : "F2 실행 중 오류가 발생했습니다.");
+    } finally {
+      setIsRunningF2(false);
+    }
+  }, [caseId, setFoodTypeHierarchy, setIsRunningF2, setF2RunError]);
+
+  // ── F1 재분석 ────────────────────────────────────────────────────────
+  const [rerunning, setRerunning] = useLocalState(false);
+  const [rerunError, setRerunError] = useLocalState<string | null>(null);
+
+  const handleRerun = useCallback(async () => {
+    setRerunning(true);
+    setRerunError(null);
+    try {
+      const { runImportCheck } = await import("./api/importCheck");
+      await runImportCheck(caseId, { ingredients: [] });
+      window.location.reload();
+    } catch (e: unknown) {
+      const msg = (e as any)?.response?.data?.detail?.message ?? "재분석 실패. 잠시 후 다시 시도하세요.";
+      setRerunError(msg);
+      setRerunning(false);
+    }
   }, [caseId]);
 
   // ── HITL-1 로컬 결정 상태 ──────────────────────────────────────────
@@ -262,6 +303,9 @@ export default function ImportCheckPage({ caseId }: Props) {
           hierarchy={foodTypeHierarchy}
           onEdit={() => setShowFoodTypeEdit(true)}
           isEditable={!isConfirmed}
+          onRun={handleRunF2}
+          isRunning={isRunningF2}
+          runError={f2RunError}
         />
         {showFoodTypeEdit && foodTypeHierarchy && (
           <FoodTypeEditDialog
@@ -309,9 +353,40 @@ export default function ImportCheckPage({ caseId }: Props) {
         {/* ── HITL-1: needs_review ── */}
         {currentStatus === "needs_review" && (
           <div data-testid="hitl1-panel" className="space-y-4">
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <b>HITL-1:</b> 아래 항목을 검토하고 결정을 제출하세요.
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center justify-between gap-3">
+              <span><b>HITL-1:</b> 아래 항목을 검토하고 결정을 제출하세요.</span>
+              <button
+                type="button"
+                onClick={handleRerun}
+                disabled={rerunning}
+                className="shrink-0 rounded border border-amber-400 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {rerunning ? "재분석 중..." : "F1 재분석"}
+              </button>
             </div>
+            {rerunError && (
+              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {rerunError}
+              </div>
+            )}
+
+            {internal?.forbidden_hits && internal.forbidden_hits.length > 0 && (
+              <ForbiddenAlert hits={internal.forbidden_hits} />
+            )}
+
+            {internal?.aggregation && (
+              <AggregationSummary aggregation={internal.aggregation} />
+            )}
+
+            {internal?.aggregation && (
+              <IngredientMatchTable results={internal.aggregation.results} />
+            )}
+
+            <StandardsSummary checks={source.standards_check} />
+
+            {internal?.law_citations && internal.law_citations.length > 0 && (
+              <LawCitationList citations={internal.law_citations} />
+            )}
 
             {unidentifiedIngredients.length > 0 && (
               <UnidentifiedIngredientReview
@@ -364,6 +439,12 @@ export default function ImportCheckPage({ caseId }: Props) {
             {internal?.aggregation && (
               <AggregationSummary aggregation={internal.aggregation} />
             )}
+
+            {internal?.aggregation && (
+              <IngredientMatchTable results={internal.aggregation.results} />
+            )}
+
+            <StandardsSummary checks={source.standards_check} />
 
             {internal?.law_citations && internal.law_citations.length > 0 && (
               <LawCitationList citations={internal.law_citations} />

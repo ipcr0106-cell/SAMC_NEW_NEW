@@ -14,9 +14,21 @@ interface FoodTypeSectionProps {
   hierarchy: FoodTypeHierarchy | null;
   onEdit: () => void;
   isEditable: boolean;
+  // TODO(Wave 5): samcbc step0_food_type BE 이식 완료 후 아래 3 props 제거.
+  // 현재 f1f2 병합(PR #28) 후 F2 자동 트리거가 없어 임시 실행 버튼 제공.
+  onRun?: () => void | Promise<void>;
+  isRunning?: boolean;
+  runError?: string | null;
 }
 
-export default function FoodTypeSection({ hierarchy, onEdit, isEditable }: FoodTypeSectionProps) {
+export default function FoodTypeSection({
+  hierarchy,
+  onEdit,
+  isEditable,
+  onRun,
+  isRunning = false,
+  runError = null,
+}: FoodTypeSectionProps) {
   return (
     <section
       id="food-type"
@@ -41,9 +53,42 @@ export default function FoodTypeSection({ hierarchy, onEdit, isEditable }: FoodT
 
       {/* 결과 없음 */}
       {!hierarchy && (
-        <p className="text-sm text-slate-500">
-          F2 식품유형 분류 결과가 없습니다. F2 분석을 먼저 실행하세요.
-        </p>
+        <div className="space-y-3">
+          <p className="text-sm text-slate-500">
+            F2 식품유형 분류 결과가 없습니다. F2 분석을 먼저 실행하세요.
+          </p>
+          {onRun && (
+            <button
+              type="button"
+              onClick={() => {
+                void onRun();
+              }}
+              disabled={isRunning}
+              data-testid="f2-run-btn"
+              className="inline-flex items-center gap-2 rounded border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isRunning ? (
+                <>
+                  <span
+                    data-testid="f2-run-spinner"
+                    className="h-3 w-3 animate-spin rounded-full border-2 border-blue-300 border-t-blue-600"
+                  />
+                  분석 실행 중...
+                </>
+              ) : (
+                "AI 분류 실행"
+              )}
+            </button>
+          )}
+          {runError && (
+            <div
+              data-testid="f2-run-error"
+              className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700"
+            >
+              {runError}
+            </div>
+          )}
+        </div>
       )}
 
       {/* 결과 있음 */}

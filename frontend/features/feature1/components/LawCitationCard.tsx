@@ -46,9 +46,14 @@ export default function LawCitationCard({ citation }: Props) {
             <span className="text-gray-400">· {citation.section_path}</span>
           )}
         </div>
-        <span className="shrink-0 text-[11px] text-gray-400">
-          score: {citation.score.toFixed(3)}
-        </span>
+        {citation.score > 0 && (
+          <span
+            title="매칭된 키워드 수 / 전체 쿼리 키워드 수"
+            className="shrink-0 text-[11px] text-gray-400"
+          >
+            score: {citation.score.toFixed(3)}
+          </span>
+        )}
       </header>
       <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
         {displayText}

@@ -1,0 +1,150 @@
+[
+  {
+    "spec_val": "0.1이하",
+    "expected_min": null,
+    "expected_max": 0.1,
+    "category": "numeric_le",
+    "note": "기본 이하 패턴 — 정상 파싱"
+  },
+  {
+    "spec_val": "85.0이상",
+    "expected_min": 85.0,
+    "expected_max": null,
+    "category": "numeric_ge",
+    "note": "기본 이상 패턴 — 정상 파싱"
+  },
+  {
+    "spec_val": "0.01~0.1",
+    "expected_min": 0.01,
+    "expected_max": 0.1,
+    "category": "numeric_range",
+    "note": "기본 범위 패턴 (공백 없음)"
+  },
+  {
+    "spec_val": "0.01 ~ 0.1",
+    "expected_min": 0.01,
+    "expected_max": 0.1,
+    "category": "numeric_range",
+    "note": "공백 포함 범위 — WAVE4 실패 패턴 #1"
+  },
+  {
+    "spec_val": "0.01~ 0.1",
+    "expected_min": 0.01,
+    "expected_max": 0.1,
+    "category": "numeric_range",
+    "note": "비대칭 공백 범위 — WAVE4 실패 패턴 #2"
+  },
+  {
+    "spec_val": "0.5以下",
+    "expected_min": null,
+    "expected_max": 0.5,
+    "category": "numeric_le_hanja",
+    "note": "한자 以下 혼용 — WAVE4 실패 패턴 #3"
+  },
+  {
+    "spec_val": "85.0以上",
+    "expected_min": 85.0,
+    "expected_max": null,
+    "category": "numeric_ge_hanja",
+    "note": "한자 以上 혼용 — WAVE4 실패 패턴 #4"
+  },
+  {
+    "spec_val": "1.0未滿",
+    "expected_min": null,
+    "expected_max": 1.0,
+    "category": "numeric_lt_hanja",
+    "note": "한자 未滿(미만) 혼용"
+  },
+  {
+    "spec_val": "0.1 mg/kg 이하",
+    "expected_min": null,
+    "expected_max": 0.1,
+    "category": "numeric_le_with_unit",
+    "note": "단위 포함 SPEC_VAL — WAVE4 실패 패턴 #5"
+  },
+  {
+    "spec_val": "10 μg/kg 이하",
+    "expected_min": null,
+    "expected_max": 10.0,
+    "category": "numeric_le_with_unit",
+    "note": "단위 포함 μg/kg — WAVE4 실패 패턴 #6"
+  },
+  {
+    "spec_val": "총 납은 0.1 이하, 카드뮴은 0.05 이하",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "compound_first_only",
+    "note": "복합 기준 — 첫 segment '총 납은 0.1 이하' 가 숫자로 시작하지 않아 파싱 불가 → null. 숫자 시작 형태('0.1이하, 0.5이하')만 지원"
+  },
+  {
+    "spec_val": "불검출",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "non_detect",
+    "note": "기본 불검출 패턴",
+    "expected_kind": "non_detect"
+  },
+  {
+    "spec_val": "미검출",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "non_detect",
+    "note": "미검출 — WAVE4 추가 패턴",
+    "expected_kind": "non_detect"
+  },
+  {
+    "spec_val": "검출되지 않음",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "non_detect",
+    "note": "검출되지 않음 — WAVE4 추가 패턴",
+    "expected_kind": "non_detect"
+  },
+  {
+    "spec_val": "음성",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "non_detect",
+    "note": "음성 — 기본 패턴",
+    "expected_kind": "non_detect"
+  },
+  {
+    "spec_val": "적합",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "qualitative",
+    "note": "적합 — 담당자 판단 필요",
+    "expected_kind": "qualitative"
+  },
+  {
+    "spec_val": "적합함",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "qualitative",
+    "note": "적합함 — WAVE4 추가 패턴",
+    "expected_kind": "qualitative"
+  },
+  {
+    "spec_val": "기준적합",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "qualitative",
+    "note": "기준적합 — WAVE4 추가 패턴",
+    "expected_kind": "qualitative"
+  },
+  {
+    "spec_val": "5.0",
+    "expected_min": 5.0,
+    "expected_max": 5.0,
+    "category": "numeric_single",
+    "note": "단일 수치 — 등호 처리"
+  },
+  {
+    "spec_val": "복잡한 설명문으로 된 기준치로 수치 추출 불가",
+    "expected_min": null,
+    "expected_max": null,
+    "category": "parse_failure",
+    "note": "완전 파싱 불가 — unknown 처리 기대",
+    "expected_kind": "unknown"
+  }
+]

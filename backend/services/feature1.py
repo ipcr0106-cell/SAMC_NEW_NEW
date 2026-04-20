@@ -22,8 +22,9 @@ import logging
 import os
 from typing import Any, Optional
 
+from common.result import Result
 from models.f1_law_citation import ConflictStatus, RagJudgement
-from models.f1_types import F1Output, MeasuredValue, QueryContext
+from models.f1_types import F1Output, MeasuredValue, QueryContext, StepDResult
 from models.judgment import (Feature1Output, Ingredient, LawReference,
                                      ProcessConditions)
 from services import f1_rag_judge
@@ -350,11 +351,13 @@ async def run_feature1_v2(
         step_a = await f1_step_a.run_step_a(ingredients, client=client)
         if step_a.api_errors:
             warnings.extend(f"step_a_api_error:{e}" for e in step_a.api_errors)
+        if getattr(step_a, "warnings", None):
+            warnings.extend(step_a.warnings)
         if step_a.forbidden_hits:
             evidence_external_data.append(
                 {
                     "step": "A",
-                    "source": "f1_forbidden_ingredients + 15111777",
+                    "source": "f1_forbidden_ingredients (DB)",
                     "forbidden_hits": [h.model_dump() for h in step_a.forbidden_hits],
                 }
             )
@@ -364,8 +367,18 @@ async def run_feature1_v2(
             query_ctx = QueryContext(
                 food_type=food_type,
                 forbidden_hits=step_a.forbidden_hits,
+                ingredient_names=[
+                    getattr(i, "name", "") for i in ingredients
+                    if getattr(i, "name", "")
+                ],
             )
-            step_d = await f1_step_d.run_step_d(query_ctx)
+            _step_d_result = await f1_step_d.run_step_d(query_ctx)
+            step_d = _step_d_result.unwrap_or(StepDResult(citations=[]))
+            if _step_d_result.is_err():
+                logger.warning("Step D 실패 — citations=[]: %s", _step_d_result._reason)
+                warnings.append("pipeline_status:partial")
+            else:
+                warnings.append("pipeline_status:ok")
             return F1Output(
                 verdict="prohibited",
                 confidence=0.95,
@@ -384,6 +397,8 @@ async def run_feature1_v2(
         api_call_stats = dict(step_b.api_call_stats)
         if step_b.unidentified:
             warnings.extend(f"step_b_unidentified:{n}" for n in step_b.unidentified)
+        if getattr(step_b, "warnings", None):
+            warnings.extend(step_b.warnings)
 
         enriched = step_b.enriched_ingredients or list(ingredients)
 
@@ -399,13 +414,19 @@ async def run_feature1_v2(
         evidence_external_data.append(
             {
                 "step": "B",
-                "source": "15111777 + 15094202 + 15111913",
+                "source": "15094202 + 15111913 (P6-b: 15111777 제거)",
                 "enriched_summary": [
                     {
                         "name": getattr(i, "name", ""),
                         "allow_verdict": getattr(i, "allow_verdict", None),
                         "component_code": getattr(i, "component_code", None),
                         "is_gmo": getattr(i, "is_gmo", None),
+                        # P6 추가 — 원재료 매칭 상세 컬럼 채움용
+                        "matched_name_ko": getattr(i, "matched_name_ko", None),
+                        "ingredient_code_f0": getattr(i, "ingredient_code_f0", None),
+                        "match_method": getattr(i, "match_method", None),
+                        "law_source": getattr(i, "law_source", None),
+                        "percentage": getattr(i, "percentage", None),
                     }
                     for i in enriched
                 ],
@@ -422,8 +443,22 @@ async def run_feature1_v2(
                 food_type=food_type,
                 forbidden_hits=step_a.forbidden_hits,
                 restricted_ingredients=restricted_names,
+                ingredient_names=[
+                    getattr(i, "name", "") for i in enriched
+                    if getattr(i, "name", "")
+                ],
+                ingredient_codes=[
+                    getattr(i, "component_code", "") or "" for i in enriched
+                    if getattr(i, "component_code", None)
+                ],
             )
-            step_d = await f1_step_d.run_step_d(query_ctx)
+            _step_d_result = await f1_step_d.run_step_d(query_ctx)
+            step_d = _step_d_result.unwrap_or(StepDResult(citations=[]))
+            if _step_d_result.is_err():
+                logger.warning("Step D 실패 — citations=[]: %s", _step_d_result._reason)
+                warnings.append("pipeline_status:partial")
+            else:
+                warnings.append("pipeline_status:ok")
             return F1Output(
                 verdict="prohibited",
                 confidence=0.85,
@@ -480,24 +515,42 @@ async def run_feature1_v2(
             forbidden_hits=[],
             restricted_ingredients=restricted_names,
             failed_standards=failed_standards,
+            ingredient_names=[
+                getattr(i, "name", "") for i in enriched
+                if getattr(i, "name", "")
+            ],
+            ingredient_codes=[
+                getattr(i, "component_code", "") or "" for i in enriched
+                if getattr(i, "component_code", None)
+            ],
         )
-        step_d = await f1_step_d.run_step_d(query_ctx)
+        _step_d_result = await f1_step_d.run_step_d(query_ctx)
+        step_d = _step_d_result.unwrap_or(StepDResult(citations=[]))
+        if _step_d_result.is_err():
+            logger.warning("Step D 실패 — citations=[]: %s", _step_d_result._reason)
         evidence_laws = [c.model_dump() for c in step_d.citations]
+
+        # ── pipeline_status 결정 ──────────────────────────────
+        if _step_d_result.is_err() or step_b.unidentified:
+            warnings.append("pipeline_status:partial")
+        else:
+            warnings.append("pipeline_status:ok")
 
         # ── Verdict 결정 ──────────────────────────────────────
         if step_c.overall_status == "fail":
             verdict, confidence = "prohibited", 0.90
+        elif restricted_names:
+            # Step B restricted 판정은 Step C 결과보다 우선:
+            # review_needed가 restricted 경로를 차단하는 Bug 2 회귀 방지.
+            verdict, confidence = "restricted", 0.75
         elif step_c.overall_status == "review_needed":
             verdict, confidence = "needs_review", 0.40
         elif step_b.unidentified:
             verdict, confidence = "needs_review", 0.45
         elif step_c.overall_status == "no_data":
-            if restricted_names:
-                verdict, confidence = "restricted", 0.70
-            else:
-                verdict, confidence = "needs_review", 0.50
-        elif restricted_names:
-            verdict, confidence = "restricted", 0.75
+            # unidentified·restricted 없고 기준규격 데이터도 없음
+            # → 알려진 일반 원료로 판단해 permitted (e.g. 쌀, 사과 등 식품공전 별표1 원료)
+            verdict, confidence = "permitted", 0.85
         else:
             verdict, confidence = "permitted", 0.90
 
