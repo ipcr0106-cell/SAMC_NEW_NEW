@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { getLawText } from "@/features/feature3/lib/law-texts";
 import { crossCheck, type CrossCheckResult } from "@/features/feature3/lib/cross-check";
 import { getIssuerInfo, buildDetailedReason } from "@/features/feature3/lib/ui-helpers";
+import { LawBaseDateBanner } from "@/features/feature3/admin/LawBaseDateBanner";
 
 // ── 타입 ─────────────────────────────────────
 
@@ -1004,8 +1005,10 @@ export default function StepAPage() {
     <div className="min-h-screen pb-20">
       <main className="max-w-3xl mx-auto w-full px-6 pt-8">
 
-        {/* 파이프라인 진행 상태 */}
-        <PipelineProgress currentStep={3} />
+        {/* 법령 기준일 배너 (조용히 실패하므로 에러 시 숨김) */}
+        <div className="mb-2 flex justify-end">
+          <LawBaseDateBanner compact />
+        </div>
 
         {/* 타이틀 */}
         <section className="text-center mb-10 space-y-3">

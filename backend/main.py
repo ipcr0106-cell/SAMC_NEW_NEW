@@ -22,6 +22,7 @@ from routers.feature1 import router as feature1_router
 from routers.db_manager import router as db_manager_router
 from routers.feature2 import router as feature2_router
 from routers.feature3 import router as feature3_router
+from routers.feature3_admin import router as feature3_admin_router
 from routers.feature5 import router as feature5_router
 from routers.dummy_seed import router as dummy_seed_router
 
@@ -56,6 +57,7 @@ app.include_router(feature1_router)         # F1: 수입 가능 판정
 app.include_router(db_manager_router)       # F1: DB 관리 CRUD
 app.include_router(feature2_router, prefix="/api/v1")   # F2: 식품유형 분류
 app.include_router(feature3_router, prefix="/api/v1")   # F3: 수입 필요서류 안내
+app.include_router(feature3_admin_router)                # F3: 법령 업데이트 (prefix 내장)
 app.include_router(feature5_router, prefix="/api/v1")   # F5: 한글표시사항 시안
 app.include_router(dummy_seed_router, prefix="/api/v1") # DEV: 더미 데이터 시드
 

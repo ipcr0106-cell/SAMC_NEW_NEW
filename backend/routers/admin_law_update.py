@@ -38,15 +38,14 @@ router = APIRouter(prefix="/admin/law-update", tags=["admin-law-update"])
 LAW_FEATURE_MAP = {
     # ── F1 전용 ──
     "식품공전": {
-        "features": ["F1", "F2"],
+        "features": ["F1", "F2", "F3"],  # F3: 별표1 원료목록 + 제5장 식품유형 사용
         "tier": "고시",
         "description": "식품의 기준 및 규격 (별표1~3 포함)",
     },
     "식품첨가물공전": {
-        "features": ["F1", "F2"],
+        "features": ["F1", "F2", "F3"],  # F3: 착향료 목록을 plant_based_patterns 에 사용
         "tier": "고시",
         "description": "식품첨가물의 기준 및 규격",
-        # F3 병합 시 → ["F1", "F2", "F3"]
     },
     "건강기능식품공전": {
         "features": ["F1"],
@@ -91,6 +90,11 @@ LAW_FEATURE_MAP = {
         "tier": "조약",
         "description": "한·미, 한·EU, 한·캐나다 유기가공식품 동등성인정 협정문",
     },
+
+    # ── F3 식품공전 연동 (별표1 + 제5장 원료/식품유형) ──
+    # NOTE: "식품공전" / "식품첨가물공전" 키는 아래 F1/F2 전용 섹션에서 이미 정의됨.
+    #       LAW_FEATURE_MAP 은 dict 라 나중 정의가 먼저 정의를 덮어쓰므로,
+    #       같은 키를 여기서 중복 선언하지 않고 F1/F2 섹션 features 리스트에 "F3" 를 추가함.
 
     # ── F1 + F4 공통 ──
     "식품등의 한시적 기준 및 규격 인정 기준": {
@@ -475,13 +479,19 @@ async def _run_f2_preprocess(
     )
 
 
+# F3 전처리 프록시 (실체는 services/f3_preprocess/dispatcher.py 에 격리)
+# F3 는 업로드 즉시 교체 대신 미리보기 → 검역관 확정 플로우라,
+# 여기서는 "미리보기 페이지로 이동" 안내만 수행함.
+from services.f3_preprocess.dispatcher import run_f3_preprocess as _run_f3_preprocess
+
+
 # 기능별 전처리 함수 레지스트리
 # 기능 병합 시 여기에 항목 추가
 FEATURE_PROCESSORS = {
     "F1": _run_f1_preprocess,
     "F2": _run_f2_preprocess,
+    "F3": _run_f3_preprocess,
     "F4": _run_f4_preprocess,
-    # F3 병합 시 → "F3": _run_f3_preprocess,
     # F5 병합 시 → "F5": _run_f5_preprocess,
 }
 
@@ -604,7 +614,7 @@ async def upload_and_update(
                             progress_callback=progress_callback,
                         )
                     )
-                elif feature in ("F1", "F2"):
+                elif feature in ("F1", "F2", "F3"):
                     tasks.append(
                         processor(
                             tmp_path=tmp_paths[i],
