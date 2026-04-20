@@ -100,7 +100,7 @@ async def create_case(body: CaseCreateRequest):
         if not result.data:
             raise HTTPException(status_code=500, detail={
                 "error": "INSERT_FAILED",
-                "message": "케이스 생성에 실패했습니다.",
+                "message": "케이스 생성에 실패했습니다.", "feature": 0
             })
 
         row = result.data[0]
@@ -111,7 +111,6 @@ async def create_case(body: CaseCreateRequest):
         # F1~F5가 pipeline_steps step_key='0'에서 이 데이터를 참조할 수 있음
         if body.entry_step and body.entry_step != "0":
             try:
-                from schemas.upload import ParsedResult, BasicInfo
                 default_parsed = ParsedResult(
                     basic_info=BasicInfo(
                         product_name=body.product_name,
@@ -145,7 +144,7 @@ async def create_case(body: CaseCreateRequest):
         logger.error(f"케이스 생성 실패: {e}")
         raise HTTPException(status_code=500, detail={
             "error": "INTERNAL_ERROR",
-            "message": f"케이스 생성 중 오류: {str(e)}",
+            "message": f"케이스 생성 중 오류: {str(e)}", "feature": 0
         })
 
 
@@ -192,7 +191,7 @@ async def list_cases(
         logger.error(f"케이스 목록 조회 실패: {e}")
         raise HTTPException(status_code=500, detail={
             "error": "INTERNAL_ERROR",
-            "message": f"목록 조회 중 오류: {str(e)}",
+            "message": f"목록 조회 중 오류: {str(e)}", "feature": 0
         })
 
 
@@ -215,7 +214,7 @@ async def get_case(case_id: str):
         if not result.data:
             raise HTTPException(status_code=404, detail={
                 "error": "CASE_NOT_FOUND",
-                "message": "해당 건이 존재하지 않습니다.",
+                "message": "해당 건이 존재하지 않습니다.", "feature": 0
             })
 
         row = result.data[0]
@@ -234,7 +233,7 @@ async def get_case(case_id: str):
         logger.error(f"케이스 조회 실패: {e}")
         raise HTTPException(status_code=500, detail={
             "error": "INTERNAL_ERROR",
-            "message": f"조회 중 오류: {str(e)}",
+            "message": f"조회 중 오류: {str(e)}", "feature": 0
         })
 
 
@@ -258,14 +257,14 @@ async def update_case(case_id: str, body: CaseUpdateRequest):
         if not check.data:
             raise HTTPException(status_code=404, detail={
                 "error": "CASE_NOT_FOUND",
-                "message": "해당 건이 존재하지 않습니다.",
+                "message": "해당 건이 존재하지 않습니다.", "feature": 0
             })
 
         update_data = {k: v for k, v in body.model_dump().items() if v is not None}
         if not update_data:
             raise HTTPException(status_code=400, detail={
                 "error": "NO_UPDATE_FIELDS",
-                "message": "수정할 필드가 없습니다.",
+                "message": "수정할 필드가 없습니다.", "feature": 0
             })
 
         result = sb.table("cases").update(update_data).eq("id", case_id).execute()
@@ -286,7 +285,7 @@ async def update_case(case_id: str, body: CaseUpdateRequest):
         logger.error(f"케이스 수정 실패: {e}")
         raise HTTPException(status_code=500, detail={
             "error": "INTERNAL_ERROR",
-            "message": f"수정 중 오류: {str(e)}",
+            "message": f"수정 중 오류: {str(e)}", "feature": 0
         })
 
 
@@ -312,7 +311,7 @@ async def delete_case(case_id: str):
         if not check.data:
             raise HTTPException(status_code=404, detail={
                 "error": "CASE_NOT_FOUND",
-                "message": "해당 건이 존재하지 않습니다.",
+                "message": "해당 건이 존재하지 않습니다.", "feature": 0
             })
 
         # 2) Storage 파일 삭제 (documents 테이블에서 storage_path 조회)
@@ -349,7 +348,7 @@ async def delete_case(case_id: str):
         logger.error(f"케이스 삭제 실패: {e}")
         raise HTTPException(status_code=500, detail={
             "error": "INTERNAL_ERROR",
-            "message": f"삭제 중 오류: {str(e)}",
+            "message": f"삭제 중 오류: {str(e)}", "feature": 0
         })
 
 
@@ -374,7 +373,7 @@ async def save_parsed_result(case_id: str, body: ParsedResult):
         if not check.data:
             raise HTTPException(status_code=404, detail={
                 "error": "CASE_NOT_FOUND",
-                "message": "해당 건이 존재하지 않습니다.",
+                "message": "해당 건이 존재하지 않습니다.", "feature": 0
             })
 
         # pipeline_steps에 upsert (step_key='0'은 입력/파싱 단계)
@@ -406,7 +405,7 @@ async def save_parsed_result(case_id: str, body: ParsedResult):
         logger.error(f"파싱 결과 저장 실패: {e}")
         raise HTTPException(status_code=500, detail={
             "error": "INTERNAL_ERROR",
-            "message": f"저장 중 오류: {str(e)}",
+            "message": f"저장 중 오류: {str(e)}", "feature": 0
         })
 
 
@@ -442,5 +441,5 @@ async def get_parsed_result(case_id: str):
         logger.error(f"파싱 결과 조회 실패: {e}")
         raise HTTPException(status_code=500, detail={
             "error": "INTERNAL_ERROR",
-            "message": f"조회 중 오류: {str(e)}",
+            "message": f"조회 중 오류: {str(e)}", "feature": 0
         })
