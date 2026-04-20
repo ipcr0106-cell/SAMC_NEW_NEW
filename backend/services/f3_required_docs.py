@@ -38,6 +38,16 @@ try:
 except ImportError:
     generate_law_explanation = None  # type: ignore
 
+try:
+    from services.f3_llm_subsumption import judge_subsumption
+except ImportError:
+    judge_subsumption = None  # type: ignore
+
+
+# LLM 포섭 판정 활성화 여부 (환경변수로 끌 수 있도록)
+import os as _os
+_SUBSUMPTION_ENABLED = _os.getenv("F3_LLM_SUBSUMPTION", "1") != "0"
+
 
 # ──────────────────────────────────────────────
 # 식품유형 / 중분류 판별 헬퍼 — DB 조회 기반
@@ -850,9 +860,38 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
         if not _match_country(doc.get("target_country"), enriched_info.origin_country):
             continue
 
-        # 축 4: product_keywords
-        if not _match_keyword(doc.get("product_keywords"), enriched_kws):
-            continue
+        # 축 4: product_keywords (직접 매칭 → 실패 시 LLM 포섭 판정 fallback)
+        keyword_matched = _match_keyword(doc.get("product_keywords"), enriched_kws)
+        subsumption_result: Optional[dict] = None
+        if not keyword_matched:
+            # LLM 포섭 판정: 직접 매칭은 실패했으나 food_type·country·condition 은 통과한 상태
+            # 문서가 product_keywords 를 요구하고 사용자에게 구조화 재료 정보가 있을 때만 호출
+            if (
+                _SUBSUMPTION_ENABLED
+                and judge_subsumption is not None
+                and doc.get("product_keywords")
+                and info.product_ingredients
+            ):
+                # 법령 원문: 우선 doc_description + law_source, 나중에 Pinecone RAG 확장 가능
+                law_text_parts = []
+                if doc.get("doc_description"):
+                    law_text_parts.append(f"[서류 설명]\n{doc['doc_description']}")
+                if doc.get("law_source"):
+                    law_text_parts.append(f"[법령 출처]\n{doc['law_source']}")
+                law_text = "\n\n".join(law_text_parts)
+
+                subsumption_result = judge_subsumption(
+                    doc_id=doc["id"],
+                    doc_name=doc["doc_name"],
+                    doc_keywords=doc.get("product_keywords") or [],
+                    user_ingredients=info.product_ingredients,
+                    law_text=law_text,
+                )
+                if not subsumption_result.get("subsumed"):
+                    continue
+                # 포섭 판정 통과 → 계속 진행 (subsumption_result는 RequiredDoc 에 첨부)
+            else:
+                continue
 
         # 축 5: submission_timing
         if doc.get("submission_timing") == "first" and not enriched_info.is_first_import:
@@ -880,6 +919,7 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
             match_reason=_build_match_reason(doc, enriched_info, match_trace),
             decision_axis=_derive_decision_axis(doc, enriched_info),
             law_citations=law_citations,
+            subsumption=subsumption_result,
         )
 
         if required_doc.submission_type == "keep":
