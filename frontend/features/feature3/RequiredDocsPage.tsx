@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { getLawText } from "@/features/feature3/lib/law-texts";
@@ -67,6 +67,7 @@ interface ProductInfo {
   is_first_import: boolean;
   has_organic_cert: boolean;
   product_keywords: string[];
+  product_ingredients?: Array<{code: string; name_ko: string; ocr_name: string}>;
   reasoning?: string;
 }
 
@@ -273,6 +274,79 @@ function JapanPrefectureInput({ value, onChange }: { value: string; onChange: (v
             : "기타 도·부·현 지역입니다. 방사성 물질에 오염되지 않은 지역 생산·제조 증명서가 필요합니다."
           }
         </p>
+      )}
+    </div>
+  );
+}
+
+// ── 원재료 검색 자동완성 ──────────────────────────
+
+function IngredientSearchInput({
+  selected,
+  onChange,
+}: {
+  selected: Array<{code: string; name_ko: string}>;
+  onChange: (val: Array<{code: string; name_ko: string}>) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Array<{code: string; name_ko: string}>>([]);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const search = (q: string) => {
+    if (!q.trim()) { setResults([]); setOpen(false); return; }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/ingredient-search?q=${encodeURIComponent(q)}&limit=10`);
+        const data = await res.json();
+        setResults(data);
+        setOpen(data.length > 0);
+      } catch { setResults([]); }
+    }, 250);
+  };
+
+  const add = (item: {code: string; name_ko: string}) => {
+    if (!selected.some(s => s.code === item.code)) {
+      onChange([...selected, item]);
+    }
+    setQuery(""); setResults([]); setOpen(false);
+  };
+
+  const remove = (code: string) => onChange(selected.filter(s => s.code !== code));
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <input
+          value={query}
+          onChange={e => { setQuery(e.target.value); search(e.target.value); }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="예: 닭지방, 젤라틴, 대두단백..."
+          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:bg-white focus:border-blue-200"
+        />
+        {open && (
+          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100 rounded-2xl shadow-lg overflow-hidden">
+            {results.map(r => (
+              <button key={r.code} onMouseDown={() => add(r)}
+                className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3">
+                <span className="font-medium text-gray-800">{r.name_ko}</span>
+                <span className="text-[10px] text-gray-400 font-mono shrink-0">{r.code}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selected.map(s => (
+            <span key={s.code} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700">
+              <span className="font-medium">{s.name_ko}</span>
+              <span className="text-blue-400 font-mono">{s.code}</span>
+              <button onClick={() => remove(s.code)} className="text-blue-400 hover:text-blue-700 ml-0.5">✕</button>
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -747,8 +821,10 @@ export default function StepAPage() {
   const [parsedInfo, setParsedInfo] = useState<ProductInfo | null>(null);
   const [manualForm, setManualForm] = useState({
     food_type: "", origin_country: "", is_oem: false,
-    is_first_import: true, has_organic_cert: false, product_keywords: "",
+    is_first_import: true, has_organic_cert: false,
+    japan_prefecture: "",
   });
+  const [selectedIngredients, setSelectedIngredients] = useState<Array<{code: string; name_ko: string}>>([]);
 
   // ── LLM 맞춤 설명 생성 ─────────────────────
 
@@ -782,18 +858,14 @@ export default function StepAPage() {
     const loadPipelineData = async () => {
       setLoading(true);
       try {
-        // 기능 2(식품유형) + 기능 0(성분코드) 결과를 pipeline_steps 에서 로드
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
+        // 기능 2(식품유형) + 기능 0(성분코드) 결과를 pipeline_steps 에서 로드 (서버사이드 프록시 경유)
         const [f2Res, f0Res] = await Promise.all([
-          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`),
-          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/0`),
+          fetch(`/api/pipeline-input?case_id=${caseId}&step=2`),
+          fetch(`/api/pipeline-input?case_id=${caseId}&step=0`),
         ]);
 
         if (!f2Res.ok) {
-          throw new Error(
-            "기능2(식품유형 분류) 결과를 찾을 수 없습니다. 먼저 식품유형 분류를 완료해주세요.",
-          );
+          throw new Error("F2_NOT_FOUND");
         }
 
         const f2Row = await f2Res.json();
@@ -895,7 +967,15 @@ export default function StepAPage() {
           await runQueryInner(fullInput);
         }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "데이터 로드 실패");
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error("[F3 loadPipelineData error]", msg, err);
+        if (msg === "F2_NOT_FOUND") {
+          setError("식품유형 분류(기능 2) 결과가 없습니다. 이전 단계를 먼저 완료해주세요.");
+        } else if (msg === "Failed to fetch" || msg === "NetworkError when attempting to fetch resource") {
+          setError("서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해주세요.");
+        } else {
+          setError(`이전 단계 데이터를 불러오지 못했습니다. (${msg})`);
+        }
       } finally {
         setLoading(false);
       }
@@ -963,7 +1043,12 @@ export default function StepAPage() {
         }
       }).catch(() => {}).finally(() => setCrossCheckDone(true));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "서류 조회 실패");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("fetch") || msg.includes("network") || msg.includes("NetworkError")) {
+        setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        setError("서류 조회 중 오류가 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.");
+      }
     }
   };
 
@@ -982,7 +1067,7 @@ export default function StepAPage() {
 
       // 2초 후 다음 단계로 이동
       setTimeout(() => {
-        router.push(`/cases/${caseId}/step_b`);
+        router.push(`/cases/${caseId}/f4`);
       }, 2000);
     } catch (err: any) {
       alert("확인 처리 실패: " + err.message);
@@ -1126,10 +1211,10 @@ export default function StepAPage() {
               </div>
               <button
                 onClick={() => setReportOpen(true)}
-                className="flex-1 bg-gray-900 hover:bg-gray-800 transition-all rounded-3xl card-shadow p-6 text-center group no-print"
+                className="flex-1 bg-blue-600 hover:bg-blue-500 transition-all rounded-3xl card-shadow p-6 text-center group no-print"
               >
                 <p className="text-xl font-bold tracking-tight text-white">📄</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-300 mt-1 group-hover:text-white">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-100 mt-1 group-hover:text-white">
                   레포트 · PDF
                 </p>
               </button>
@@ -1263,17 +1348,26 @@ export default function StepAPage() {
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">수출국</label>
                       <input value={manualForm.origin_country}
-                        onChange={e => setManualForm(p => ({ ...p, origin_country: e.target.value }))}
+                        onChange={e => setManualForm(p => ({ ...p, origin_country: e.target.value, japan_prefecture: "" }))}
                         placeholder="예: 태국"
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:bg-white focus:border-blue-200" />
                     </div>
                   </div>
+                  {manualForm.origin_country === "일본" && (
+                    <div className="mb-4">
+                      <label className="text-xs text-gray-500 mb-1 block">도·현 선택 (일본산 특이사항 확인용)</label>
+                      <JapanPrefectureInput
+                        value={manualForm.japan_prefecture}
+                        onChange={v => setManualForm(p => ({ ...p, japan_prefecture: v }))}
+                      />
+                    </div>
+                  )}
                   <div className="mb-4">
-                    <label className="text-xs text-gray-500 mb-1 block">원재료 키워드 (쉼표 구분)</label>
-                    <input value={manualForm.product_keywords}
-                      onChange={e => setManualForm(p => ({ ...p, product_keywords: e.target.value }))}
-                      placeholder="예: 아가베, 에탄올, 젤라틴"
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:bg-white focus:border-blue-200" />
+                    <label className="text-xs text-gray-500 mb-1 block">원재료 검색 (성분코드 자동 매핑)</label>
+                    <IngredientSearchInput
+                      selected={selectedIngredients}
+                      onChange={setSelectedIngredients}
+                    />
                   </div>
                   <div className="flex flex-wrap gap-6 mb-6">
                     {([
@@ -1289,10 +1383,12 @@ export default function StepAPage() {
                       </label>
                     ))}
                   </div>
-                  <button onClick={() => handleManualQuery({
-                      ...manualForm,
-                      product_keywords: manualForm.product_keywords.split(",").map(s=>s.trim()).filter(Boolean),
-                    })}
+                  <button onClick={() => {
+                      const kw = selectedIngredients.map(i => i.code || i.name_ko).filter(Boolean);
+                      if (manualForm.japan_prefecture) kw.push(manualForm.japan_prefecture);
+                      const ings = selectedIngredients.map(i => ({ code: i.code, name_ko: i.name_ko, ocr_name: i.name_ko }));
+                      handleManualQuery({ ...manualForm, product_keywords: kw, product_ingredients: ings });
+                    }}
                     disabled={!manualForm.food_type || !manualForm.origin_country}
                     className="w-full py-3 rounded-full bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-30 transition-all">
                     서류 조회하기
@@ -1386,7 +1482,20 @@ export default function StepAPage() {
         </div>
 
         {error && (
-          <div className="mt-6 rounded-3xl bg-red-50 border border-red-200 p-4 text-sm text-red-600 text-center">{error}</div>
+          <div className="mt-6 rounded-2xl bg-red-50 border border-red-200 p-5 flex items-start gap-3">
+            <span className="shrink-0 text-red-400 mt-0.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-700">{error}</p>
+              <button onClick={() => window.location.reload()}
+                className="mt-2 text-xs text-red-500 underline hover:text-red-700">
+                페이지 새로고침
+              </button>
+            </div>
+          </div>
         )}
       </main>
 

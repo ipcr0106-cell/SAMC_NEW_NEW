@@ -9,7 +9,7 @@
 """
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from db.f3_supabase_client import reload_cache, save_pipeline_step
 from models.f3_schemas import ProductInfo, RequiredDocsResponse
@@ -156,6 +156,19 @@ async def run_feature3(case_id: str):
     }
 
 
+@router.get("/cases/{case_id}/pipeline/feature/0")
+async def get_feature0_for_f3(case_id: str):
+    """F0 파싱 결과 조회 (F3 파이프라인 입력용 — GET 엔드포인트가 F1 라우터에 없어서 여기 추가)."""
+    result = _fetch_pipeline(case_id, "0")
+    if not result:
+        raise HTTPException(404, detail={
+            "error": "F0_RESULT_NOT_FOUND",
+            "message": "F0 파싱 결과가 없습니다. 먼저 서류 업로드 및 파싱을 완료해주세요.",
+            "feature": 0,
+        })
+    return result
+
+
 @router.get("/cases/{case_id}/pipeline/feature/3")
 async def get_feature3(case_id: str):
     """F3 결과 조회."""
@@ -189,6 +202,33 @@ async def search_law_context(payload: dict) -> list[dict]:
         top_k=int((payload or {}).get("top_k", 5)),
         filter_doc_ids=(payload or {}).get("filter_doc_ids"),
     )
+
+
+@router.get("/ingredient-search")
+async def search_ingredients(
+    q: str = Query("", min_length=1),
+    limit: int = Query(10, ge=1, le=30),
+) -> list[dict]:
+    """성분명 검색 → 성분코드 반환 (직접조회 자동완성용)."""
+    import httpx
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise HTTPException(503, detail="Supabase 연결 불가")
+    q_clean = q.strip()
+    if not q_clean:
+        return []
+    try:
+        r = httpx.get(
+            f"{url}/rest/v1/f0_ingredient_codes"
+            f"?name_ko=ilike.*{q_clean}*&select=code,name_ko&limit={limit}",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            timeout=5.0,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        raise HTTPException(503, detail=str(e))
 
 
 @router.post("/required-docs/reload")

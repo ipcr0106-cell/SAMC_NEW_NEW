@@ -348,15 +348,56 @@ def _format_ingredients(items: list[str], max_n: int = 3) -> str:
     return f"{shown} 외 {len(items) - max_n}건"
 
 
+def _inject_subsumption(
+    match_trace: dict[str, list[str]],
+    doc: dict,
+    subsumption_result: Optional[dict],
+) -> dict[str, list[str]]:
+    """LLM 포섭 결과를 match_trace 로컬 복사본에 주입. _build_match_reason 재사용."""
+    if not subsumption_result or not subsumption_result.get("matched_ingredient"):
+        return match_trace
+    local = dict(match_trace)
+    mi = subsumption_result["matched_ingredient"]
+    for dkw in (doc.get("product_keywords") or []):
+        bucket = list(local.get(dkw, []))
+        if mi not in bucket:
+            bucket.append(mi)
+        local[dkw] = bucket
+    return local
+
+
 def _build_match_reason(
     doc: dict,
     info: ProductInfo,
     match_trace: Optional[dict[str, list[str]]] = None,
 ) -> str:
-    """이 서류가 이 제품에 왜 필요한지 요약. match_trace 있으면 원재료 구체 이름 포함.
+    """이 서류가 이 제품에 왜 필요한지 요약. match_trace 있으면 원재료 구체 이름+코드 포함.
 
     match_trace 예: {'돼지원료': ['하몽', '젤라틴(돼지)'], '젤라틴': ['젤라틴(돼지)']}
     """
+    # 키워드 → 성분코드 lookup (F0 product_ingredients 기반)
+    _code_map: dict[str, str] = {}
+    for ing in (info.product_ingredients or []):
+        code = (ing.get("code") or "").strip()
+        if not code:
+            continue
+        for key in (ing.get("name_ko") or "", ing.get("ocr_name") or ""):
+            key = key.strip()
+            if key:
+                _code_map[key] = code
+
+    def _fmt_with_code(name: str) -> str:
+        code = _code_map.get(name, "")
+        return f"'{name} ({code})'" if code else f"'{name}'"
+
+    def _format_with_codes(items: list[str], max_n: int = 3) -> str:
+        if not items:
+            return ""
+        formatted = [_fmt_with_code(x) for x in items]
+        if len(formatted) <= max_n:
+            return ", ".join(formatted)
+        shown = ", ".join(formatted[:max_n])
+        return f"{shown} 외 {len(items) - max_n}건"
     # 공통
     if not doc.get("condition") and not doc.get("target_country") and not doc.get("product_keywords"):
         return "모든 수입식품에 공통으로 적용되는 서류입니다."
@@ -375,10 +416,9 @@ def _build_match_reason(
     if cond == "축산물또는동물성식품":
         clauses.append(f"식품유형이 축산물/동물성 식품({info.food_type})")
     if cond == "GMO":
-        # GMO 원재료 구체 이름 포함
         ingredients = trace.get("GMO") or []
         if ingredients:
-            clauses.append(f"원재료 중 {_format_ingredients(ingredients)} 이(가) GMO 표시대상")
+            clauses.append(f"원재료 중 {_format_with_codes(ingredients)} 이(가) GMO 표시대상")
         else:
             clauses.append("GMO 표시대상 원료를 함유")
     if cond == "협약체결국수산물":
@@ -395,20 +435,18 @@ def _build_match_reason(
         ingredients = trace.get("돼지원료") or []
         if ingredients:
             clauses.append(
-                f"원재료 중 {_format_ingredients(ingredients)} 이(가) 돼지 유래 원료로 분류"
+                f"원재료 중 {_format_with_codes(ingredients)} 이(가) 돼지 유래 원료로 분류"
             )
         else:
             clauses.append("돼지 유래 원료 포함")
     if cond == "반추동물원료포함":
-        # 소/양/사슴/반추동물 중 매칭된 것 모두 수집
-        ingredients: list[str] = []
+        ingredients_r: list[str] = []
         for kw in ("소", "양", "사슴", "반추동물"):
-            ingredients.extend(trace.get(kw, []))
-        # 중복 제거
-        ingredients = sorted(set(ingredients))
-        if ingredients:
+            ingredients_r.extend(trace.get(kw, []))
+        ingredients_r = sorted(set(ingredients_r))
+        if ingredients_r:
             clauses.append(
-                f"원재료 중 {_format_ingredients(ingredients)} 이(가) 반추동물(소/양/사슴) 유래 원료로 분류"
+                f"원재료 중 {_format_with_codes(ingredients_r)} 이(가) 반추동물(소/양/사슴) 유래 원료로 분류"
             )
         else:
             clauses.append("반추동물(소/양/사슴) 유래 원료 포함")
@@ -420,7 +458,6 @@ def _build_match_reason(
         or doc.get("target_country") == "BSE관련36개국"
     )
     if is_asf:
-        # cond="돼지원료포함" 절이 이미 원재료 나열했다면 중복 피하고 국가 정보만 추가
         already_listed_pork = cond == "돼지원료포함" and trace.get("돼지원료")
         if already_listed_pork:
             clauses.append(f"ASF 발생 73개국 {info.origin_country} 수출건")
@@ -429,14 +466,13 @@ def _build_match_reason(
             if pork_ingredients:
                 clauses.append(
                     f"ASF 발생국 {info.origin_country} + 원재료 중 "
-                    f"{_format_ingredients(pork_ingredients)} 돼지 유래"
+                    f"{_format_with_codes(pork_ingredients)} 돼지 유래"
                 )
             else:
                 clauses.append(
                     f"ASF(아프리카돼지열병) 발생국인 {info.origin_country}에서 돼지 유래 원료를 사용"
                 )
     elif is_bse:
-        # 반추동물/소 trace 활용
         ruminant_ingredients: list[str] = []
         for kw in ("소", "양", "사슴", "반추동물"):
             ruminant_ingredients.extend(trace.get(kw, []))
@@ -445,7 +481,7 @@ def _build_match_reason(
             if ruminant_ingredients:
                 clauses.append(
                     f"BSE 발생 36개국 {info.origin_country} + 원재료 중 "
-                    f"{_format_ingredients(ruminant_ingredients)} 반추동물 유래"
+                    f"{_format_with_codes(ruminant_ingredients)} 반추동물 유래"
                 )
             else:
                 clauses.append(
@@ -454,7 +490,7 @@ def _build_match_reason(
         else:
             if ruminant_ingredients:
                 clauses.append(
-                    f"원재료 중 {_format_ingredients(ruminant_ingredients)} 이(가) "
+                    f"원재료 중 {_format_with_codes(ruminant_ingredients)} 이(가) "
                     f"반추동물(소/양/사슴) 유래"
                 )
             else:
@@ -475,7 +511,7 @@ def _build_match_reason(
         matched_user_ingredients = sorted(set(matched_user_ingredients))
         if matched_user_ingredients:
             clauses.append(
-                f"원재료 {_format_ingredients(matched_user_ingredients)} 해당"
+                f"원재료 {_format_with_codes(matched_user_ingredients)} 해당"
             )
 
     if doc.get("submission_timing") == "first" and info.is_first_import:
@@ -916,7 +952,7 @@ def match_required_docs(info: ProductInfo) -> RequiredDocsResponse:
             law_source=doc.get("law_source", ""),
             effective_from=doc.get("effective_from"),
             effective_until=doc.get("effective_until"),
-            match_reason=_build_match_reason(doc, enriched_info, match_trace),
+            match_reason=_build_match_reason(doc, enriched_info, _inject_subsumption(match_trace, doc, subsumption_result)),
             decision_axis=_derive_decision_axis(doc, enriched_info),
             law_citations=law_citations,
             subsumption=subsumption_result,
