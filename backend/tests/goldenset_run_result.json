@@ -1,0 +1,76 @@
+{
+  "run_meta": {
+    "model": "gpt-4o-mini",
+    "top_k": 5,
+    "index": "samc-law-f1",
+    "goldenset_version": "v1",
+    "started_at": "2026-04-17T08:13:26.382805+00:00",
+    "finished_at": "2026-04-17T08:13:36.439841+00:00",
+    "total_ms": 10062.0,
+    "total_cases": 1
+  },
+  "summary": {
+    "total": 1,
+    "success": 1,
+    "errors": 0,
+    "exact_accuracy": 1.0,
+    "rag_accuracy": 1.0,
+    "conflict_accuracy": 1.0,
+    "conflict_distribution_actual": {
+      "agreed": 1
+    },
+    "exact_distribution_actual": {
+      "permitted": 1
+    },
+    "per_branch_conflict_accuracy": {
+      "agreed": {
+        "total": 1,
+        "conflict_match": 1,
+        "accuracy": 1.0
+      }
+    },
+    "latency_p50_ms": 10062.0,
+    "latency_p95_ms": 10062.0,
+    "cost_estimate_usd": 0.0014
+  },
+  "results": [
+    {
+      "case_id": "g001",
+      "description": "허용 원료 — 쌀 단일 (DB 정확명 매칭)",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "제공된 제품 정보는 쌀로, 곡류에 해당합니다. 법령 청크에서 곡류에 대한 특별한 제한이나 금지가 없으므로, 해당 제품은 수입이 허용됩니다.",
+          "law_citations": []
+        },
+        "latency_ms": 10062.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    }
+  ]
+}

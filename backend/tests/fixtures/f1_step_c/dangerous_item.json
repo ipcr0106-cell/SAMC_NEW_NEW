@@ -1,0 +1,33 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 50,
+      "totalCount": 1,
+      "items": [
+        {
+          "PC_KOR_NM": "유해주의물질",
+          "PRDLST_CD": "D0500100000000",
+          "T_KOR_NM": "함량",
+          "FNPRT_ITM_NM": null,
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "0.1이하",
+          "SPEC_VAL_SUMUP": "이 품목은 0.1 mg/kg 이하이다",
+          "MIMM_VAL": null,
+          "MXMM_VAL": "0.1",
+          "UNIT_NM": "mg/kg",
+          "INJRY_YN": "Y",
+          "SORC": "식품첨가물공전",
+          "VALD_BEGN_DT": "20140101",
+          "VALD_END_DT": "99991231",
+          "UPDT_PRVNS": "최초등록",
+          "LAST_UPDT_DTM": "2020-12-04 10:46:20"
+        }
+      ]
+    }
+  }
+}

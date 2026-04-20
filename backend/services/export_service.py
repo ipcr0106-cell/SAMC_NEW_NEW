@@ -3,13 +3,13 @@ SAMC — OCR 분석 결과를 DOCX / PDF로 내보내는 서비스.
 
 포함 섹션:
   1. 기본 정보
-  2. 원재료 배합비율
-  3. 제조공정 (공정 코드 + 선정 근거 + 원문)
+  2. 원재료 배합비율 (성분코드 포함)
+  3. 제조공정 — 단계별 (추천코드 + 유사코드) 표시
   4. 수출국 라벨 분석 (디자인 설명, 라벨 문구, 경고)
   5. 라벨 제품 이미지 (Vision 추출 이미지 + 텍스트 필드)
 
 - DOCX: python-docx (한국어 완벽 지원)
-- PDF: reportlab + CID 기본 폰트(HYSMyeongJo-Medium) — 외부 폰트 파일 불필요
+- PDF: fpdf2 (팀 컨벤션, 한국어 TTF 자동 탐지)
 """
 
 from __future__ import annotations
@@ -103,10 +103,10 @@ def build_docx(
     # ── 2. 원재료 배합비율 ──
     doc.add_heading("2. 원재료 배합비율", level=1)
     if ings:
-        tbl = doc.add_table(rows=1, cols=5)
+        tbl = doc.add_table(rows=1, cols=7)
         tbl.style = "Light Grid Accent 1"
         hdr = tbl.rows[0].cells
-        for i, h in enumerate(["성분명", "비율(%)", "원산지", "INS", "CAS"]):
+        for i, h in enumerate(["성분명", "비율(%)", "원산지", "INS", "CAS", "식약처코드", "공식성분명"]):
             hdr[i].text = h
             for p in hdr[i].paragraphs:
                 for r in p.runs:
@@ -118,30 +118,58 @@ def build_docx(
             r[2].text = str(ing.get("origin") or "")
             r[3].text = str(ing.get("ins_number") or "")
             r[4].text = str(ing.get("cas_number") or "")
+            r[5].text = str(ing.get("ingredient_code") or "")
+            r[6].text = str(ing.get("ingredient_code_name") or "")
     else:
         doc.add_paragraph("(추출된 원재료 없음)")
     doc.add_paragraph()
 
     # ── 3. 제조공정 ──
     doc.add_heading("3. 제조공정", level=1)
-    codes   = proc.get("process_codes") or []
-    reasons = proc.get("process_code_reasons") or []
-    raw     = proc.get("raw_process_text") or ""
+    codes = proc.get("process_codes") or []
+    steps = proc.get("process_steps") or []
+    raw   = proc.get("raw_process_text") or ""
+    is_incomplete = proc.get("is_incomplete", False)
 
     p = doc.add_paragraph()
-    p.add_run("공정 코드: ").bold = True
+    p.add_run("전체 공정 코드: ").bold = True
     p.add_run(", ".join(codes) if codes else "(없음)")
 
-    # 공정 코드별 선정 근거
-    if reasons:
-        doc.add_paragraph("코드별 선정 근거:").runs[0].bold = True
-        for r in reasons:
-            code   = r.get("code") or ""
-            reason = r.get("reason") or ""
-            if code or reason:
-                bullet = doc.add_paragraph(style="List Bullet")
-                bullet.add_run(f"{code}  ").bold = True
-                bullet.add_run(reason)
+    if is_incomplete:
+        warn_p = doc.add_paragraph()
+        warn_p.add_run("⚠ 파싱 불완전: ").bold = True
+        warn_p.add_run(str(proc.get("incomplete_reason") or "일부 공정 코드만 추출됨. 직접 입력/수정 필요."))
+
+    # 단계별 공정 코드 표 (추천코드 + 유사코드)
+    if steps:
+        doc.add_paragraph("단계별 공정 분석:").runs[0].bold = True
+        for step in steps:
+            snum  = step.get("step_number", "")
+            sorig = step.get("step_name_original", "")
+            sko   = step.get("step_name_ko", "")
+            rcode = step.get("recommended_code", "")
+            rname = step.get("recommended_code_name", "")
+            rrsn  = step.get("recommended_reason", "")
+            sims  = step.get("similar_codes") or []
+
+            step_p = doc.add_paragraph()
+            step_p.add_run(f"{snum}단계: {sorig}").bold = True
+            if sko and sko != sorig:
+                step_p.add_run(f"  ({sko})")
+
+            rec_p = doc.add_paragraph(style="List Bullet")
+            rec_p.add_run(f"추천: {rcode} - {rname}").bold = True
+            if rrsn:
+                rec_p.add_run(f"  |  {rrsn}")
+
+            for sc in sims:
+                sim_p = doc.add_paragraph(style="List Bullet 2")
+                sc_code = sc.get("code", "")
+                sc_name = sc.get("name", "")
+                sc_note = sc.get("confusion_note", "") or sc.get("reason", "")
+                sim_p.add_run(f"유사: {sc_code} - {sc_name}")
+                if sc_note:
+                    sim_p.add_run(f"  →  {sc_note}").font.color.rgb = __import__("docx.shared", fromlist=["RGBColor"]).RGBColor(0x64, 0x74, 0x8b)
 
     if raw:
         doc.add_paragraph("OCR 추출 원문:").runs[0].bold = True
@@ -215,21 +243,33 @@ def build_docx(
 
 
 # ─────────────────────────────────────────────
-# PDF 생성 (reportlab + 한국어 CID 폰트)
+# PDF 생성 (fpdf2 — 팀 컨벤션)
 # ─────────────────────────────────────────────
 
-_KOREAN_FONT_REGISTERED = False
-
-
-def _register_korean_font():
-    global _KOREAN_FONT_REGISTERED
-    if _KOREAN_FONT_REGISTERED:
-        return
-    from reportlab.pdfbase import pdfmetrics
-    from reportlab.pdfbase.cidfonts import UnicodeCIDFont
-    pdfmetrics.registerFont(UnicodeCIDFont("HYSMyeongJo-Medium"))
-    pdfmetrics.registerFont(UnicodeCIDFont("HYGothic-Medium"))
-    _KOREAN_FONT_REGISTERED = True
+def _find_korean_font() -> str | None:
+    """시스템에서 한국어 지원 TTF 폰트 경로를 탐지해 반환."""
+    import os
+    candidates = [
+        # Windows (맑은 고딕)
+        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "malgun.ttf"),
+        os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts", "gulim.ttc"),
+        # Linux / Ubuntu (나눔고딕)
+        "/usr/share/fonts/truetype/nanum/NanumGothic.ttf",
+        "/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        # macOS
+        "/Library/Fonts/AppleGothic.ttf",
+        "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+        # 프로젝트 번들 (backend/fonts/ 에 추가 시)
+        os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "fonts", "NanumGothic.ttf")),
+    ]
+    for p in candidates:
+        try:
+            if os.path.isfile(os.path.normpath(p)):
+                return os.path.normpath(p)
+        except Exception:
+            pass
+    return None
 
 
 def build_pdf(
@@ -239,208 +279,233 @@ def build_pdf(
     case_id: str = "",
     label_images: list[dict] | None = None,
 ) -> bytes:
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import cm
-    from reportlab.platypus import (
-        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-        Image as RLImage, KeepTogether,
-    )
+    from fpdf import FPDF
 
     label_images = label_images or []
-    _register_korean_font()
 
-    buf = io.BytesIO()
-    doc = SimpleDocTemplate(
-        buf, pagesize=A4,
-        leftMargin=1.8 * cm, rightMargin=1.8 * cm,
-        topMargin=1.8 * cm, bottomMargin=1.8 * cm,
-        title="SAMC OCR 분석 결과",
-    )
+    # ── 한국어 폰트 탐지 ──
+    font_path = _find_korean_font()
+    if not font_path:
+        logger.warning("한국어 TTF 폰트를 찾지 못했습니다. backend/fonts/NanumGothic.ttf 를 추가하거나 시스템 폰트를 설치하세요.")
 
-    styles = getSampleStyleSheet()
-    base  = ParagraphStyle("KR",      parent=styles["Normal"], fontName="HYSMyeongJo-Medium", fontSize=10, leading=14)
-    h1    = ParagraphStyle("KR-H1",   parent=base, fontName="HYGothic-Medium",  fontSize=14, leading=18, spaceBefore=12, spaceAfter=6,  textColor=colors.HexColor("#0f172a"))
-    h2    = ParagraphStyle("KR-H2",   parent=base, fontName="HYGothic-Medium",  fontSize=11, leading=15, spaceBefore=8,  spaceAfter=4,  textColor=colors.HexColor("#334155"))
-    ttl   = ParagraphStyle("KR-Title",parent=base, fontName="HYGothic-Medium",  fontSize=18, leading=22, alignment=1, spaceAfter=8)
-    sub   = ParagraphStyle("KR-Sub",  parent=base, fontName="HYGothic-Medium",  fontSize=13, leading=17, alignment=1, spaceAfter=4)
-    meta  = ParagraphStyle("KR-Meta", parent=base, fontSize=9,  leading=12, alignment=1, textColor=colors.grey, spaceAfter=18)
-    small = ParagraphStyle("KR-Sm",   parent=base, fontSize=9,  leading=12, textColor=colors.HexColor("#64748b"))
-    bul   = ParagraphStyle("KR-Bul",  parent=base, leftIndent=12, fontSize=10, leading=14)
+    # ── fpdf2 PDF 초기화 ──
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=18)
+    pdf.set_margins(left=18, top=18, right=18)
 
-    basic  = parsed.get("basic_info", {}) or {}
-    pname  = basic.get("product_name") or product_name or ""
-    ings   = parsed.get("ingredients", []) or []
-    proc   = parsed.get("process_info", {}) or {}
-    label  = parsed.get("label_info", {}) or {}
+    # 폰트 등록
+    KR = "KR"
+    if font_path:
+        try:
+            pdf.add_font(KR, fname=font_path)
+            _font_ok = True
+        except Exception as e:
+            logger.warning(f"한국어 폰트 등록 실패: {e}")
+            KR = "Helvetica"
+            _font_ok = False
+    else:
+        KR = "Helvetica"
+        _font_ok = False
 
-    elems = []
+    def _set(size: int, bold: bool = False):
+        pdf.set_font(KR, size=size)
+        if bold:
+            pdf.set_text_color(15, 23, 42)
+        else:
+            pdf.set_text_color(30, 30, 30)
+
+    def _row(label: str, value: str, lw: float = 40, vw: float = 130):
+        """키-값 한 행 출력."""
+        _set(9, bold=True)
+        pdf.set_fill_color(241, 245, 249)
+        pdf.cell(lw, 7, label, border=1, fill=True)
+        _set(9)
+        pdf.set_fill_color(255, 255, 255)
+        pdf.multi_cell(vw, 7, value, border=1)
+
+    def _section(title: str):
+        pdf.ln(4)
+        _set(13, bold=True)
+        pdf.set_fill_color(15, 23, 42)
+        pdf.set_text_color(255, 255, 255)
+        pdf.cell(0, 9, f"  {title}", border=0, ln=True, fill=True)
+        pdf.set_text_color(30, 30, 30)
+        pdf.ln(2)
+
+    def _bullet(text: str, indent: float = 6, size: int = 9):
+        _set(size)
+        pdf.set_x(pdf.l_margin + indent)  # l_margin 기준 고정 indent
+        pdf.multi_cell(0, 6, f"• {text}", border=0)
+
+    def _text(text: str, size: int = 9):
+        _set(size)
+        pdf.multi_cell(0, 6, text, border=0)
+
+    basic = parsed.get("basic_info", {}) or {}
+    pname = basic.get("product_name") or product_name or ""
+    ings  = parsed.get("ingredients", []) or []
+    proc  = parsed.get("process_info", {}) or {}
+    label = parsed.get("label_info", {}) or {}
+
+    pdf.add_page()
 
     # ── 표지 헤더 ──
-    elems.append(Paragraph("SAMC 수입식품 OCR 분석 결과", ttl))
+    _set(18, bold=True)
+    pdf.set_text_color(15, 23, 42)
+    pdf.cell(0, 12, "SAMC 수입식품 OCR 분석 결과", ln=True, align="C")
     if pname:
-        elems.append(Paragraph(pname, sub))
+        _set(13)
+        pdf.cell(0, 8, pname, ln=True, align="C")
+    _set(9)
+    pdf.set_text_color(100, 116, 139)
     meta_txt = f"생성일: {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     if case_id:
         meta_txt += f"   |   Case ID: {case_id}"
-    elems.append(Paragraph(meta_txt, meta))
+    pdf.cell(0, 6, meta_txt, ln=True, align="C")
+    pdf.set_text_color(30, 30, 30)
+    pdf.ln(6)
 
     # ── 1. 기본 정보 ──
-    elems.append(Paragraph("1. 기본 정보", h1))
-    kv = [
-        ["제품명",        basic.get("product_name") or product_name or "-"],
-        ["수출국",        basic.get("export_country") or "-"],
-        ["최초 수입 여부", "예" if basic.get("is_first_import") else "아니오"],
-        ["유기인증",      "예" if basic.get("is_organic") else "아니오"],
-        ["OEM",          "예" if basic.get("is_oem") else "아니오"],
-    ]
-    t = Table(kv, colWidths=[4 * cm, 12 * cm])
-    t.setStyle(TableStyle([
-        ("FONT",          (0, 0), (-1, -1), "HYSMyeongJo-Medium", 10),
-        ("BACKGROUND",    (0, 0), (0, -1),  colors.HexColor("#f1f5f9")),
-        ("GRID",          (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
-        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 8),
-        ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
-        ("TOPPADDING",    (0, 0), (-1, -1), 5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-    ]))
-    elems.append(t)
-    elems.append(Spacer(1, 12))
+    _section("1. 기본 정보")
+    for k, v in [
+        ("제품명",        basic.get("product_name") or product_name or "-"),
+        ("수출국",        basic.get("export_country") or "-"),
+        ("제조사",        basic.get("manufacturer") or "-"),
+        ("내용량",        basic.get("content_volume") or "-"),
+        ("최초 수입",     "예" if basic.get("is_first_import") else "아니오"),
+        ("유기인증",      "예" if basic.get("is_organic") else "아니오"),
+        ("OEM",          "예" if basic.get("is_oem") else "아니오"),
+    ]:
+        _row(k, str(v))
 
     # ── 2. 원재료 배합비율 ──
-    elems.append(Paragraph("2. 원재료 배합비율", h1))
+    _section("2. 원재료 배합비율")
     if ings:
-        data = [["성분명", "비율(%)", "원산지", "INS", "CAS"]]
-        for ing in ings:
-            data.append([
-                str(ing.get("name") or ""),
-                str(ing.get("ratio") or ""),
-                str(ing.get("origin") or ""),
-                str(ing.get("ins_number") or ""),
-                str(ing.get("cas_number") or ""),
-            ])
-        t = Table(data, colWidths=[5.5*cm, 2*cm, 3*cm, 2.5*cm, 3*cm], repeatRows=1)
-        t.setStyle(TableStyle([
-            ("FONT",          (0, 0), (-1, -1), "HYSMyeongJo-Medium", 9),
-            ("FONT",          (0, 0), (-1, 0),  "HYGothic-Medium", 9),
-            ("BACKGROUND",    (0, 0), (-1, 0),  colors.HexColor("#0f172a")),
-            ("TEXTCOLOR",     (0, 0), (-1, 0),  colors.white),
-            ("GRID",          (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
-            ("ROWBACKGROUNDS",(0, 1), (-1, -1), [colors.white, colors.HexColor("#f8fafc")]),
-            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING",   (0, 0), (-1, -1), 5),
-            ("RIGHTPADDING",  (0, 0), (-1, -1), 5),
-            ("TOPPADDING",    (0, 0), (-1, -1), 4),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
-        ]))
-        elems.append(t)
+        # A4 유효폭: 210 - 18(left) - 18(right) = 174mm → 합계 170mm 이내로 유지
+        _set(8, bold=True)
+        pdf.set_fill_color(15, 23, 42)
+        pdf.set_text_color(255, 255, 255)
+        col_ws = [42, 14, 18, 14, 26, 22, 34]  # 합계 = 170mm
+        for h_txt, cw in zip(["성분명", "비율%", "원산지", "INS", "CAS", "식약처코드", "공식성분명"], col_ws):
+            pdf.cell(cw, 7, h_txt, border=1, fill=True)
+        pdf.ln()
+        pdf.set_text_color(30, 30, 30)
+        _set(8)
+        for i, ing in enumerate(ings):
+            fill_color = (248, 250, 252) if i % 2 == 1 else (255, 255, 255)
+            pdf.set_fill_color(*fill_color)
+            row_data = [
+                str(ing.get("name") or "")[:22],
+                str(ing.get("ratio") or "")[:8],
+                str(ing.get("origin") or "")[:10],
+                str(ing.get("ins_number") or "")[:8],
+                str(ing.get("cas_number") or "")[:14],
+                str(ing.get("ingredient_code") or "")[:10],
+                str(ing.get("ingredient_code_name") or "")[:18],
+            ]
+            for val, cw in zip(row_data, col_ws):
+                pdf.cell(cw, 7, val, border=1, fill=True)
+            pdf.ln()
     else:
-        elems.append(Paragraph("(추출된 원재료 없음)", base))
-    elems.append(Spacer(1, 12))
+        _text("(추출된 원재료 없음)")
 
     # ── 3. 제조공정 ──
-    elems.append(Paragraph("3. 제조공정", h1))
-    codes   = proc.get("process_codes") or []
-    reasons = proc.get("process_code_reasons") or []
-    raw     = proc.get("raw_process_text") or ""
+    _section("3. 제조공정")
+    codes = proc.get("process_codes") or []
+    steps = proc.get("process_steps") or []
+    raw   = proc.get("raw_process_text") or ""
+    is_incomplete = proc.get("is_incomplete", False)
 
-    elems.append(Paragraph(f"<b>공정 코드:</b> {', '.join(codes) if codes else '(없음)'}", base))
+    _set(9, bold=True)
+    pdf.multi_cell(0, 6, f"전체 공정 코드: {', '.join(codes) if codes else '(없음)'}")
 
-    if reasons:
-        elems.append(Spacer(1, 6))
-        elems.append(Paragraph("<b>코드별 선정 근거:</b>", base))
-        for r in reasons:
-            code   = (r.get("code") or "").replace("&", "&amp;").replace("<", "&lt;")
-            reason = (r.get("reason") or "").replace("&", "&amp;").replace("<", "&lt;")
-            if code or reason:
-                elems.append(Paragraph(f"• <b>{code}</b>  {reason}", bul))
+    if is_incomplete:
+        pdf.ln(2)
+        _set(9)
+        pdf.set_text_color(220, 38, 38)
+        pdf.multi_cell(0, 6, f"⚠ 파싱 불완전: {proc.get('incomplete_reason') or '일부만 추출. 직접 입력 필요.'}")
+        pdf.set_text_color(30, 30, 30)
 
-    if raw:
-        elems.append(Spacer(1, 6))
-        elems.append(Paragraph("<b>OCR 추출 원문:</b>", base))
-        for line in raw.splitlines():
-            safe = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-            elems.append(Paragraph(safe or "&nbsp;", base))
-    elems.append(Spacer(1, 12))
+    if steps:
+        pdf.ln(3)
+        _set(9, bold=True)
+        pdf.multi_cell(0, 6, "단계별 공정 분석:")
+        for step in steps:
+            snum  = step.get("step_number", "")
+            sorig = step.get("step_name_original", "")
+            sko   = step.get("step_name_ko", "")
+            rcode = step.get("recommended_code", "")
+            rname = step.get("recommended_code_name", "")
+            rrsn  = step.get("recommended_reason", "")
+            sims  = step.get("similar_codes") or []
+
+            pdf.ln(2)
+            _set(9, bold=True)
+            label_txt = f"{snum}단계: {sorig}"
+            if sko and sko != sorig:
+                label_txt += f"  ({sko})"
+            pdf.multi_cell(0, 6, label_txt)
+
+            _set(9)
+            pdf.set_x(pdf.l_margin + 8)       # get_x() 대신 l_margin 기준으로 고정
+            pdf.set_text_color(5, 150, 105)   # 초록
+            rec_txt = f"추천: {rcode} - {rname}"
+            if rrsn:
+                rec_txt += f"   |   {rrsn}"
+            pdf.multi_cell(0, 6, rec_txt)
+            pdf.set_text_color(30, 30, 30)
+
+            for sc in sims:
+                sc_code = sc.get("code", "")
+                sc_name = sc.get("name", "")
+                sc_note = sc.get("confusion_note", "") or sc.get("reason", "")
+                pdf.set_x(pdf.l_margin + 14)  # 고정 indent
+                pdf.set_text_color(100, 116, 139)  # 회색
+                note_txt = f"유사: {sc_code} - {sc_name}"
+                if sc_note:
+                    note_txt += f"   →   {sc_note}"
+                pdf.multi_cell(0, 5, note_txt)
+                pdf.set_text_color(30, 30, 30)
 
     # ── 4. 수출국 라벨 분석 ──
-    elems.append(Paragraph("4. 수출국 라벨 분석", h1))
-    ltexts   = label.get("label_texts") or []
-    warns    = label.get("warnings") or []
-    desc     = label.get("design_description") or ""
-    any_label = False
+    _section("4. 수출국 라벨 분석")
+    ltexts = label.get("label_texts") or []
+    warns  = label.get("warnings") or []
+    desc   = label.get("design_description") or ""
 
-    if desc:
-        any_label = True
-        elems.append(Paragraph("<b>디자인 설명:</b>", base))
-        elems.append(Paragraph(desc.replace("<", "&lt;"), base))
-        elems.append(Spacer(1, 6))
-    if ltexts:
-        any_label = True
-        elems.append(Paragraph("<b>라벨 문구:</b>", base))
-        for lt in ltexts:
-            elems.append(Paragraph(f"• {str(lt).replace('<', '&lt;')}", bul))
-        elems.append(Spacer(1, 6))
-    if warns:
-        any_label = True
-        elems.append(Paragraph("<b>경고/주의사항:</b>", base))
-        for w in warns:
-            elems.append(Paragraph(f"• {str(w).replace('<', '&lt;')}", bul))
-    if not any_label:
-        elems.append(Paragraph("(라벨 정보 없음)", base))
-    elems.append(Spacer(1, 12))
+    if not (ltexts or warns or desc):
+        _text("(라벨 정보 없음)")
+    else:
+        if desc:
+            _set(9, bold=True); pdf.multi_cell(0, 6, "디자인 설명:")
+            _text(desc)
+        if ltexts:
+            _set(9, bold=True); pdf.multi_cell(0, 6, "라벨 문구:")
+            for lt in ltexts:
+                _bullet(str(lt))
+        if warns:
+            _set(9, bold=True); pdf.multi_cell(0, 6, "경고/주의사항:")
+            for w in warns:
+                _bullet(str(w))
 
     # ── 5. 라벨 제품 이미지 ──
     if label_images:
-        elems.append(Paragraph("5. 라벨 제품 이미지", h1))
-        elems.append(Paragraph(
-            f"Vision AI가 자동 추출한 제품 이미지 {len(label_images)}개",
-            small,
-        ))
-        elems.append(Spacer(1, 8))
-
+        _section(f"5. 라벨 제품 이미지 ({len(label_images)}개)")
         for img_data in label_images:
             img_bytes = img_data.get("bytes")
             idx = img_data.get("image_index", 0)
-
-            block = []
-            block.append(Paragraph(f"이미지 {idx + 1}", h2))
-
-            # 이미지
+            _set(10, bold=True)
+            pdf.multi_cell(0, 7, f"이미지 {idx + 1}")
             if img_bytes:
                 try:
-                    rl_img = RLImage(io.BytesIO(img_bytes), width=7*cm, height=7*cm)
-                    rl_img.hAlign = "LEFT"
-                    block.append(rl_img)
+                    tmp = io.BytesIO(img_bytes)
+                    pdf.image(tmp, w=70)
                 except Exception as e:
                     logger.warning(f"PDF 이미지 삽입 실패 (idx={idx}): {e}")
-                    block.append(Paragraph("(이미지 삽입 실패)", small))
-
-            # 추출 텍스트 필드
+                    _text("(이미지 삽입 실패)")
             fields = [(lbl, img_data.get(key)) for key, lbl in _IMG_FIELD_LABELS if img_data.get(key)]
-            if fields:
-                fd = [[lbl, str(val)] for lbl, val in fields]
-                ft = Table(fd, colWidths=[3*cm, 13*cm])
-                ft.setStyle(TableStyle([
-                    ("FONT",         (0, 0), (-1, -1), "HYSMyeongJo-Medium", 9),
-                    ("FONT",         (0, 0), (0, -1),  "HYGothic-Medium", 9),
-                    ("BACKGROUND",   (0, 0), (0, -1),  colors.HexColor("#f1f5f9")),
-                    ("GRID",         (0, 0), (-1, -1), 0.25, colors.HexColor("#cbd5e1")),
-                    ("VALIGN",       (0, 0), (-1, -1), "TOP"),
-                    ("LEFTPADDING",  (0, 0), (-1, -1), 6),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                    ("TOPPADDING",   (0, 0), (-1, -1), 4),
-                    ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
-                ]))
-                block.append(Spacer(1, 4))
-                block.append(ft)
-            else:
-                block.append(Paragraph("(추출된 텍스트 없음)", small))
+            for lbl, val in fields:
+                _row(lbl, str(val), lw=30, vw=140)
+            pdf.ln(4)
 
-            elems.append(KeepTogether(block))
-            elems.append(Spacer(1, 12))
-
-    doc.build(elems)
-    return buf.getvalue()
+    return pdf.output()

@@ -1,0 +1,1608 @@
+{
+  "run_meta": {
+    "model": "gpt-5.4-nano",
+    "top_k": 5,
+    "index": "samc-law-f1",
+    "goldenset_version": "v1",
+    "started_at": "2026-04-17T08:47:04.909149+00:00",
+    "finished_at": "2026-04-17T08:48:33.640002+00:00",
+    "total_ms": 88719.0,
+    "total_cases": 30
+  },
+  "summary": {
+    "total": 30,
+    "success": 30,
+    "errors": 0,
+    "exact_accuracy": 0.9667,
+    "rag_accuracy": 0.3333,
+    "conflict_accuracy": 0.4,
+    "conflict_distribution_actual": {
+      "conflict": 6,
+      "agreed": 16,
+      "rag_skipped": 5,
+      "rag_supplemented": 3
+    },
+    "exact_distribution_actual": {
+      "permitted": 6,
+      "unidentified": 18,
+      "prohibited": 5,
+      "restricted": 1
+    },
+    "per_branch_conflict_accuracy": {
+      "agreed": {
+        "total": 9,
+        "conflict_match": 4,
+        "accuracy": 0.4444
+      },
+      "rag_supplemented": {
+        "total": 16,
+        "conflict_match": 3,
+        "accuracy": 0.1875
+      },
+      "rag_skipped": {
+        "total": 5,
+        "conflict_match": 5,
+        "accuracy": 1.0
+      }
+    },
+    "latency_p50_ms": 3031.5,
+    "latency_p95_ms": 6651.6,
+    "cost_estimate_usd": 0.69
+  },
+  "results": [
+    {
+      "case_id": "g001",
+      "description": "허용 원료 — 쌀 단일 (DB 정확명 매칭)",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 특정 식품첨가물(예: 글루콘산철, 콜로이드성 함수규산알루미늄) 또는 특정 식품유형(과자류/빵류/떡류, 향신료조제품, 고춧가루 등)의 규격·기준을 다루고 있습니다. 현재 제품 정보는 원료가 ‘쌀’이고 식품유형이 ‘곡류’로만 제시되어 있어, 해당 제품이 어떤 규격(예: 곡류의 특정 품목/가공형태)에 해당하는지 법령 청크로 특정할 수 없습니다. 따라서 수입 판정(허용/제한/금지)을 법령 근거로 결론내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0104",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_218_window0",
+              "score": 0.45892188,
+              "text_preview": "함 량 이 품목은 건조한 다음 정량할 때, 글루콘산철(C12H22FeO14) 95.0% 이상을 함유한다.\n성 상 이 품목은 황회～녹황색의 분말 또는 입자로서 약간 특이한 냄새가 있다.\n확인시험\n(1) 이 품목의 따뜻한 수용액(1→10) 5mL에 빙초산 0.7mL 및 새로 증류한 페닐히드라진 1mL을 가해주고 수욕조에서 30분간 가열하고 식힌 다음 유리봉으로..."
+            },
+            {
+              "chunk_id": "additive_spec_0273",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_574_window0",
+              "score": 0.430018157,
+              "text_preview": "정 의 이 품목은 천연에서 산출되는 콜로이드성 함수규산알루미늄이다.\n성 상 이 품목은 백～엷은 황갈색의 분말 또는 조각으로서, 물에 적실 경우 흙 또는 점토의 냄새가 있다.\n확인시험\n(1) 이 품목 0.2g을 무수탄산나트륨 및 무수탄산칼륨의 같은 양의 혼합물 1.5g과 혼합하여 백금도가니 또는 니켈도가니에 넣고 완전히 융해할 때까지 가열한다. 식힌 다음 물..."
+            },
+            {
+              "chunk_id": "fct-10",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.416980654,
+              "text_preview": "2) 동물성 원료\n\n<table>\n<tr><th>대분류</th><th>중분류</th><th>소분류</th><th>품 목</th></tr>\n<tr><td rowspan=\"3\">축<br>산<br>물</td><td>-</td><td>식육류</td><td>소고기, 돼지고기, 양고기, 염소고기, 토끼고기, 말고기, 사슴고기, 닭고기, 꿩고기, 오리고기, 거위고기, ..."
+            }
+          ]
+        },
+        "latency_ms": 8938.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g002",
+      "description": "허용 원료 — 사과 단일 (DB 정확명 매칭)",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 특정 식품첨가물(예: 산성아황산나트륨, 무수아황산)의 사용 가능 식품과 사용량(과·채가공품 0.030g/kg 등) 또는 특정 착색료의 사용 금지 범위를 규정하고 있습니다. 그러나 제품 정보에는 ‘사과’와 ‘과채가공품’만 있고, 실제로 사용된 첨가물(예: 아황산염/이산화황, 착색료 등)과 사용량이 제시되지 않아 해당 규정 위반 여부를 판단할 수 없습니다. 따라서 현재 정보만으로 수입 판정을 내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0040",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window19",
+              "score": 0.451900482,
+              "text_preview": "의 식품에 사용하여서는 아니 된다.<br>1. 천연식품〔식육류, 어패류, 과일류, 채소류, 해조류, 콩류 등 및 그 단순가공품(탈피, 절단 등)〕<br>2. 다류<br>3. 커피<br>4. 고춧가루, 실고추<br>5. 김치류<br>6. 고추장, 조미고추장<br>7. 식초 | 착색료 |\n| 산성아황산나트륨<br>Sodium Bisulfite<br>아황산수소나..."
+            },
+            {
+              "chunk_id": "additive_general_0035",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window14",
+              "score": 0.449843496,
+              "text_preview": " 등을 위하여 희석제, 안정제 및 용제 등을 첨가할 수 있다. | -/- | 무궁화색소는 아래의 식품에 사용하여서는 아니 된다.<br>1. 천연식품〔식육류, 어패류, 과일류, 채소류, 해조류, 콩류 등 및 그 단순가공품(탈피, 절단 등)〕<br>2. 다류<br>3. 커피<br>4. 고춧가루, 실고추<br>5. 김치류<br>6. 고추장, 조미고추장<br>7...."
+            }
+          ]
+        },
+        "latency_ms": 4781.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g003",
+      "description": "허용 원료 — 우유 (기타 섹션)",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제시된 청크에는 우유류(원유를 살균 또는 멸균 처리한 것) 및 환원유(유가공품으로 원유성분과 유사하게 환원 후 살균/멸균) 정의와 규격(유지방, 산도, 미생물 등)이 있으나, 제품이 우유인지 환원유인지(또는 강화우유/유산균첨가우유/가공유 등) 구체 정보가 없습니다. 또한 ‘우유에 다른 물질을 혼합해서는 아니 된다’는 규정은 있으나, 해당 제품의 제조형태와 첨가 여부가 확인되지 않아 판정이 불가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-117",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.529713213,
+              "text_preview": "(3) 우유류에는 일체의 다른 물질을 혼합하여서는 아니된다. 다만, 환원유는 원유와 유사한 것을 첨가할 수 있다.\n4) 식품유형\n(1) 우유∶원유를 살균 또는 멸균처리한 것을 말한다(원유 100%).\n(2) 환원유∶유가공품으로 원유성분과 유사하게 환원하여 살균 또는 멸균처리한 것으로 무지유고형분 8% 이상의 것을 말한다.\n5) 규격\n(1) 산도(%)∶0.1..."
+            },
+            {
+              "chunk_id": "fct-66",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.509122968,
+              "text_preview": "(7) 보존료제8. 일반시험법 3.1 보존료에 따라 시험한다.\n\n10. 특수영양식품\n\n특수영양식품이라 함은 영･유아, 비만자 또는 임산･수유부 등 특별한 영양관리가 필요한 특정 대상을 위하여 식품과 영양성분을 배합하는 등의 방법으로 제조･가공한 것으로 조제유류, 영아용 조제식, 성장기용 조제식, 영･유아용 이유식, 체중조절용 조제식품, 임산･수유부용 식품,..."
+            }
+          ]
+        },
+        "latency_ms": 2812.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g004",
+      "description": "허용 원료 — 꿀 (기타 섹션)",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크에는 ‘꿀’ 또는 ‘당류가공품(꿀)’에 대한 직접적인 제조·규격·금지/제한 규정이 포함되어 있지 않습니다. 또한 청크의 규정들은 고춧가루/실고추, 향신료가공품(고추·고춧가루 제외), 식염, 특정 첨가물 사용 제한 등으로 ‘꿀’의 수입 판정에 바로 적용하기 어렵습니다. 따라서 현재 정보만으로는 해당 제품을 허용/제한/금지로 판정할 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-100",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.47056967,
+              "text_preview": "1) 정의고춧가루 또는 실고추라 함은 가짓과에 속하는 고추 또는 그 변종의 성숙한 열매를 건조한 후 분쇄한 한 것이거나 실모양으로 절단한 것을 말한다.\n2) 원료 등의 구비요건\n(1) 고춧가루 제조용 고추는 꼭지(꽃받침 제외)를 반드시 제거하여야 하고 병든 고추는 병든 부위를 제거한 후 사용하여야 한다.\n3) 제조･가공기준\n(1) 고춧가루 제조에는 원료 고..."
+            },
+            {
+              "chunk_id": "additive_spec_0802",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_1627",
+              "score": 0.457577914,
+              "text_preview": "정 의 이 품목은 콩과 타라(Caesalpinia spinosa Kuntze)의 종자에서 얻어지는 것으로서 주성분은 다당류이다.\n성 상 이 품목은 백～엷은 황색의 분말로 거의 냄새가 없다.\n확인시험\n(1) 이 품목의 수용액에 소량의 붕산나트륨을 가할 때, 겔상으로 된다.\n(2) 이 품목 2g을 400mL 비이커에 취하여 이소프로필알콜 약 4mL로 완전히 적..."
+            }
+          ]
+        },
+        "latency_ms": 2860.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g005",
+      "description": "허용 원료 — 인삼 단일",
+      "expected": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "permitted",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "제품이 ‘건강기능식품’이며 원료가 ‘인삼’인 경우, 건강기능식품의 기능성 원료로 인삼이 제조기준 및 규격(예: 진세노사이드 Rg1+Rb1 함량 등)에 따라 사용될 수 있습니다. 또한 건강기능식품은 기능성 원료의 섭취를 주된 목적으로 제조·가공되어야 하며, 인삼 원료의 제조방법 및 최종제품 요건이 규정되어 있습니다. 다만 제공된 정보에는 진세노사이드 함량, 제조방법, 일일섭취량 등 구체 요건 충족 여부가 없어 ‘인삼 건강기능식품’으로서의 일반적 허용 가능성만 판단됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0013",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.492085606,
+              "text_preview": "1) 이 규정에 따른 건강기능식품은 인체에 보건 목적의 유용한 효과를 얻기 위한 기능성 원료 또는 성분의 섭취를 주된 목적으로, 정제 ･ 캡슐 ･ 환 ･ 과립 ･ 액상 ･분말 ･ 편상 ･ 페이스트상 ･ 시럽 ･ 겔 ･ 젤리 ･ 바 ･ 필름의 형태로 1회 섭취가 용이하게 제조 ･ 가공되어야 하며, 최종제품의 제조 시 기능성 원료의 특성이 변화될 수 있는 추출..."
+            },
+            {
+              "chunk_id": "health_food_text_0099",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.491226345,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 인삼(Panax ginseng C.A. Meyer)\n\n※ 말리지 아니한 수삼, 수삼을 햇볕 ･ 열풍 또는 기타 방법으로 익히지 아니하고 말린 백삼, 수삼을 물로 익혀 말린 태극삼\n\n(2) 제조방법\n\n(가)상기 (1)의 원재료를 그대로 분말화하거나 수분을 제거한 후 분말화하여 제조하여야 함\n\n(나)상기 (1)의 원재료를 물이..."
+            }
+          ]
+        },
+        "latency_ms": 4765.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g006",
+      "description": "첨가물 허용 — 설탕 (RAG 보완)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 고춧가루/실고추 제조기준, 특정 향신료가공품 정의, 그리고 일부 식품첨가물(예: 산성아황산나트륨) 사용 제한 등으로 구성되어 있습니다. 제품이 ‘설탕(당류가공품)’인 경우, 설탕 자체의 수입 허용/제한/금지에 대한 직접 규정이 청크에 포함되어 있지 않습니다. 따라서 현재 청크만으로는 해당 제품의 판정을 내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-100",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.48528707,
+              "text_preview": "1) 정의고춧가루 또는 실고추라 함은 가짓과에 속하는 고추 또는 그 변종의 성숙한 열매를 건조한 후 분쇄한 한 것이거나 실모양으로 절단한 것을 말한다.\n2) 원료 등의 구비요건\n(1) 고춧가루 제조용 고추는 꼭지(꽃받침 제외)를 반드시 제거하여야 하고 병든 고추는 병든 부위를 제거한 후 사용하여야 한다.\n3) 제조･가공기준\n(1) 고춧가루 제조에는 원료 고..."
+            },
+            {
+              "chunk_id": "additive_general_0040",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window19",
+              "score": 0.485031933,
+              "text_preview": "의 식품에 사용하여서는 아니 된다.<br>1. 천연식품〔식육류, 어패류, 과일류, 채소류, 해조류, 콩류 등 및 그 단순가공품(탈피, 절단 등)〕<br>2. 다류<br>3. 커피<br>4. 고춧가루, 실고추<br>5. 김치류<br>6. 고추장, 조미고추장<br>7. 식초 | 착색료 |\n| 산성아황산나트륨<br>Sodium Bisulfite<br>아황산수소나..."
+            },
+            {
+              "chunk_id": "fct-90",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.477046341,
+              "text_preview": "1) 정의\n\n맞춤형 영양조제식품이라 함은 선천적‧후천적 질병, 수술 등 일시적 또는 만성적 임상상태로 인하여 일반인과 생리적으로 특별히 다른 영양요구량을 가지거나 체력 유지‧회복이 필요한 사람을 대상으로 식사를 대신하거나 보충하여 영양을 균형 있게 공급할 수 있도록 제조자가 과학적 입증자료를 토대로 제조‧가공한 것으로서, 음용하거나 반유동 형태로 섭취하는 ..."
+            },
+            {
+              "chunk_id": "additive_general_0123",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_12_window10",
+              "score": 0.468562275,
+              "text_preview": "도에 한하여 사용하여야 한다. 이소프로필알콜의 사용량은<br>1. 설탕류 : 0.01g/kg 이하(이소프로필알콜로서 잔류량)<br>2. 건강기능식품의 기능성원료 추출 또는 분리 등의 목적 : 0.05g/kg 이하(이소프로필알콜로서 잔류량)<br>3. 식용유지 제조 시 유지성분의 추출 목적 : 0.01g/kg 이하(이소프로필알콜로서 잔류량) | 제조용제<br..."
+            }
+          ]
+        },
+        "latency_ms": 2735.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g007",
+      "description": "첨가물 허용 — 포도당 (RAG 보완)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "permitted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 1,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제시된 청크에는 ‘포도당’의 정의 및 규격(포도당당량, 납, 사카린나트륨 등)과 ‘당류가공품’의 일반 정의가 있으나, 본 제품이 ‘포도당’ 자체인지 ‘당류가공품(예: 올리고당가공품/엿류/당류가공품)’ 중 어느 세부 유형에 해당하는지가 명확하지 않습니다. 또한 포도당만으로 구성된 경우에도 해당 규격 적용 여부를 판단할 추가 정보(제조형태, 함량, 액상/분말 여부, 사카린나트륨/납 등 시험항목)가 청크에 없습니다. 따라서 법령 청크만으로 수입 판정을 확정할 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-48",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.504091382,
+              "text_preview": "1) 정의올리고당류라 함은 당질원료를 이용하여 10 이하의 당 분자가 직쇄 또는 분지결합 하도록 효소를 작용시켜 얻은 당액이나 이를 여과, 정제, 농축한 액상 또는 분말상의 것으로 올리고당과 올리고당가공품을 말한다.\n2) 원료 등의 구비요건\n3) 제조･가공기준\n4) 식품유형\n(1) 올리고당당질원료를 이용하여 당 분자가 직쇄 또는 분지 결합되도록 효소를 작용..."
+            },
+            {
+              "chunk_id": "fct-10",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.439471573,
+              "text_preview": "2) 동물성 원료\n\n<table>\n<tr><th>대분류</th><th>중분류</th><th>소분류</th><th>품 목</th></tr>\n<tr><td rowspan=\"3\">축<br>산<br>물</td><td>-</td><td>식육류</td><td>소고기, 돼지고기, 양고기, 염소고기, 토끼고기, 말고기, 사슴고기, 닭고기, 꿩고기, 오리고기, 거위고기, ..."
+            }
+          ]
+        },
+        "latency_ms": 4125.0
+      },
+      "match": {
+        "exact_match": false,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g008",
+      "description": "첨가물 허용 — 구연산 (INS 330, 첨가물공전)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 청크는 구연산(또는 구연산염) 자체의 규격/순도 및 특정 건강기능식품 제조기준(원재료가 매실 등)과 같은 내용이 포함되어 있으나, ‘구연산을 원료로 한 음료류’의 수입 판정에 직접 적용되는 허용/금지 기준은 명확히 제시되어 있지 않습니다. 또한 제품의 형태(구연산 단독 음료인지, 구연산염인지), 첨가 여부, 최종 구연산 함량(표시량 대비) 등 핵심 정보가 없어 청크만으로 적합 여부를 판단할 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0142",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.545927048,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 매실(Prunus mune Sieb. et Zucc)\n\n(2)제조방법 : 상기 (1)의 원재료를 열수로 추출한 후 여과 ･ 농축하여 제조하여야 함\n\n(3)기능성분(또는 지표성분)의 함량 : 구연산이 300 mg/g 이상 함유되어 있어야 함\n\n(4) 제조 시 유의사항 : 시안화합물이 제거되어야 함\n\n2) 규격\n\n(1) 성상 ..."
+            },
+            {
+              "chunk_id": "additive_spec_0047",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_102",
+              "score": 0.518532217,
+              "text_preview": "함 량 이 품목은 건조한 다음 정량할 때, 구연산이수소칼륨(C6H7KO7) 99.0〜101.0%를 함유한다.\n성 상 이 품목은 투명한 결정 또는 백색의 분말로서 냄새가 없다.\n확인시험\n이 품목은 확인시험법 중 구연산염(가) 반응 및 칼륨염 반응을 나타낸다.\n순도시험\n(1) 액성 : 이 품목의 수용액(1→10)의 pH는 3.5～3.9이어야 한다.\n(2) 수산..."
+            }
+          ]
+        },
+        "latency_ms": 3156.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g009",
+      "description": "첨가물 허용 — 아스코르브산 (INS 300)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 제품은 원료가 ‘아스코르브산’이고 식품유형이 ‘음료류’이나, 법령 청크에는 아스코르브산(비타민 C) 자체의 음료류 사용 허용/제한 규정이 직접 제시되어 있지 않습니다. 다만 L-아스코르브산나트륨/칼슘 등 특정 형태의 아스코르브산 유도체에 대한 규격(함량·순도시험)과, 일부 첨가물의 사용 한도(예: 아세설팜칼륨, L-아스코르브산나트륨/칼슘은 ‘II.2.1의 규정에 따라 사용’)가 확인됩니다. 따라서 현재 청크만으로는 해당 ‘아스코르브산’의 수입 판정(허용/제한/금지)을 확정할 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0485",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_976",
+              "score": 0.541711271,
+              "text_preview": "함 량 이 품목을 건조한 다음 정량할 때, L-아스코브산나트륨(C6H7NaO6) 99.0% 이상을 함유한다.\n성 상 이 품목은 백～황색을 띤 백색의 알맹이 또는 결정성 분말로서, 냄새가 없고 약간 염미가 있다.\n확인시험\n(1) 이 품목 0.1g을 메타인산용액(1→50) 100mL에 녹이고 그 5mL에 액이 엷은황색을 나타낼 때까지 요오드시액을 적가한 다음 ..."
+            },
+            {
+              "chunk_id": "additive_spec_0486",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_978",
+              "score": 0.51610136,
+              "text_preview": "함 량 이 품목은 L-아스코브산칼슘(C12H14CaO12‧2H2O) 98.0～100.5%를 함유한다.\n성 상 이 품목은 백～엷은 황색의 결정성 분말로서 냄새가 없거나 약간 특이한 냄새가 있다.\n확인시험 이 품목의 수용액(1→10)은 확인시험법 중 칼슘염의 반응을 나타내고 2,6-디클로로페놀인도페놀나트륨시액을 가하면 색이 없어진다.\n순도시험\n(1) 비선광도 ..."
+            },
+            {
+              "chunk_id": "additive_general_0064",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window43",
+              "score": 0.514912248,
+              "text_preview": "��칼륨은 아래의 식품에 한하여 사용하여야 한다. 아세설팜칼륨의 사용량은<br>1. 과자, 조림류(농산물을 주원료로 한 것에 한함) : 2.5g/kg 이하<br>2. 추잉껌 : 5.0g/kg 이하<br>3. 소스, 캔디류, 잼류, 절임류, 빙과, 아이스크림류, 아이스크림믹스류, 플라워페이스트 : 1.0g/kg 이하<br>4. 음료류, 가공유, 발효유류 : ..."
+            }
+          ]
+        },
+        "latency_ms": 4078.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g010",
+      "description": "첨가물 허용 — 글리세린",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크에는 ‘글리세린(Glycerin)’의 사용(II.2.1) 및 성상·순도 등 규격이 제시되어 있으나, 특정 식품유형(‘기타가공품’)에 대한 사용 한도/허용 여부를 직접 연결해 판단할 근거가 부족합니다. 또한 해당 제품이 ‘식품첨가물로서 글리세린’을 사용하는지, 단순 원료로 포함되는지(또는 다른 첨가물/제조 목적) 정보가 없어 적용 조항을 특정하기 어렵습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0128",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_255",
+              "score": 0.475943416,
+              "text_preview": "성 상 이 품목은 무～갈색의 분말, 얇은 조각, 입자, 덩어리, 반유동체 또는 액체로서, 냄새가 없거나 특이한 냄새가 있다.\n확인시험\n(1) 이 품목 약 5g(글리세린초산에스테르의 경우에는 1.5g)을 달아 ｢글리세린디아세틸주석산지방산에스테르｣ 확인시험 (1)에 따라 시험할 때, 대조액과 같은 위치에 백색의 반점이 확인되어야 한다.\n(2) 글리세린초산에스테..."
+            },
+            {
+              "chunk_id": "additive_general_0025",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window4",
+              "score": 0.468041748,
+              "text_preview": " II. 2. 1)의 규정에 따라 사용하여야 한다. | 산도조절제 |\n| 글루콘산철**<br>Ferrous Gluconate<br>이명 : Iron(II) gluconate |  | 579/<br>299-29-6 | 글루콘산철은 아래의 식품에 한하여 사용하여야 한다. 다만, 올리브가공품에 한하여 글루콘산철의 사용량은 철로서<br>1. 올리브가공품 : 0.1..."
+            }
+          ]
+        },
+        "latency_ms": 3438.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g011",
+      "description": "금지 원료 — 대마초 (Step 0 게이트)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 31.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g012",
+      "description": "금지 원료 — 양귀비 (Step 0 게이트)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 31.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g013",
+      "description": "금지 원료 — 코카잎 (Step 0 게이트)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 47.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g014",
+      "description": "금지 원료 — THC (대마초 alias 매칭)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 31.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g015",
+      "description": "금지 원료 — 카바카바 (Step 0 게이트)",
+      "expected": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped"
+      },
+      "actual": {
+        "exact_verdict": "prohibited",
+        "rag_verdict": null,
+        "conflict_status": "rag_skipped",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "수입불가 — 절대 금지 원료 포함",
+          "aggregation": null,
+          "forbidden_hits_count": 1
+        },
+        "rag_judgement": null,
+        "latency_ms": 32.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g016",
+      "description": "조건부 원료 — 과라나 (기타 조건부, DB restricted)",
+      "expected": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "restricted",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "restricted",
+        "rag_verdict": "unidentified",
+        "conflict_status": "conflict",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 1,
+            "prohibited": 0,
+            "unidentified": 0
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크에는 ‘과라나(원료) 음료류’에 대한 직접적인 허용/금지 규정이 없습니다. 또한 과라나의 사용이 특정 첨가물(예: 착색료, 보존료) 제한과 연동되는지에 대한 근거도 청크에서 확인되지 않습니다. 따라서 현 정보만으로 수입 판정(허용/제한/금지)을 확정할 수 없습니다.",
+          "law_citations": []
+        },
+        "latency_ms": 3000.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g017",
+      "description": "조건부 가열 — 소브산 + is_heated=True",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 소브산의 ‘순도/확인시험’ 및 특정 식품유형에서의 ‘사용 한도’(예: 치즈류, 식육가공품 등)를 규정하고 있습니다. 그러나 제품이 ‘빵류’라는 점만으로는 소브산이 해당되는 허용 식품유형/사용한도 조항이 청크에 직접 연결되지 않아 수입 판정을 내릴 수 없습니다. 따라서 현재 정보와 청크만으로는 허용/제한/금지 여부를 특정할 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0351",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_735",
+              "score": 0.492475331,
+              "text_preview": "함 량 이 품목을 건조한 다음 정량할 때, 소브산(C6H8O2) 99.0～101.0%를 함유한다.\n성 상 이 품목은 무색의 바늘모양의 결정 또는 백색의 결정성 분말로서 냄새가 없거나 약간 특이한 냄새가 있다.\n확인시험\n(1) 이 품목 0.1g을 물 10mL에 현탁시킨 액은 산성이다.\n(2) 이 품목의 아세톤용액(1→100) 1mL에 물 1mL을 가하고 이에..."
+            },
+            {
+              "chunk_id": "additive_general_0042",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window21",
+              "score": 0.489167571,
+              "text_preview": " 사용하여야 한다. | 산도조절제 |\n| 살리실산메틸<br>Methyl Salicylate |  | -/119-36-8 | 살리실산메틸은 착향의 목적에 한하여 사용하여야 한다. | 향료 |\n| 석유왁스<br>Petroleum Wax<br>이명 : Microcrystalline wax; Refined paraffin wax | 이 품목은 원유의 감압증류 잔사..."
+            },
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.486433059,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            }
+          ]
+        },
+        "latency_ms": 3515.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g018",
+      "description": "조건부 가열 — 소브산 + is_heated=False",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "제품이 잼류이고 원료가 소브산인 경우, 잼류에 대한 소브산 사용량은 1.0 g/kg 이하로 제한됩니다. 또한 잼류 규격에서 보존료로서 소브산(소브산칼륨·소브산칼슘 포함)의 총량은 1.0 g/kg 이하로 관리되어야 합니다. 따라서 소브산을 잼류에 사용할 때는 사용량이 1.0 g/kg을 초과하지 않아야 합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0068",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window47",
+              "score": 0.478752702,
+              "text_preview": "에 겔 건강기능식품 성분의 배합비율을 적용)∶0.5g/kg 이하(소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 소브산으로서의 사용량은 1.0g/kg 이하)<br>6. 잼류∶1.0g/kg 이하(소브산, 소브산칼륨, 소브산칼슘, 파라옥시안식향산메틸, 파라옥시안식향산..."
+            },
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.476959944,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            },
+            {
+              "chunk_id": "fct-111",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.472958148,
+              "text_preview": "(1) 햄∶식육을 부위에 따라 분류하여 정형 염지한 후 숙성･건조하거나 훈연 또는 가열처리하여 가공한 것을 말한다(뼈나 껍질이 있는 것도 포함한다).\n(2) 생햄∶식육의 부위를 염지한 것이나 이에 식품첨가물을 가하여 저온에서 훈연 또는 숙성･건조한 것을 말한다(뼈나 껍질이 있는 것도 포함한다).\n(3) 프레스햄∶식육의 고깃덩어리를 염지한 것이나 이에 식품 ..."
+            }
+          ]
+        },
+        "latency_ms": 3219.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g019",
+      "description": "조건부 가열 — 소브산칼륨 + is_heated=True",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "restricted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "restricted",
+          "rag_reasoning": "소브산칼륨은 보존료로서 사용이 허용되며, 빵류에는 소브산(또는 소브산칼륨을 소브산으로 환산한 값) 기준이 적용됩니다. 다만 법령 청크에 빵류에 대한 소브산칼륨의 구체적 사용량 상한(예: g/kg)이 직접 제시되어 있지 않아, 현재 정보만으로는 해당 제품이 허용 범위 내인지 판정이 불가능합니다. 따라서 규격(순도) 자체는 확인 가능하나, 빵류에서의 사용 한도 충족 여부는 청크 근거가 부족합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_0351",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_735",
+              "score": 0.531829178,
+              "text_preview": "함 량 이 품목을 건조한 다음 정량할 때, 소브산(C6H8O2) 99.0～101.0%를 함유한다.\n성 상 이 품목은 무색의 바늘모양의 결정 또는 백색의 결정성 분말로서 냄새가 없거나 약간 특이한 냄새가 있다.\n확인시험\n(1) 이 품목 0.1g을 물 10mL에 현탁시킨 액은 산성이다.\n(2) 이 품목의 아세톤용액(1→100) 1mL에 물 1mL을 가하고 이에..."
+            },
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.524516642,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            },
+            {
+              "chunk_id": "fct-41",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.443287194,
+              "text_preview": "(3) 캔디류의 표면에 신맛을 내기 위해 구연산, 사과산 등을 도포하여 제조하는 경우, 구연산, 사과산 등의 성분이 50% 미만(여러 가지 산(酸)을 혼합하는 경우는 그 합으로서)이 되도록 희석하여 도포하여야 한다.\n4) 식품유형\n(1) 과자곡분 등을 주원료로 하여 굽기, 팽화, 유탕 등의 공정을 거친 것이거나 이에 식품 또는 식품첨가물을 가한 것으로 비스..."
+            }
+          ]
+        },
+        "latency_ms": 3219.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g020",
+      "description": "조건부 가열 — 소브산칼륨 + is_heated=False",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "permitted",
+          "rag_reasoning": "소브산칼륨은 어육가공품에 한하여 사용할 수 있으며, 소브산으로서 사용량이 2.0g/kg 이하로 제한됩니다. 따라서 제품이 어육가공품으로 분류되고 소브산칼륨(소브산 환산) 사용량이 2.0g/kg 이하라면 수입 시 보존료 기준을 충족하는 것으로 판단됩니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0043",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window22",
+              "score": 0.549286187,
+              "text_preview": "능식품성분의 배합비율을 적용)∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 0.5g/kg 이하)<br>6. 농축과일즙, 과·채주스∶1.0g/kg 이하(안식향산, 안식향산나트륨, 안식향산칼륨 또는..."
+            },
+            {
+              "chunk_id": "additive_general_0045",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window24",
+              "score": 0.537295341,
+              "text_preview": "안식향산, 안식향산나트륨, 안식향산칼륨 또는 안식향산칼슘과 병용할 때에는 소브산으로서 사용량과 안식향산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 안식향산으로서의 사용량은 1.0g/kg 이하)<br>11. 발효음료류(살균한것은 제외) : 0.05g/kg 이하.<br>12. 과실주, 탁주, 약주 : 0.2g/kg 이하<br>13. 마가린：2..."
+            }
+          ]
+        },
+        "latency_ms": 2593.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g021",
+      "description": "조건부 발효 — 유산균 + is_fermented=True",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 특정 건강기능식품 원료(예: 매실, 구아검 등) 또는 특정 식품유형(치즈/분유류 등)의 제조·규격 기준을 규정하고 있습니다. 현재 제품은 ‘유산균’ 원료와 ‘유가공품’ 식품유형만 제시되어 있어, 해당 청크에서 유산균 유가공품에 대한 직접적인 제조기준/규격(예: 기능성분 함량, 미생물 기준 등)을 확인할 수 없습니다. 따라서 청크만으로 수입 판정을 내리기 어렵습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "fct-123",
+              "namespace": "food_code_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.457068741,
+              "text_preview": "(1) 치즈∶원유 또는 유가공품에 유산균, 응유효소, 유기산 등을 가하여 응고시킨 후 유청을 제거하여 제조·가공한 유고형분 18% 이상(다만 응고 공정 이후 추가된 유고형분은 제외)의 것을 말한다. 또한 유청 또는 유청에 원유, 유가공품 등을 가한 것을 농축하거나 가열 응고시켜 제조·가공한 것도 포함한다. 다만, 가공치즈에 해당하는 것은 제외한다.\n(2) ..."
+            }
+          ]
+        },
+        "latency_ms": 3094.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g022",
+      "description": "조건부 발효 — 유산균 + is_fermented=False",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 제품은 원료가 ‘유산균’이고 건강기능식품으로만 기재되어 있으나, 법령 청크에는 유산균의 기준·규격(기능성분, 함량, 제조기준 등)이 직접 제시되어 있지 않습니다. 또한 청크의 제조기준/규격은 특정 원재료(예: 매실, 옥수수겨, 식이섬유 등)에 한정되어 있어 해당 제품에 그대로 적용하기 어렵습니다. 따라서 현재 정보와 청크만으로는 수입 판정을 내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0142",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.513045251,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 매실(Prunus mune Sieb. et Zucc)\n\n(2)제조방법 : 상기 (1)의 원재료를 열수로 추출한 후 여과 ･ 농축하여 제조하여야 함\n\n(3)기능성분(또는 지표성분)의 함량 : 구연산이 300 mg/g 이상 함유되어 있어야 함\n\n(4) 제조 시 유의사항 : 시안화합물이 제거되어야 함\n\n2) 규격\n\n(1) 성상 ..."
+            },
+            {
+              "chunk_id": "health_food_text_0089",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.496408463,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 및 제조방법 : 사람의 소화 효소로 분해하기 어려운 난소화성 고분자 섬유성분인 식이섬유를 함유하고 있는 식품원료를 사용하여 제조하여야 함\n\n(2) 식이섬유 제품은 일상식사에서 부족될 수 있는 식이섬유의 보충을 목적으로 하며, 사용되는 원료는 건강기능식품, 식품 또는 식품첨가물의 기준 및 규격에 적합하여야 함\n\n2) 규격\n\n(1..."
+            }
+          ]
+        },
+        "latency_ms": 2719.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g023",
+      "description": "조건부 발효 — Bacillus subtilis + is_fermented=True",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 건강기능식품의 제조방법(배양·건조 조건, 특정 균주 사용 제한), 생균수(CFU/g) 및 대장균군 음성 등 요건을 규정하고 있습니다. 다만 제품이 Bacillus subtilis를 ‘어떤 형태(생균/사균, 배양·건조 여부)’로 사용했는지, 그리고 생균수(100,000,000 CFU/g 이상) 및 대장균군 음성 등 핵심 수치가 제시되지 않아 적합 여부를 판단할 수 없습니다. 또한 Bacillus subtilis가 청크에서 별도로 허용/제한되는 ‘Enterococcus 속’에 해당하지는 않지만, 그 외 요건 충족 여부는 확인이 필요합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0200",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.541708,
+              "text_preview": "(2) 제조방법\n\n(가)(1)의 원재료를 이용하여 배양하거나 배양 ･ 건조하여 제조하여야 하며, 배양하여 제조하는 경우에는 「식품의 기준 및 규격」의 발효유류(발효유분말 제외)의 제조 ･ 가공기준 및 규격(대장균군, 살모넬라, 리스테리아모노사이토제네스, 황색포도상구균만 해당한다)에 적합하여야 함\n\n(나)Enterococcus 속 균주는 항생제 내성 유전자 ..."
+            }
+          ]
+        },
+        "latency_ms": 3031.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g024",
+      "description": "조건부 발효 — Bacillus subtilis + is_fermented=False",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 제품은 원료가 Bacillus subtilis이고 식품유형이 ‘기타가공품’으로만 제시되어, 해당 원료가 어떤 ‘효소제/첨가물/기능성 원료(예: 폴리감마글루탐산, 프로바이오틱스 등)’에 해당하는지 법령 청크로 특정할 수 없습니다. 또한 Bacillus subtilis 자체가 곧바로 허용/금지되는지에 대한 직접 규정이 청크에 없고, 각 청크는 특정 품목(예: 효소제, 폴리감마글루탐산, 프로바이오틱스)의 제조·규격 요건을 다룹니다. 따라서 현재 정보만으로 수입 판정(허용/제한/금지)을 내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0200",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.527248,
+              "text_preview": "(2) 제조방법\n\n(가)(1)의 원재료를 이용하여 배양하거나 배양 ･ 건조하여 제조하여야 하며, 배양하여 제조하는 경우에는 「식품의 기준 및 규격」의 발효유류(발효유분말 제외)의 제조 ･ 가공기준 및 규격(대장균군, 살모넬라, 리스테리아모노사이토제네스, 황색포도상구균만 해당한다)에 적합하여야 함\n\n(나)Enterococcus 속 균주는 항생제 내성 유전자 ..."
+            },
+            {
+              "chunk_id": "additive_spec_0109",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_226_window0",
+              "score": 0.49399513,
+              "text_preview": "정 의 이 품목은 Bacillus subtilis, Bacillus amyloliquefaciens, Aspergillus속 및 Candida속의 배양물에서 얻어진 효소이다. 다만, 역가조정, 품질보존 등을 위하여 희석제, 안정제 등을 첨가할 수 있다.\n이 품목은 L-글루타민에 작용하여 아미드기를 가수분해하여 L-글루탐산과 암모니아를 생성한다.\n성 상 이 ..."
+            },
+            {
+              "chunk_id": "health_food_text_0210",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.459244907,
+              "text_preview": "1) 제조기준\n\n(1) 원재료 : 고초균(Bacillus subtilis)\n\n(2) 제조방법 : 상기 (1)의 원재료를 배양하고 여과하거나 칼륨, 칼슘, 나트륨, 마그네슘의 염을 단독 또는 복합으로 충분히 중화시킨 후 결정화하여 식용에 적합하도록 함\n\n(3)기능성분(또는 지표성분)의 함량 : 폴리감마글루탐산을 700 mg/g 이상 함유하고 있어야 함\n\n2)..."
+            }
+          ]
+        },
+        "latency_ms": 3578.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g025",
+      "description": "조건부 도수 — 에탄올 15% (발효주 경계)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 특정 품목(예: 캡사이신 관련 확인시험, L-프롤린, 비타민A 분말, 쌀겨왁스 등)의 성상·확인·순도시험 규격을 나열하고 있습니다. 제품은 ‘원료: 에탄올, 식품유형: 발효주’로 제시되어 있으나, 해당 청크들에서 발효주(에탄올 음료)의 수입 허용/제한/금지 여부를 직접 판단할 수 있는 규정이 확인되지 않습니다. 따라서 현재 정보만으로는 판정이 불가능합니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_1012",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_2029_part0",
+              "score": 0.496195287,
+              "text_preview": "성 상 이 품목은 액체, 점조한 액체 또는 반고형상으로서 원료, 향신료, 특유의 맛과 향을 가진다.\n확인시험\n(1) 이 품목은 50mg을 취하여 에탄올 10mL에 녹인 후 필요하면 원심분리하여 이를 시험용액으로 한다. 별도로 캪사이신 1mg을 에탄올 10mL에 녹여 표준용액으로 한다. 시험용액 및 표준용액 10μL씩을 박층크로마토그래피용 실리카겔을 사용하여..."
+            },
+            {
+              "chunk_id": "additive_spec_0290",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_605_window0",
+              "score": 0.458482623,
+              "text_preview": "성 상 이 품목은 무～엷은 황갈색의 결정 또는 덩어리 또는 백색의 결정성 분말로서 조금 특이한 냄새와 자극성의 맛을 가지고 있다.\n확인시험\n(1) 이 품목의 에탄올용액(1→100) 2～3mL에 붕사용액(1→50) 2～3방울 및 2, 6-디클로로퀴논클로로이미드의 작은 결정을 가하여 흔들어 섞으면 액은 청남색을 나타낸다.\n(2) 「디부틸히드록시톨루엔」의 확인시..."
+            }
+          ]
+        },
+        "latency_ms": 3032.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g026",
+      "description": "조건부 도수 — 에탄올 19% (발효주 상한 부근)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 특정 식품첨가물/원료(예: L-프롤린, 특정 오일류, 비타민A 등)의 성상·확인·순도시험 기준을 나열하고 있습니다. 그러나 제품이 ‘발효주’이고 원료가 ‘에탄올’이라는 정보만으로는, 해당 청크가 발효주(주류) 또는 에탄올 자체에 대한 수입 판정(허용/제한/금지) 기준을 직접 규정하는지 확인할 수 없습니다. 따라서 현재 청크만으로는 판정을 내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_1012",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_2029_part0",
+              "score": 0.496195287,
+              "text_preview": "성 상 이 품목은 액체, 점조한 액체 또는 반고형상으로서 원료, 향신료, 특유의 맛과 향을 가진다.\n확인시험\n(1) 이 품목은 50mg을 취하여 에탄올 10mL에 녹인 후 필요하면 원심분리하여 이를 시험용액으로 한다. 별도로 캪사이신 1mg을 에탄올 10mL에 녹여 표준용액으로 한다. 시험용액 및 표준용액 10μL씩을 박층크로마토그래피용 실리카겔을 사용하여..."
+            },
+            {
+              "chunk_id": "additive_spec_0290",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_605_window0",
+              "score": 0.458482623,
+              "text_preview": "성 상 이 품목은 무～엷은 황갈색의 결정 또는 덩어리 또는 백색의 결정성 분말로서 조금 특이한 냄새와 자극성의 맛을 가지고 있다.\n확인시험\n(1) 이 품목의 에탄올용액(1→100) 2～3mL에 붕사용액(1→50) 2～3방울 및 2, 6-디클로로퀴논클로로이미드의 작은 결정을 가하여 흔들어 섞으면 액은 청남색을 나타낸다.\n(2) 「디부틸히드록시톨루엔」의 확인시..."
+            }
+          ]
+        },
+        "latency_ms": 2921.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g027",
+      "description": "조건부 도수 — 에탄올 25% (증류주 경계)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "permitted",
+        "conflict_status": "rag_supplemented"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 특정 첨가물/원료의 확인·순도시험 방법(예: 에탄올에 대한 시험용액 조제, 납·비소 등 중금속 한도)과 증류주류의 일반 정의·규격 일부를 포함하고 있습니다. 그러나 제품이 ‘증류주’로서 에탄올만으로 구성되는지, 그리고 해당 청크가 요구하는 특정 규격(예: 메탄올, 알데히드 등) 적용 대상인지가 명확하지 않습니다. 따라서 현재 정보만으로는 수입 허용/제한/금지 여부를 법령 청크에 직접 근거해 판정할 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_spec_1012",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 IV 품목별 성분규격",
+              "section_path": "section_2029_part0",
+              "score": 0.485534072,
+              "text_preview": "성 상 이 품목은 액체, 점조한 액체 또는 반고형상으로서 원료, 향신료, 특유의 맛과 향을 가진다.\n확인시험\n(1) 이 품목은 50mg을 취하여 에탄올 10mL에 녹인 후 필요하면 원심분리하여 이를 시험용액으로 한다. 별도로 캪사이신 1mg을 에탄올 10mL에 녹여 표준용액으로 한다. 시험용액 및 표준용액 10μL씩을 박층크로마토그래피용 실리카겔을 사용하여..."
+            },
+            {
+              "chunk_id": "temporary_standard_0000",
+              "namespace": "temporary_standard",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.381331325,
+              "text_preview": "식품원료 제출자료의 범위 및 작성요령\n\n*(제3조 관련)*"
+            }
+          ]
+        },
+        "latency_ms": 4063.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": false,
+        "conflict_match": false
+      },
+      "error": null
+    },
+    {
+      "case_id": "g028",
+      "description": "미등록 원료 — 가상명 제노스틴 (양측 unidentified)",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 제품 원료가 ‘제노스틴’으로만 기재되어 있고, 법령 청크에는 제노스틴의 성분(첨가물/원료) 또는 해당 물질의 허용 여부·사용기준이 직접 제시되어 있지 않습니다. 또한 청크에는 특정 첨가물(예: 트랜스글루코시다아제, 트랜스글루타미나아제 등)의 사용기준만 일부 포함되어 있어, 제노스틴이 그 중 어느 항목에 해당하는지 확인할 수 없습니다. 따라서 현 정보만으로 수입 판정(허용/제한/금지)을 내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0143",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_18_window2",
+              "score": 0.499873966,
+              "text_preview": "양조제식품 : 8g/kg 이하 |\n|  | 5‘-이노신산<br>이나트륨* |  | 631/<br>4691-65-0 | II. 2. 1)의 규정에 따라 사용하여야 한다. |\n| 콜린 | 염화콜린 |  | 1001(iii)/<br>67-48-1 | II. 2. 1)의 규정에 따라 사용하여야 한다. |\n|  | 주석산수소콜린 |  | 1001(v)/<br>87-..."
+            },
+            {
+              "chunk_id": "additive_general_0126",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_12_window13",
+              "score": 0.475359291,
+              "text_preview": "의 규산알루미늄을 함유한다. | 553(iii)/<br>14807-96-6 | 탤크는 식품의 제조 또는 가공상 여과보조제(여과, 탈색, 탈취, 정제 등)로 사용하는 경우 최종식품 완성 전에 제거하여야 하며, 식품 중의 잔류량은 0.5%(규조토, 백도토, 벤토나이트, 산성백토, 탤크, 퍼라이트, 활성탄 등 다른 불용성 광물성물질과 병용할 때에는 전 잔류량의 ..."
+            }
+          ]
+        },
+        "latency_ms": 2859.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g029",
+      "description": "미등록 원료 — 가상명 크리오벨라",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크는 특정 보존료(예: 안식향산나트륨) 사용 한도, 제조용제/효소제/착색료 등 개별 첨가물의 사용 조건을 다루고 있습니다. 그러나 제품 원료인 ‘크리오벨라’가 어떤 물질(예: 보존료, 추출물, 효소, 착색료 등)에 해당하는지에 대한 정보가 청크에 없습니다. 따라서 ‘크리오벨라’의 수입/사용 가능 여부를 법령 청크만으로 판정할 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "health_food_text_0000",
+              "namespace": "health_food_text",
+              "regulation_id": null,
+              "section_path": null,
+              "score": 0.45306617,
+              "text_preview": "건강기능식품의 기준 및 규격"
+            },
+            {
+              "chunk_id": "additive_general_0068",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window47",
+              "score": 0.452117145,
+              "text_preview": "에 겔 건강기능식품 성분의 배합비율을 적용)∶0.5g/kg 이하(소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 1.5g/kg 이하이어야 하며, 그 중 소브산으로서의 사용량은 1.0g/kg 이하)<br>6. 잼류∶1.0g/kg 이하(소브산, 소브산칼륨, 소브산칼슘, 파라옥시안식향산메틸, 파라옥시안식향산..."
+            },
+            {
+              "chunk_id": "additive_general_0071",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window50",
+              "score": 0.43187952,
+              "text_preview": "소브산, 소브산칼륨 또는 소브산칼슘과 병용할 때에는 안식향산으로서 사용량과 소브산으로서 사용량의 합계가 0.6g/kg 이하, 그 중 소브산으로서의 사용량은 0.5g/kg 이하)<br>3. 기타음료(분말제품 제외), 인삼․홍삼음료 ∶0.6g/kg 이하(파라옥시안식향산에틸 또는 파라옥시안식향산메틸과 병용할 때에는 안식향산으로서 사용량과 파라옥시안식향산으로서 사..."
+            }
+          ]
+        },
+        "latency_ms": 3078.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    },
+    {
+      "case_id": "g030",
+      "description": "미등록 원료 — 가상명 루미얀",
+      "expected": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed"
+      },
+      "actual": {
+        "exact_verdict": "unidentified",
+        "rag_verdict": "unidentified",
+        "conflict_status": "agreed",
+        "feature1_output": {
+          "import_possible": false,
+          "verdict": "검토 필요 — 기준치 데이터 부족 또는 경계치",
+          "aggregation": {
+            "total": 1,
+            "permitted": 0,
+            "restricted": 0,
+            "prohibited": 0,
+            "unidentified": 1
+          },
+          "forbidden_hits_count": 0
+        },
+        "rag_judgement": {
+          "rag_verdict": "unidentified",
+          "rag_reasoning": "제공된 법령 청크에는 ‘루미얀’이 무엇인지(식품첨가물/착색료/향료/기타) 또는 음료류에서의 사용 허용 여부가 직접적으로 제시되어 있지 않습니다. 또한 청크에는 특정 첨가물(예: 몰식자산, 카라기난, 카라멜색소 등)의 용도 제한만 일부 포함되어 있어, ‘루미얀’에 그대로 적용하기 어렵습니다. 따라서 현재 정보만으로는 수입 판정을 내릴 수 없습니다.",
+          "law_citations": [
+            {
+              "chunk_id": "additive_general_0034",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window13",
+              "score": 0.493888795,
+              "text_preview": " 코코아가공품류 또는 초콜릿류, 기타음료, 서류가공품(건조감자, 곤약분 제외), 두류가공품, 조림류(농산물을 주원료로 한 것에 한함), 브랜디, 일반증류주, 찐쌀, 잼류, 전분류, 당류가공품, 된장, 유함유가공품 : 0.030g/kg<br>19. 곡류가공품(옥배유 제조용으로서 옥수수배아를 100% 원료로 한 제품에 한함) : 0.20g/kg<br>20. 과..."
+            },
+            {
+              "chunk_id": "additive_general_0089",
+              "namespace": "additive_code_text",
+              "regulation_id": "식품첨가물공전 I-III",
+              "section_path": "section_9_window68",
+              "score": 0.476685703,
+              "text_preview": "에 사용하여서는 아니 된다.<br>1. 천연식품〔식육류, 어패류, 과일류, 채소류, 해조류, 콩류 등 및 그 단순가공품(탈피, 절단 등)〕<br>2. 다류<br>3. 커피<br>4. 고춧가루, 실고추<br>5. 김치류<br>6. 고추장, 조미고추장<br>7. 식초 | 착색료 |\n| 카나우바왁스<br>Carnauba Wax | 이 품목은 야자과 브라질왁스 야..."
+            }
+          ]
+        },
+        "latency_ms": 2938.0
+      },
+      "match": {
+        "exact_match": true,
+        "rag_match": true,
+        "conflict_match": true
+      },
+      "error": null
+    }
+  ]
+}

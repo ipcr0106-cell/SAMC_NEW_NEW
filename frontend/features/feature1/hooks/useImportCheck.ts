@@ -5,7 +5,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Feature1Result } from "@/types/pipeline";
+import type { Feature1Result, HITL1DecisionsRequest, HITL2ConfirmRequest } from "@/types/pipeline";
 import type { Feature1UiState, Feature1Response } from "../types";
 import {
   getImportCheckResult,
@@ -13,6 +13,10 @@ import {
   confirmImportCheckResult,
   runImportCheck,
   downloadReport,
+  editF0Result,
+  approveF0Result,
+  submitHitl1Decisions,
+  confirmHitl2,
   type RunPayload,
 } from "../api/importCheck";
 
@@ -26,6 +30,12 @@ const initialState: Feature1UiState = {
   isSaving: false,
   isConfirming: false,
   errorMessage: null,
+  // Wave 4 P2: HITL-2 확장 필드
+  hitl2FinalReason: "",
+  hitl2SignerId: "",
+  hitl2SelectedCitations: new Set<string>(),
+  // Wave 4 P2: HITL-1 decisions 임시 상태
+  hitl1Decisions: null,
 };
 
 export function useImportCheck(caseId: string) {
@@ -118,6 +128,131 @@ export function useImportCheck(caseId: string) {
     setState((prev) => ({ ...prev, editReason: reason }));
   }, []);
 
+  // HITL 결정 핸들러 (Wave 3: HITL-1/2 패널에서 호출)
+  // 기존 updateImportCheckResult (PATCH /feature/1) 재사용.
+  const submitHITLDecision = useCallback(
+    async (verdict: Feature1Result["verdict"], reason: string) => {
+      if (!state.editedResult) return;
+      setState((prev) => ({ ...prev, isSaving: true, errorMessage: null }));
+      try {
+        const next: Feature1Result = {
+          ...state.editedResult,
+          verdict,
+          import_possible: verdict === "수입가능",
+        };
+        await updateImportCheckResult(caseId, {
+          final_result: next,
+          edit_reason: reason,
+        });
+        // 저장 후 재조회 (needs_review → waiting_review 로 status 전환 반영)
+        await fetchResult();
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          isSaving: false,
+          errorMessage: "HITL 결정 저장에 실패했습니다.",
+        }));
+      }
+    },
+    [caseId, state.editedResult, fetchResult],
+  );
+
+  // ── Wave 4 P2: HITL-0 편집 저장 (PATCH /pipeline/feature/0) ──
+  const editF0 = useCallback(
+    async (finalResult: Record<string, unknown>, editReason: string) => {
+      setState((prev) => ({ ...prev, isSaving: true, errorMessage: null }));
+      try {
+        await editF0Result(caseId, { final_result: finalResult, edit_reason: editReason });
+        await fetchResult();
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          isSaving: false,
+          errorMessage: "F0 편집 저장에 실패했습니다.",
+        }));
+      }
+    },
+    [caseId, fetchResult]
+  );
+
+  // ── Wave 4 P2: HITL-0 승인 (POST /pipeline/feature/0/approve) ──
+  const approveF0 = useCallback(
+    async (approverId: string, signature?: string) => {
+      setState((prev) => ({ ...prev, isSaving: true, errorMessage: null }));
+      try {
+        await approveF0Result(caseId, {
+          approver_id: approverId,
+          approved_at: new Date().toISOString(),
+          signature,
+        });
+        await fetchResult();
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          isSaving: false,
+          errorMessage: "F0 승인에 실패했습니다.",
+        }));
+      }
+    },
+    [caseId, fetchResult]
+  );
+
+  // ── Wave 4 P2: HITL-1 decisions 제출 (POST /hitl1-decisions) ──
+  const submitHitl1 = useCallback(
+    async (req: HITL1DecisionsRequest) => {
+      setState((prev) => ({ ...prev, isSaving: true, errorMessage: null }));
+      try {
+        await submitHitl1Decisions(caseId, req);
+        await fetchResult();
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          isSaving: false,
+          errorMessage: "HITL-1 결정 제출에 실패했습니다.",
+        }));
+      }
+    },
+    [caseId, fetchResult]
+  );
+
+  // ── Wave 4 P2: HITL-2 최종 판정 확정 (POST /confirm with body) ──
+  const confirmHitl2Result = useCallback(
+    async (req: HITL2ConfirmRequest) => {
+      setState((prev) => ({ ...prev, isConfirming: true, errorMessage: null }));
+      try {
+        await confirmHitl2(caseId, req);
+        await fetchResult();
+      } catch {
+        setState((prev) => ({
+          ...prev,
+          isConfirming: false,
+          errorMessage: "최종 판정 확정에 실패했습니다.",
+        }));
+      } finally {
+        setState((prev) => ({ ...prev, isConfirming: false }));
+      }
+    },
+    [caseId, fetchResult]
+  );
+
+  // ── Wave 4 P2: HITL-2 UI 상태 setter ──
+  const setHitl2FinalReason = useCallback((v: string) => {
+    setState((prev) => ({ ...prev, hitl2FinalReason: v }));
+  }, []);
+
+  const setHitl2SignerId = useCallback((v: string) => {
+    setState((prev) => ({ ...prev, hitl2SignerId: v }));
+  }, []);
+
+  const toggleHitl2Citation = useCallback((chunkId: string) => {
+    setState((prev) => {
+      const next = new Set(prev.hitl2SelectedCitations);
+      if (next.has(chunkId)) next.delete(chunkId);
+      else next.add(chunkId);
+      return { ...prev, hitl2SelectedCitations: next };
+    });
+  }, []);
+
   // 수정 저장 (PATCH)
   const saveEdit = useCallback(async () => {
     if (!state.editedResult) return;
@@ -193,5 +328,14 @@ export function useImportCheck(caseId: string) {
     saveEdit,
     confirm,
     handleDownloadPdf,
+    submitHITLDecision,
+    // Wave 4 P2: HITL API 함수들
+    editF0,
+    approveF0,
+    submitHitl1,
+    confirmHitl2Result,
+    setHitl2FinalReason,
+    setHitl2SignerId,
+    toggleHitl2Citation,
   };
 }

@@ -1,0 +1,33 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 50,
+      "totalCount": 1,
+      "items": [
+        {
+          "PC_KOR_NM": "액상첨가물",
+          "PRDLST_CD": "D0400100000000",
+          "T_KOR_NM": "함량",
+          "FNPRT_ITM_NM": null,
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "0.6이하",
+          "SPEC_VAL_SUMUP": "일반 기준: 0.6 g/L 이하",
+          "MIMM_VAL": null,
+          "MXMM_VAL": "0.6",
+          "UNIT_NM": "g/L",
+          "INJRY_YN": "N",
+          "SORC": "식품첨가물공전",
+          "VALD_BEGN_DT": "20140101",
+          "VALD_END_DT": "99991231",
+          "UPDT_PRVNS": "최초등록",
+          "LAST_UPDT_DTM": "2020-12-04 10:46:20"
+        }
+      ]
+    }
+  }
+}

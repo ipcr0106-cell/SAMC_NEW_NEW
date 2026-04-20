@@ -2,58 +2,26 @@
  * 기능4: 수출국표시사항 검토 — 상태 관리 훅
  *
  * [흐름]
- *  handleAnalyze → (사용자 항목 선택) → handleValidate → handleSaveEdit → handleConfirm
+ *  페이지 진입 → fetchResult(기존 결과 조회)
+ *  handleAnalyze(F0/F1/F2 데이터 기반 자동 분석) → (사용자 항목 선택) → handleValidate → handleSaveSelected → handleConfirm
  */
 
 "use client";
 
 import { useState, useCallback } from "react";
 import type { Feature4Result, ImageIssue, LabelIssue, ValidationResult } from "@/types/pipeline";
-import type { Feature4State, LabelUploadState } from "../types";
+import type { Feature4State } from "../types";
 import {
   analyzeForeignLabel,
   validateSelection,
-  uploadLabelImage,
   getForeignLabelResult,
   updateForeignLabelResult,
   confirmForeignLabelResult,
   downloadReport,
 } from "../api/foreignLabel";
-import { MAX_FILE_SIZE_BYTES, ALLOWED_LABEL_MIME_TYPES } from "../constants";
-
-// 분석 입력 폼 상태
-export interface AnalyzeForm {
-  label_text: string;
-  food_type: string;
-  ingredients_raw: string;  // 콤마 구분 원재료 (입력 편의용)
-  label_image_url: string;
-  doc_product_name: string;
-  doc_content_volume: string;
-  doc_origin: string;
-  doc_manufacturer: string;
-  doc_ingredients: string;
-}
-
-const initialForm: AnalyzeForm = {
-  label_text: "",
-  food_type: "미분류",
-  ingredients_raw: "",
-  label_image_url: "",
-  doc_product_name: "",
-  doc_content_volume: "",
-  doc_origin: "",
-  doc_manufacturer: "",
-  doc_ingredients: "",
-};
-
-const initialUploadState: LabelUploadState = {
-  file: null,
-  previewUrl: null,
-  uploadStatus: "idle",
-};
 
 const initialState: Feature4State = {
-  uploadState: initialUploadState,
+  uploadState: { file: null, previewUrl: null, uploadStatus: "idle" },
   analysisStatus: "idle",
   result: null,
   isConfirmed: false,
@@ -63,7 +31,6 @@ const initialState: Feature4State = {
 
 export function useForeignLabelCheck(caseId: string) {
   const [state, setState] = useState<Feature4State>(initialState);
-  const [form, setForm] = useState<AnalyzeForm>(initialForm);
   const [error, setError] = useState<string | null>(null);
 
   // 체크된 텍스트·이미지 위반 항목 (인덱스 기반)
@@ -74,22 +41,9 @@ export function useForeignLabelCheck(caseId: string) {
   const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
   const [validateStatus, setValidateStatus] = useState<"idle" | "running" | "done" | "error">("idle");
 
-  // ── 폼 업데이트 ─────────────────────────────────────
-
-  const handleFormChange = useCallback(<K extends keyof AnalyzeForm>(
-    key: K,
-    value: AnalyzeForm[K]
-  ) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }, []);
-
-  // ── 분석 실행 ─────────────────────────────────────
+  // ── 분석 실행 (F0/F1/F2에서 자동 조회) ─────────────────
 
   const handleAnalyze = useCallback(async () => {
-    if (!form.label_text.trim()) {
-      setError("라벨 텍스트를 입력해주세요.");
-      return;
-    }
     setError(null);
     setState((prev) => ({ ...prev, analysisStatus: "running" }));
     setSelectedIssueIdxs(new Set());
@@ -98,31 +52,30 @@ export function useForeignLabelCheck(caseId: string) {
     setValidateStatus("idle");
 
     try {
-      const { ai_result } = await analyzeForeignLabel(caseId, {
-        label_text: form.label_text,
-        food_type: form.food_type || "미분류",
-        ingredients: form.ingredients_raw
-          ? form.ingredients_raw.split(",").map((s) => s.trim()).filter(Boolean)
-          : [],
-        label_image_url: form.label_image_url || undefined,
-        doc_product_name: form.doc_product_name || undefined,
-        doc_content_volume: form.doc_content_volume || undefined,
-        doc_origin: form.doc_origin || undefined,
-        doc_manufacturer: form.doc_manufacturer || undefined,
-        doc_ingredients: form.doc_ingredients || undefined,
-      });
+      const { ai_result } = await analyzeForeignLabel(caseId, {});
       setState((prev) => ({
         ...prev,
         analysisStatus: "done",
         result: ai_result,
         editedResult: ai_result,
       }));
-    } catch (e) {
+    } catch (e: unknown) {
       setState((prev) => ({ ...prev, analysisStatus: "error" }));
-      setError("분석에 실패했습니다. 서버 연결을 확인해주세요.");
+
+      // 법령 DB 업데이트 중 (503) → 전용 안내 메시지
+      if (
+        e &&
+        typeof e === "object" &&
+        "response" in e &&
+        (e as { response?: { status?: number } }).response?.status === 503
+      ) {
+        setError("현재 법령 DB가 업데이트 중입니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        setError("분석에 실패했습니다. 서버 연결을 확인해주세요.");
+      }
       console.error(e);
     }
-  }, [caseId, form]);
+  }, [caseId]);
 
   // ── 항목 선택 토글 ─────────────────────────────────
 
@@ -187,12 +140,15 @@ export function useForeignLabelCheck(caseId: string) {
     }
   }, [caseId, state.result, selectedIssueIdxs, selectedImageIssueIdxs]);
 
-  // ── 결과 조회 ─────────────────────────────────────
+  // ── 결과 조회 (페이지 진입 시) ─────────────────────────
 
   const fetchResult = useCallback(async () => {
-    setState((prev) => ({ ...prev, analysisStatus: "running" }));
     try {
       const data = await getForeignLabelResult(caseId);
+      if (data.status === "pending" && !data.ai_result) {
+        // 아직 분석 결과 없음 — idle 상태 유지
+        return;
+      }
       const result = data.final_result ?? data.ai_result;
       setState((prev) => ({
         ...prev,
@@ -202,72 +158,9 @@ export function useForeignLabelCheck(caseId: string) {
         isConfirmed: data.status === "completed",
       }));
     } catch {
-      setState((prev) => ({ ...prev, analysisStatus: "error" }));
-      setError("결과를 불러오는 데 실패했습니다.");
+      // 결과 없으면 무시 (첫 진입)
     }
   }, [caseId]);
-
-  // ── 파일 업로드 ─────────────────────────────────────
-
-  const handleFileSelect = useCallback((file: File) => {
-    setError(null);
-    if (!ALLOWED_LABEL_MIME_TYPES.includes(file.type as (typeof ALLOWED_LABEL_MIME_TYPES)[number])) {
-      setError("JPG, PNG, WEBP, PDF 파일만 업로드 가능합니다.");
-      return;
-    }
-    if (file.size > MAX_FILE_SIZE_BYTES) {
-      setError("파일 크기는 10MB 이하여야 합니다.");
-      return;
-    }
-    const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
-    setState((prev) => ({
-      ...prev,
-      uploadState: { file, previewUrl, uploadStatus: "idle" },
-    }));
-  }, []);
-
-  const handleUpload = useCallback(async () => {
-    if (!state.uploadState.file) return;
-    setState((prev) => ({
-      ...prev,
-      uploadState: { ...prev.uploadState, uploadStatus: "uploading" },
-    }));
-    try {
-      const { uploaded_path } = await uploadLabelImage(caseId, state.uploadState.file);
-      setState((prev) => ({
-        ...prev,
-        uploadState: { ...prev.uploadState, uploadStatus: "uploaded", uploadedPath: uploaded_path },
-      }));
-    } catch {
-      setState((prev) => ({
-        ...prev,
-        uploadState: { ...prev.uploadState, uploadStatus: "error" },
-      }));
-      setError("업로드에 실패했습니다. 다시 시도해주세요.");
-    }
-  }, [caseId, state.uploadState.file]);
-
-  // ── 수정 저장 ─────────────────────────────────────
-
-  const handleEditResult = useCallback((updated: Feature4Result) => {
-    setState((prev) => ({ ...prev, editedResult: updated }));
-  }, []);
-
-  const handleEditReason = useCallback((reason: string) => {
-    setState((prev) => ({ ...prev, editReason: reason }));
-  }, []);
-
-  const handleSaveEdit = useCallback(async () => {
-    if (!state.editedResult) return;
-    try {
-      await updateForeignLabelResult(caseId, {
-        final_result: state.editedResult,
-        edit_reason: state.editReason,
-      });
-    } catch {
-      setError("저장에 실패했습니다.");
-    }
-  }, [caseId, state.editedResult, state.editReason]);
 
   // ── 확인 완료 ─────────────────────────────────────
 
@@ -312,7 +205,7 @@ export function useForeignLabelCheck(caseId: string) {
     };
   }, [state.result, selectedIssueIdxs, selectedImageIssueIdxs]);
 
-  // 선택된 항목만 바로 저장 (editedResult 상태를 거치지 않고 직접 저장)
+  // 선택된 항목만 바로 저장
   const handleSaveSelected = useCallback(async (editReason: string = "") => {
     const selected = buildSelectedResult();
     if (!selected) return;
@@ -329,13 +222,11 @@ export function useForeignLabelCheck(caseId: string) {
 
   return {
     state,
-    form,
     error,
     selectedIssueIdxs,
     selectedImageIssueIdxs,
     validationResult,
     validateStatus,
-    handleFormChange,
     handleAnalyze,
     handleToggleIssue,
     handleToggleImageIssue,
@@ -343,15 +234,9 @@ export function useForeignLabelCheck(caseId: string) {
     handleSelectAllImageIssues,
     handleValidate,
     fetchResult,
-    handleFileSelect,
-    handleUpload,
-    handleEditResult,
-    handleEditReason,
-    handleSaveEdit,
     handleSaveSelected,
     handleConfirm,
     handleDownloadReport,
     downloadStatus,
-    buildSelectedResult,
   };
 }

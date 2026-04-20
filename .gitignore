@@ -1,8 +1,12 @@
-# 환경변수 (절대 커밋 금지)
+# 환경변수 (절대 커밋 금지) — 모든 환경별 변형 차단
 .env
-.env.local
+.env.*
+!.env.example
+!.env.*.example
 **/.env
-**/.env.local
+**/.env.*
+!**/.env.example
+!**/.env.*.example
 
 # Python
 __pycache__/
@@ -71,3 +75,8 @@ frontend_backup_*
 # 병합 전 원본 보관 (로컬에만 유지, git에 올리지 않음)
 병합완료된_원본/
 .gstack/
+
+# F1 골든셋 실행 결과 JSON — 실행마다 타임스탬프 파일이 새로 생성되므로 무시.
+# 단, Wave 4 P4-a 실 API baseline(0452) 은 예외로 커밋 유지.
+backend/tests/goldenset_run_v3_*.json
+!backend/tests/goldenset_run_v3_20260420_0452.json

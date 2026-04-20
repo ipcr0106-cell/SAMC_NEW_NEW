@@ -338,6 +338,9 @@ export const getFeature1 = async (caseId: string) => {
 };
 
 // ── 기능 2: 식품유형 분류 ──────────────────────────
+/**
+ * @deprecated F2 스텝이 F1 페이지로 통합됨 (f1f2 병합). FoodTypeSection에서 getFeature2 직접 사용.
+ */
 export const runFeature2 = async (caseId: string) => {
   const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2/run`, {
     method: "POST",
@@ -348,9 +351,29 @@ export const runFeature2 = async (caseId: string) => {
   return res.json();
 };
 
+/**
+ * @deprecated F2 스텝이 F1 페이지로 통합됨 (f1f2 병합). patchFeature2 또는 FoodTypeSection 직접 사용.
+ */
 export const getFeature2 = async (caseId: string) => {
   const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`, { headers: getAuthHeaders() });
   if (!res.ok) throw new Error(`Feature 2 failed: ${res.status}`);
+  return res.json();
+};
+
+/**
+ * F2 결과 수정 저장 (PATCH /api/v1/cases/{caseId}/pipeline/feature/2).
+ * F1 ImportCheckPage 내 FoodTypeEditDialog에서 호출.
+ */
+export const patchFeature2 = async (
+  caseId: string,
+  body: { final_result: Record<string, unknown>; edit_reason: string }
+) => {
+  const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Feature 2 patch failed: ${res.status}`);
   return res.json();
 };
 

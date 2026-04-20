@@ -181,7 +181,11 @@ export default function LawUpdatePage() {
               } else if (event.type === "result") {
                 setResults((prev) => [...prev, event]);
               } else if (event.type === "error") {
-                setErrors((prev) => [...prev, event.message || "알 수 없는 오류"]);
+                const msg = event.message || "알 수 없는 오류";
+                const recovery = event.recovery
+                  ? `\n${event.recovery}`
+                  : "";
+                setErrors((prev) => [...prev, msg + recovery]);
               } else if (event.type === "complete") {
                 setComplete(true);
               }
@@ -512,15 +516,26 @@ function ProgressModal({
           {/* 에러 */}
           {errors.length > 0 && (
             <div className="mt-4 space-y-2">
-              {errors.map((err, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-2 bg-red-50 rounded-lg px-3 py-2"
-                >
-                  <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
-                  <p className="text-[12px] text-red-700">{err}</p>
-                </div>
-              ))}
+              {errors.map((err, i) => {
+                const [msg, ...rest] = err.split("\n");
+                const recovery = rest.join("\n").trim();
+                return (
+                  <div
+                    key={i}
+                    className="bg-red-50 rounded-lg px-3 py-2 space-y-1"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                      <p className="text-[12px] text-red-700">{msg}</p>
+                    </div>
+                    {recovery && (
+                      <p className="text-[11px] text-red-600 ml-[22px]">
+                        파일을 다시 업로드하여 재시도해주세요. 기존 데이터가 초기화된 상태이므로 재업로드가 필요합니다.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -530,6 +545,14 @@ function ProgressModal({
               <Check size={16} className="text-emerald-500" />
               <p className="text-[13px] text-emerald-700 font-medium">
                 모든 법령 업데이트가 완료되었습니다.
+              </p>
+            </div>
+          )}
+          {complete && errors.length > 0 && (
+            <div className="flex items-center gap-2 bg-amber-50 rounded-lg px-4 py-3 mt-4">
+              <AlertCircle size={16} className="text-amber-500" />
+              <p className="text-[13px] text-amber-700 font-medium">
+                일부 법령 업데이트에 실패했습니다. 실패한 법령을 다시 업로드해주세요.
               </p>
             </div>
           )}

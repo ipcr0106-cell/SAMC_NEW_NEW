@@ -14,7 +14,7 @@ export default function F3RequiredDocsPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
-      <StepNavigation currentStep="F3" completedSteps={["upload", "F1", "F2"]} />
+      <StepNavigation currentStep="F3" completedSteps={["upload", "F1"]} />
 
       <div className="mt-6 grid lg:grid-cols-3 gap-6">
         {/* 좌측: F3 필요서류 본문 (유빈 구현) */}
@@ -32,8 +32,8 @@ export default function F3RequiredDocsPage() {
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <div className="max-w-[1440px] mx-auto px-6">
           <div className="ds-actionbar-shell px-8 py-4 flex items-center justify-between">
-            <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f2`)}>
-              이전: 유형분류
+            <Button variant="secondary" size="md" onClick={() => router.push(`/cases/${caseId}/f1`)}>
+              이전: 수입 · 유형 판정
             </Button>
             <div className="flex items-center gap-3">
               <Button variant="secondary" size="md" icon={<Save size={16} />}>
