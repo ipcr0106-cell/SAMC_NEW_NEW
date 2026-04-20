@@ -1,0 +1,42 @@
+[
+  {
+    "id": "additive_code_001",
+    "score": 0.92,
+    "text": "소브산 및 그 염류는 빵류에 1.0 g/kg 이하로 사용하여야 한다. (소르빈산 INS 200 기준)",
+    "regulation_id": "additive_code_2024",
+    "section_path": "제2조/제1항",
+    "namespace": "additive_code_text"
+  },
+  {
+    "id": "food_code_002",
+    "score": 0.88,
+    "text": "식품공전 제2장 — 식품유형별 기준 및 규격. 과자류, 빵류 또는 떡류는 곡분이나 전분을 주원료로 하여 제조·가공한 것.",
+    "regulation_id": "food_code_2024",
+    "section_path": "별표1/제2호",
+    "namespace": "food_code_text"
+  },
+  {
+    "id": "health_food_003",
+    "score": 0.81,
+    "text": "건강기능식품의 기준 및 규격 제3조 — 원료 인정 범위. 유용미생물(프로바이오틱스)은 고시형 원료로 인정한다.",
+    "regulation_id": "health_food_2024",
+    "section_path": "제3조",
+    "namespace": "health_food_text"
+  },
+  {
+    "id": "temp_std_004",
+    "score": 0.75,
+    "text": "한시적 기준 인정 제품: 락토바실러스 파라카제이 등 신규 균주에 대한 한시적 사용 인정 (유효기간 2025-12-31).",
+    "regulation_id": "temporary_standard_2024",
+    "section_path": "별표/제4호",
+    "namespace": "temporary_standard"
+  },
+  {
+    "id": "func_label_005",
+    "score": 0.70,
+    "text": "기능성 표시 허용 범위 — 별표1. 프로바이오틱스: 유산균 증식 및 유해균 억제, 배변활동 원활에 도움을 줄 수 있음.",
+    "regulation_id": "functional_labeling_2024",
+    "section_path": "별표1/제2호",
+    "namespace": "functional_labeling"
+  }
+]

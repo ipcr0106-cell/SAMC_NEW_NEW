@@ -1,0 +1,6 @@
+{
+  "_comment": "Step C 기준규격 기대값. 실 API 연동 전 mock 비교 전용. Wave 4 P4 통합 검증 시 checks[] 를 실 API 결과로 채울 것.",
+  "overall_status": "no_data",
+  "checks": [],
+  "review_reasons": []
+}

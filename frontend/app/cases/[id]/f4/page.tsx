@@ -115,7 +115,7 @@ export default function F4LabelReviewPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
-      <StepNavigation currentStep="F4" completedSteps={["upload", "F1", "F2", "F3"]} />
+      <StepNavigation currentStep="F4" completedSteps={["upload", "F1", "F3"]} />
 
       <div className="mt-6 grid lg:grid-cols-3 gap-6">
         {/* 좌측: 메인 콘텐츠 */}

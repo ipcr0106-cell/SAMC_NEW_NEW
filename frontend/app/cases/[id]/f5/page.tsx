@@ -14,7 +14,7 @@ export default function F5KoreanLabelPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
-      <StepNavigation currentStep="F5" completedSteps={["upload", "F1", "F2", "F3", "F4"]} />
+      <StepNavigation currentStep="F5" completedSteps={["upload", "F1", "F3", "F4"]} />
 
       <div className="mt-6 grid lg:grid-cols-3 gap-6">
         {/* 좌측: F5 한글표시사항 본문 (세연 구현 — 자체 진행 상태 UI 내장) */}

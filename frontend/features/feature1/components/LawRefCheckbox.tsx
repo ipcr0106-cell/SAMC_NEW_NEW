@@ -26,7 +26,7 @@ export default function LawRefCheckbox({ lawRefs, selected, onToggle }: Props) {
   }
 
   return (
-    <section className="rounded-lg border border-gray-200 bg-white p-4">
+    <section data-testid="law-ref-checkbox-list" className="rounded-lg border border-gray-200 bg-white p-4">
       <h3 className="mb-3 font-semibold text-gray-800">판정 근거 법령</h3>
       <p className="mb-3 text-xs text-gray-500">
         AI가 참조한 법령 중, 담당자가 판정 근거로 채택할 항목에 체크하세요.

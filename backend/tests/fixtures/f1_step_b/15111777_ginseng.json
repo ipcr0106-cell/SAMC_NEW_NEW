@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "INGD_SN": "700",
+      "INGD_NM": "인삼",
+      "NKNM_NM": "고려인삼, Korean ginseng",
+      "SCNNM_NM": "Panax ginseng",
+      "DRNM": "인삼",
+      "EDIBLE_INFO": "가능",
+      "EDIBLE_Y": "o",
+      "EDIBLE_N": "x",
+      "EDIBLE_USE_CONT": "뿌리",
+      "CHRTR_INFO_CONT": "뿌리만 사용 가능. 잎·줄기는 식용 불가.",
+      "ANML_INFO": "식물성"
+    }
+  ],
+  "total_count": 1,
+  "raw": {}
+}

@@ -1,0 +1,28 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 10,
+      "totalCount": 1,
+      "items": [
+        {
+          "INGD_SN": "1",
+          "INGD_NM": "가는가래",
+          "NKNM_NM": "좀가래, Little-leaf pondweed",
+          "SCNNM_NM": "Potamogeton cristatus Regel & Maack",
+          "DRNM": "-",
+          "EDIBLE_INFO": "가능",
+          "EDIBLE_Y": "o",
+          "EDIBLE_N": "x",
+          "EDIBLE_USE_CONT": "잎, 줄기",
+          "CHRTR_INFO_CONT": null,
+          "ANML_INFO": "식물성"
+        }
+      ]
+    }
+  }
+}

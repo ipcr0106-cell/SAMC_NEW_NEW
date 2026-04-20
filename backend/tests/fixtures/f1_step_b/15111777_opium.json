@@ -1,0 +1,19 @@
+{
+  "items": [
+    {
+      "INGD_SN": "500",
+      "INGD_NM": "아편",
+      "NKNM_NM": "양귀비, opium",
+      "SCNNM_NM": "Papaver somniferum",
+      "DRNM": "양귀비",
+      "EDIBLE_INFO": "불가",
+      "EDIBLE_Y": "x",
+      "EDIBLE_N": "o",
+      "EDIBLE_USE_CONT": null,
+      "CHRTR_INFO_CONT": "마약류 관리법상 수입 금지",
+      "ANML_INFO": "식물성"
+    }
+  ],
+  "total_count": 1,
+  "raw": {}
+}

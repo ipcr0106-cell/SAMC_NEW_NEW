@@ -76,5 +76,7 @@ frontend_backup_*
 병합완료된_원본/
 .gstack/
 
-# 개인 작업 스크래치 (로컬에만 유지)
-f3_작업/
+# F1 골든셋 실행 결과 JSON — 실행마다 타임스탬프 파일이 새로 생성되므로 무시.
+# 단, Wave 4 P4-a 실 API baseline(0452) 은 예외로 커밋 유지.
+backend/tests/goldenset_run_v3_*.json
+!backend/tests/goldenset_run_v3_20260420_0452.json
