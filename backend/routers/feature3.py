@@ -9,7 +9,7 @@
 """
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from db.f3_supabase_client import reload_cache, save_pipeline_step
 from models.f3_schemas import ProductInfo, RequiredDocsResponse
@@ -24,6 +24,28 @@ router = APIRouter(tags=["feature-3"])
 # f0 + F1 + F2 → F3 파이프라인 자동 연결 (PM 임의 구현)
 # 수정/삭제하고 싶으면 이 섹션만 변경하면 됩니다.
 # ════════════════════════════════════════════════════════════
+
+def _lookup_name_by_code(code: str) -> str | None:
+    """f0_ingredient_codes 테이블에서 성분코드 → name_ko 조회."""
+    import httpx
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key or not code:
+        return None
+    try:
+        r = httpx.get(
+            f"{url}/rest/v1/f0_ingredient_codes?code=eq.{code}&select=name_ko",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            timeout=5.0,
+        )
+        r.raise_for_status()
+        rows = r.json()
+        if rows:
+            return rows[0].get("name_ko")
+    except Exception:
+        pass
+    return None
+
 
 def _fetch_pipeline(case_id: str, step_key: str) -> dict | None:
     """pipeline_steps에서 특정 단계 결과를 Supabase PostgREST로 조회."""
@@ -57,10 +79,30 @@ def _build_product_info_from_pipeline(case_id: str) -> ProductInfo:
     f0 = _fetch_pipeline(case_id, "0") or {}
     basic = f0.get("basic_info") or {}
 
-    # F1 결과 → product_keywords (원재료 이름 목록)
-    f1 = _fetch_pipeline(case_id, "1") or {}
-    f1_ingredients = f1.get("ingredients") or []
-    product_keywords = [ing.get("name", "") for ing in f1_ingredients if ing.get("name")]
+    # F0 결과 → product_keywords (직접 매칭용 텍스트 리스트)
+    #                + product_ingredients (LLM 포섭 판정용 구조화 리스트)
+    f0_ingredients = f0.get("ingredients") or []
+    product_keywords = []
+    product_ingredients: list[dict] = []
+    seen: set[str] = set()
+    for ing in f0_ingredients:
+        code = ing.get("ingredient_code") or ""
+        name_ko = _lookup_name_by_code(code) if code else None
+        ocr_name = (ing.get("name") or "").strip()
+
+        # 구조화 레코드 (LLM용): 어떤 재료가 어떤 코드로 매핑되었는지 보존
+        if code or name_ko or ocr_name:
+            product_ingredients.append({
+                "code": code,
+                "name_ko": name_ko or "",
+                "ocr_name": ocr_name,
+            })
+
+        # 텍스트 키워드 리스트 (직접 매칭용): 코드·공식명·OCR 모두 후보
+        for kw in (code, name_ko, ocr_name):
+            if kw and kw not in seen:
+                product_keywords.append(kw)
+                seen.add(kw)
 
     # F2 결과 → food_type, category 등
     f2 = _fetch_pipeline(case_id, "2") or {}
@@ -90,6 +132,7 @@ def _build_product_info_from_pipeline(case_id: str) -> ProductInfo:
         is_first_import=basic.get("is_first_import", False),
         has_organic_cert=basic.get("is_organic", False),
         product_keywords=product_keywords,
+        product_ingredients=product_ingredients,
     )
 
 
@@ -111,6 +154,19 @@ async def run_feature3(case_id: str):
         "total_keep": result.total_keep,
         "warnings": result.warnings,
     }
+
+
+@router.get("/cases/{case_id}/pipeline/feature/0")
+async def get_feature0_for_f3(case_id: str):
+    """F0 파싱 결과 조회 (F3 파이프라인 입력용 — GET 엔드포인트가 F1 라우터에 없어서 여기 추가)."""
+    result = _fetch_pipeline(case_id, "0")
+    if not result:
+        raise HTTPException(404, detail={
+            "error": "F0_RESULT_NOT_FOUND",
+            "message": "F0 파싱 결과가 없습니다. 먼저 서류 업로드 및 파싱을 완료해주세요.",
+            "feature": 0,
+        })
+    return result
 
 
 @router.get("/cases/{case_id}/pipeline/feature/3")
@@ -146,6 +202,33 @@ async def search_law_context(payload: dict) -> list[dict]:
         top_k=int((payload or {}).get("top_k", 5)),
         filter_doc_ids=(payload or {}).get("filter_doc_ids"),
     )
+
+
+@router.get("/ingredient-search")
+async def search_ingredients(
+    q: str = Query("", min_length=1),
+    limit: int = Query(10, ge=1, le=30),
+) -> list[dict]:
+    """성분명 검색 → 성분코드 반환 (직접조회 자동완성용)."""
+    import httpx
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise HTTPException(503, detail="Supabase 연결 불가")
+    q_clean = q.strip()
+    if not q_clean:
+        return []
+    try:
+        r = httpx.get(
+            f"{url}/rest/v1/f0_ingredient_codes"
+            f"?name_ko=ilike.*{q_clean}*&select=code,name_ko&limit={limit}",
+            headers={"apikey": key, "Authorization": f"Bearer {key}"},
+            timeout=5.0,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        raise HTTPException(503, detail=str(e))
 
 
 @router.post("/required-docs/reload")
