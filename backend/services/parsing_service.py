@@ -53,7 +53,7 @@ ANTHROPIC_API_KEY = os.getenv("F0_ANTHROPIC_API_KEY", "")
 CLAUDE_MODEL_NAME = "claude-sonnet-4-20250514"
 # -------------------------------------------
 
-MAX_TOKENS = 8192
+MAX_TOKENS = 16000
 
 # ─────────────────────────────────────────────
 # System Prompt — 파싱 규격 정의
@@ -97,12 +97,13 @@ SYSTEM_PROMPT = f"""당신은 한국 식품 수입 검역 전문가이자 문서
    - 하나의 공정 단계(박스 1개)에 코드 1개를 원칙으로 하되, 복합 공정(예: "증류 후 바로 냉각")은 분리합니다.
    - 공정 순서를 유지해서 배열에 담습니다 (공정 흐름도 순서대로).
    - 매핑할 수 없는 공정은 가장 가까운 코드를 선택하고, raw_process_text에 원문을 보존합니다.
-   - **각 코드마다 process_code_reasons 배열에 선정 근거를 반드시 기재하세요.** 어떤 원문 텍스트를 보고 이 코드를 선택했는지 간략히 설명합니다.
-   - **process_code_candidates 배열은 반드시 작성하고, 아래 규칙을 철저히 따르세요.**
-     a) 추천 코드(is_recommended=true): process_codes에 포함된 코드 전부를 후보 배열에도 넣습니다.
-     b) 유사 코드(is_recommended=false): **추천 코드 1개당 반드시 1~2개의 유사/혼동 가능 코드를 추가**합니다. 반드시 포함하세요.
-     c) confusion_note는 절대 비워두지 마세요. "추천 코드 XX(이름)와 어떻게 다른지"를 한 문장으로 명확히 씁니다.
-     d) 자주 혼동되는 쌍 예시 (참고용, 식약처 공식 코드 기준):
+   - **process_steps 배열만 출력하세요. process_codes, process_code_reasons, process_code_candidates는 출력하지 않아도 됩니다 (백엔드에서 자동 파생).**
+   - **process_steps 배열이 핵심입니다. 각 단계마다 아래를 반드시 채우세요:**
+     a) recommended_reason: "왜 이 코드를 선택했는지" 원문 단계명을 언급하여 한 문장으로 설명합니다.
+     b) similar_codes: 해당 단계의 추천 코드와 혼동 가능한 코드를 1~2개 반드시 포함합니다 (빈 배열 금지).
+        - code, name, reason, confusion_note를 모두 채우세요.
+        - confusion_note: "추천 코드 XX(이름)와 어떻게 다른지" 한 문장으로 설명합니다.
+   - 자주 혼동되는 쌍 예시 (참고용, 식약처 공식 코드 기준):
         - 8(가열) ↔ 39(살균), 25(멸균), 7(예열)
         - 27(발효) ↔ 28(후발효), 29(배양), 71(접종)
         - 55(여과) ↔ 61(원심분리), 30(분리), 87(침전)
@@ -130,10 +131,9 @@ SYSTEM_PROMPT = f"""당신은 한국 식품 수입 검역 전문가이자 문서
    - `alcohol_percentage`: 라벨에서 알코올 도수를 숫자(float)로 추출하세요.
      예: "ALC. 14.5% BY VOL" → 14.5 / "알코올 함량 5%" → 5.0 / 주류가 아니면 null.
    - `content_volume`: 내용량 문자열을 추출하세요. 예: "500mL", "1kg", "300g×10". 없으면 빈 문자열.
-8. **제조공정도에서 투입 원료/재료도 ingredients로 추출하세요.**
-   - 공정도에 화살표로 투입되는 재료(예: Water, Yeast, Steam, Caramel, Barrel, Cap 등)를 ingredients 배열에 추가합니다.
-   - ratio는 빈 문자열(""), origin은 알 수 없으면 빈 문자열로 처리합니다.
-   - 단, 포장재(Box, Label, 병 등)는 식품 성분이 아니므로 제외합니다.
+8. **ingredients는 원재료배합비율표 기준으로만 추출하세요.**
+   - 제조공정도에 나오는 투입 재료(Water, Yeast, Steam, Barrel 등)는 ingredients에 넣지 마세요.
+   - ingredients는 반드시 원재료배합비율표(성분표)에 명시된 항목만 포함합니다.
 9. 다국어 텍스트(영어, 중국어, 일본어 등)는 한국어로 번역하여 성분명에 기재하되, 원문도 괄호 안에 병기합니다.
 10. **수출국 라벨(label) 정보 추출 — label_info 필드 채우기:**
     - `export_country`: 라벨의 원산지(Country of Origin / País de Origen) 또는 제조국을 추출. 없으면 basic_info.export_country와 동일하게 기재.
@@ -184,17 +184,6 @@ SYSTEM_PROMPT = f"""당신은 한국 식품 수입 검역 전문가이자 문서
     }}
   ],
   "process_info": {{
-    "process_codes": ["8", "27"],
-    "process_code_reasons": [
-      {{"code": "8", "name": "가열", "reason": "원문 'Bake' → 굽기/가열 공정"}},
-      {{"code": "27", "name": "발효", "reason": "원문 'Fermentation' → 발효 공정"}}
-    ],
-    "process_code_candidates": [
-      {{"code": "8",  "name": "가열",  "reason": "원문 'Bake' — 가열 공정", "is_recommended": true,  "confusion_note": ""}},
-      {{"code": "11", "name": "굽기",  "reason": "Bake는 굽기와도 연관됨",    "is_recommended": false, "confusion_note": "8(가열)은 가열 전반, 11(굽기)은 오븐·직화 굽기에 특화. 아가베 Bake는 8이 적합."}},
-      {{"code": "27", "name": "발효",  "reason": "원문 'Fermentation' — 발효", "is_recommended": true,  "confusion_note": ""}},
-      {{"code": "28", "name": "후발효","reason": "발효 이후 추가 숙성 가능",  "is_recommended": false, "confusion_note": "27(발효)은 1차 발효, 28(후발효)은 발효 완료 후 추가 숙성. 일반적으로 27이 맞음."}}
-    ],
     "process_steps": [
       {{
         "step_number": 1,
@@ -312,7 +301,14 @@ async def _call_openai(system_prompt: str, user_message: str) -> str:
                 {"role": "user", "content": user_message},
             ],
         )
-        return (completion.choices[0].message.content or "").strip()
+        choice = completion.choices[0]
+        finish_reason = choice.finish_reason
+        if finish_reason == "length":
+            logger.warning(
+                f"OpenAI 응답이 max_tokens({MAX_TOKENS})에 의해 잘렸습니다 (finish_reason=length). "
+                "process_steps가 누락될 수 있습니다."
+            )
+        return (choice.message.content or "").strip()
     except Exception as e:
         logger.error(f"OpenAI API 호출 실패: {e}")
         raise ValueError(f"OpenAI API 호출 실패: {e}")
@@ -367,8 +363,23 @@ def _parse_llm_response(response_text: str) -> ParsedResult:
     try:
         data = json.loads(cleaned.strip())
     except json.JSONDecodeError as e:
-        logger.error(f"LLM 응답 JSON 파싱 실패: {e}\n원문: {response_text[:500]}")
-        return _empty_result()
+        # 응답이 잘린 경우(max_tokens 초과) 부분 복구 시도
+        logger.warning(f"LLM JSON 파싱 실패 (잘림 가능): {e}")
+        # 마지막 완전한 '}'를 찾아 닫아주기
+        partial = cleaned.strip()
+        # 열린 중괄호 수 세어 부족한 만큼 '}'를 추가
+        open_count = partial.count("{") - partial.count("}")
+        if open_count > 0:
+            partial = partial + "}" * open_count
+            try:
+                data = json.loads(partial)
+                logger.warning("부분 JSON 복구 성공 (일부 필드 누락 가능)")
+            except json.JSONDecodeError:
+                logger.error(f"부분 복구도 실패. 원문: {response_text[:500]}")
+                return _empty_result()
+        else:
+            logger.error(f"LLM 응답 JSON 파싱 실패: {e}\n원문: {response_text[:500]}")
+            return _empty_result()
 
     bi_raw = data.get("basic_info", {})
     raw_alcohol = bi_raw.get("alcohol_percentage")
@@ -410,42 +421,7 @@ def _parse_llm_response(response_text: str) -> ParsedResult:
         ingredients.append(_parse_ingredient(ing_raw, f"ing-{idx}"))
 
     pi_raw = data.get("process_info", {})
-    # 공정 코드 근거 파싱 (하위 호환)
-    raw_reasons = pi_raw.get("process_code_reasons", [])
-    parsed_reasons: list[ProcessCodeReason] = []
-    for r in raw_reasons:
-        if isinstance(r, dict) and r.get("code"):
-            code = str(r.get("code", ""))
-            parsed_reasons.append(ProcessCodeReason(
-                code=code,
-                name=PROCESS_CODE_MAP.get(code, ""),  # 항상 공식 이름 사용
-                reason=str(r.get("reason", "")),
-            ))
-    # 공정 코드 후보 파싱 (추천 + 유사)
-    raw_candidates = pi_raw.get("process_code_candidates", [])
-    parsed_candidates: list[ProcessCodeCandidate] = []
-    for c in raw_candidates:
-        if isinstance(c, dict) and c.get("code"):
-            code = str(c.get("code", ""))
-            parsed_candidates.append(ProcessCodeCandidate(
-                code=code,
-                name=PROCESS_CODE_MAP.get(code, ""),  # LLM 제공 이름 무시, 공식 맵 사용
-                reason=str(c.get("reason", "")),
-                is_recommended=bool(c.get("is_recommended", False)),
-                confusion_note=str(c.get("confusion_note", "")),
-            ))
-    # candidates가 없으면 process_code_reasons에서 역으로 채워줌 (하위 호환)
-    if not parsed_candidates and parsed_reasons:
-        rec_codes = set(pi_raw.get("process_codes", []))
-        for r in parsed_reasons:
-            parsed_candidates.append(ProcessCodeCandidate(
-                code=r.code,
-                name=r.name,
-                reason=r.reason,
-                is_recommended=(r.code in rec_codes),
-                confusion_note="",
-            ))
-    # 단계별 공정 분석 파싱
+    # 단계별 공정 분석 파싱 (process_steps가 유일한 소스)
     raw_steps = pi_raw.get("process_steps", [])
     parsed_steps: list[ProcessStep] = []
     for s in raw_steps:
@@ -477,10 +453,43 @@ def _parse_llm_response(response_text: str) -> ParsedResult:
     # step_number 순 정렬
     parsed_steps.sort(key=lambda x: x.step_number)
 
+    # ── process_steps → 나머지 3개 배열 자동 파생 ───────────────────────────
+    # LLM은 process_steps만 출력; process_codes / process_code_reasons /
+    # process_code_candidates 는 모두 여기서 파생한다 (토큰 절약).
+
+    # 1) process_codes: 추천 코드 목록
+    derived_process_codes: list[str] = [
+        s.recommended_code for s in parsed_steps if s.recommended_code
+    ]
+
+    # 2) process_code_reasons: 추천 코드별 선정 근거
+    derived_reasons: list[ProcessCodeReason] = [
+        ProcessCodeReason(
+            code=s.recommended_code,
+            name=PROCESS_CODE_MAP.get(s.recommended_code, s.recommended_code_name),
+            reason=s.recommended_reason,
+        )
+        for s in parsed_steps if s.recommended_code
+    ]
+
+    # 3) process_code_candidates: 추천 코드(is_recommended=True) + 유사 코드(False)
+    derived_candidates: list[ProcessCodeCandidate] = []
+    for s in parsed_steps:
+        if s.recommended_code:
+            derived_candidates.append(ProcessCodeCandidate(
+                code=s.recommended_code,
+                name=PROCESS_CODE_MAP.get(s.recommended_code, s.recommended_code_name),
+                reason=s.recommended_reason,
+                is_recommended=True,
+                confusion_note="",
+            ))
+        for sim in s.similar_codes:
+            derived_candidates.append(sim)
+
     process_info = ProcessInfo(
-        process_codes=pi_raw.get("process_codes", []),
-        process_code_reasons=parsed_reasons,
-        process_code_candidates=parsed_candidates,
+        process_codes=derived_process_codes,
+        process_code_reasons=derived_reasons,
+        process_code_candidates=derived_candidates,
         process_steps=parsed_steps,
         raw_process_text=pi_raw.get("raw_process_text", ""),
         is_incomplete=bool(pi_raw.get("is_incomplete", False)),

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { ScanSearch, FileText, FileDown, Loader2, AlertTriangle } from "lucide-react";
 import BasicInfoCard from "./BasicInfoCard";
 import IngredientTable, { Ingredient } from "./IngredientTable";
-import ProcessCodeCard, { type ProcessCodeCandidate } from "./ProcessCodeCard";
+import ProcessCodeCard, { type ProcessCodeCandidate, type ProcessStep } from "./ProcessCodeCard";
 import LabelInfoCard from "./LabelInfoCard";
 import LabelImageCard from "@/components/upload/LabelImageCard";
 import Badge from "@/components/ui/Badge";
@@ -30,12 +30,17 @@ interface ParsedData {
     origin: string;
     ins_number: string;
     cas_number: string;
+    ingredient_code?: string;
+    ingredient_code_name?: string;
   }>;
   process_info: {
     process_codes: string[];
     process_code_reasons?: ProcessCodeReason[];
     process_code_candidates?: ProcessCodeCandidate[];
+    process_steps?: ProcessStep[];
     raw_process_text: string;
+    is_incomplete?: boolean;
+    incomplete_reason?: string;
   };
   label_info?: {
     export_country: string;
@@ -167,6 +172,7 @@ export default function OcrResultEditor({
   const [processCodes, setProcessCodes] = useState<string[]>([]);
   const [processCodeReasons, setProcessCodeReasons] = useState<ProcessCodeReason[]>([]);
   const [processCodeCandidates, setProcessCodeCandidates] = useState<ProcessCodeCandidate[]>([]);
+  const [processSteps, setProcessSteps] = useState<ProcessStep[]>([]);
   const [rawProcessText, setRawProcessText] = useState("");
 
   // 수출국/OEM
@@ -205,12 +211,15 @@ export default function OcrResultEditor({
         origin: ing.origin,
         insNumber: ing.ins_number,
         casNumber: ing.cas_number,
+        ingredientCode: ing.ingredient_code || "",
+        ingredientCodeName: ing.ingredient_code_name || "",
       }))
     );
 
     setProcessCodes(parsedData.process_info.process_codes || []);
     setProcessCodeReasons(parsedData.process_info.process_code_reasons || []);
     setProcessCodeCandidates(parsedData.process_info.process_code_candidates || []);
+    setProcessSteps(parsedData.process_info.process_steps || []);
     setRawProcessText(parsedData.process_info.raw_process_text || "");
 
     // label_info가 있으면 그쪽 값 사용, 없으면 basic_info에서 가져옴
@@ -265,9 +274,14 @@ export default function OcrResultEditor({
         origin: item.origin,
         ins_number: item.insNumber || "",
         cas_number: item.casNumber || "",
+        ingredient_code: item.ingredientCode || "",
+        ingredient_code_name: item.ingredientCodeName || "",
       })),
       process_info: {
         process_codes: codes,
+        process_code_reasons: processCodeReasons,
+        process_code_candidates: processCodeCandidates,
+        process_steps: processSteps,
         raw_process_text: rawProcessText,
       },
       label_info: {
@@ -491,6 +505,7 @@ export default function OcrResultEditor({
             rawProcessText={rawProcessText || undefined}
             processCodeReasons={processCodeReasons.length > 0 ? processCodeReasons : undefined}
             processCodeCandidates={processCodeCandidates.length > 0 ? processCodeCandidates : undefined}
+            processSteps={processSteps.length > 0 ? processSteps : undefined}
           />
 
           <LabelInfoCard
