@@ -7,7 +7,9 @@ PATCH /cases/{case_id}/pipeline/feature/2        : 담당자 결과 수정
 """
 
 import json
+import logging
 import os
+import re
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -16,10 +18,66 @@ from pydantic import BaseModel
 
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/cases", tags=["feature2-food-type"])
 
 STEP_KEY  = "2"
 STEP_NAME = "food_type"
+
+
+# ─────────────────────────────────────────────────────────────
+# P7 (2026-04-20) — law_ref 환각 차단
+# LLM 이 RAG 밖 법령을 지어내는 회귀를 막기 위해 2단 검증:
+#   1) RAG chunks 를 score >= _RAG_MIN_SCORE 로 필터 후 프롬프트 주입
+#   2) 분류 후 law_ref 에 _F2_LAW_WHITELIST 또는 RAG 원문에 있는 법령명이
+#      포함돼 있는지 확인 — 없으면 빈 문자열로 치환
+# ─────────────────────────────────────────────────────────────
+_RAG_MIN_SCORE = 0.35
+
+_F2_LAW_WHITELIST: frozenset[str] = frozenset({
+    "식품위생법",
+    "식품의 기준 및 규격",
+    "식품첨가물의 기준 및 규격",
+    "건강기능식품에 관한 법률",
+    "건강기능식품의 기준 및 규격",
+    "수입식품안전관리 특별법",
+    "주세법",
+    "축산물 위생관리법",
+    "축산물의 가공기준 및 성분규격",
+    "식품등의 표시·광고에 관한 법률",
+    "식품등의 표시광고에 관한 법률",
+})
+
+
+def _filter_rag_chunks(chunks: list[dict], min_score: float = _RAG_MIN_SCORE) -> list[dict]:
+    """score threshold 미만 RAG 청크 제거 — bi-encoder 유사도가 낮으면 noise."""
+    return [c for c in chunks if float(c.get("score") or 0) >= min_score]
+
+
+def _validate_law_ref(law_ref: str, rag_chunks: list[dict]) -> str:
+    """law_ref 가 whitelist 또는 RAG 원문의 법령을 포함하는지 검증.
+
+    둘 다 아니면 빈 문자열 반환 + 경고 로그. 프롬프트에 넣은 RAG 밖 법령을
+    LLM 이 지어냈을 가능성이 높으므로 UI 에 노출하지 않는다.
+    """
+    if not law_ref:
+        return ""
+    text = law_ref.strip()
+
+    for law in _F2_LAW_WHITELIST:
+        if law in text:
+            return text
+
+    rag_text = " ".join(c.get("text", "") for c in rag_chunks)
+    # RAG 원문에서 "「법령명」" 패턴 추출 — 한국 법령 표기 관례
+    rag_laws = set(re.findall(r"[「『](.+?)[」』]", rag_text))
+    for law in rag_laws:
+        if law and law in text:
+            return text
+
+    logger.warning("F2 law_ref 환각 차단: %r", text[:160])
+    return ""
 
 
 # ── 지연 초기화 클라이언트 ────────────────────────────────────────────
@@ -112,12 +170,16 @@ def _classify_with_llm(
     """
     OpenAI GPT-4o 로 식품유형 분류.
     반환 형식: {food_type, category_name, category_no, law_ref, reason, is_alcohol}
+
+    P7 (2026-04-20):
+        - RAG 청크는 호출자가 score threshold 필터 후 전달 (환각 억제).
+        - 프롬프트에 "RAG 밖 법령 금지 / 확신 없으면 빈 문자열" 강제.
     """
-    # RAG 컨텍스트 구성 (상위 5개)
+    # RAG 컨텍스트 구성 (상위 5개 — 이미 threshold 필터 완료된 결과 기대)
     rag_text = "\n".join(
         f"[{c['food_group']} / {c['type_name']}] {c['text'][:300]}"
         for c in rag_chunks[:5]
-    )
+    ) or "(관련도 높은 RAG 결과 없음 — law_ref 는 반드시 빈 문자열)"
 
     # 후보 식품유형 목록 구성
     candidate_text = "\n".join(
@@ -135,13 +197,22 @@ def _classify_with_llm(
         "  - 중분류(식품종): 대분류 안의 중간 분류 (예: '증류주류', '발효주류'). "
         "    명시적인 중분류가 없는 경우 대분류명을 그대로 사용하세요. 절대 null을 반환하지 마세요.\n"
         "  - 소분류(식품유형): 최종 식품유형 (예: '위스키', '과자')\n\n"
+        "【law_ref 엄격 규칙 — 반드시 준수】\n"
+        "  1. 아래 '관련 법령 검색 결과 (RAG)' 에 실제로 등장한 법령명만 인용하세요.\n"
+        "  2. 또는 다음 공식 법령 화이트리스트 중 하나에서만 선택:\n"
+        "     식품위생법 / 식품의 기준 및 규격 / 식품첨가물의 기준 및 규격 /\n"
+        "     건강기능식품에 관한 법률 / 건강기능식품의 기준 및 규격 /\n"
+        "     수입식품안전관리 특별법 / 주세법 / 축산물 위생관리법 /\n"
+        "     축산물의 가공기준 및 성분규격 / 식품등의 표시·광고에 관한 법률\n"
+        "  3. 확신이 없거나 RAG/화이트리스트에 없으면 반드시 빈 문자열 \"\" 을 반환.\n"
+        "     임의 법령명·조항·고시번호를 절대 지어내지 마세요.\n\n"
         "반드시 아래 JSON 형식으로만 응답하세요:\n"
         "{\n"
         '  "category_name": "대분류명=식품군 (예: 주류)",\n'
         '  "category_no": "대분류 번호 (예: 15)",\n'
         '  "subcategory_name": "중분류명=식품종 (예: 증류주류) 또는 null",\n'
         '  "food_type": "소분류명=식품유형 (예: 위스키)",\n'
-        '  "law_ref": "근거 법령 및 조항",\n'
+        '  "law_ref": "근거 법령명 + 조항 (위 규칙 준수, 없으면 \\"\\")",\n'
         '  "reason": "분류 근거 2~3줄 설명",\n'
         '  "is_alcohol": true 또는 false\n'
         "}"
@@ -149,7 +220,7 @@ def _classify_with_llm(
 
     user_prompt = (
         f"## 원재료 / 제조공정 정보\n{parsed_text[:3000]}\n\n"
-        f"## 관련 법령 검색 결과 (RAG)\n{rag_text}\n\n"
+        f"## 관련 법령 검색 결과 (RAG — score≥{_RAG_MIN_SCORE} 필터됨)\n{rag_text}\n\n"
         f"## 후보 식품유형 목록\n{candidate_text}\n\n"
         "위 정보를 바탕으로 이 제품의 식품유형을 분류하세요. "
         "가장 적합한 소분류 식품유형 하나를 결정하고 JSON으로 반환하세요."
@@ -356,15 +427,22 @@ def run_feature2(case_id: str):
     ).execute()
 
     try:
-        # 4. Pinecone RAG 검색
+        # 4. Pinecone RAG 검색 + P7 threshold 필터 (환각 억제)
         query_vec      = _embed(parsed_text[:2000], clients["openai"])
-        rag_chunks     = _search_pinecone(query_vec, clients, top_k=8)
+        raw_rag_chunks = _search_pinecone(query_vec, clients, top_k=8)
+        rag_chunks     = _filter_rag_chunks(raw_rag_chunks, min_score=_RAG_MIN_SCORE)
 
         # 5. DB 후보 식품유형 조회
         candidate_types = _get_candidate_types(parsed_text, clients)
 
         # 6. LLM 분류
         classification = _classify_with_llm(parsed_text, rag_chunks, candidate_types, clients)
+
+        # 6-a. P7 law_ref 환각 차단 — RAG/whitelist 에 없는 법령은 빈 문자열로 치환
+        classification["law_ref"] = _validate_law_ref(
+            classification.get("law_ref") or "",
+            rag_chunks,
+        )
 
         # 7. 분류된 식품유형에 맞는 필요서류 조회
         required_docs  = _get_required_docs(classification.get("food_type", ""), clients)
