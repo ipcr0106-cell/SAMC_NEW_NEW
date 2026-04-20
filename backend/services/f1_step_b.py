@@ -297,6 +297,24 @@ def _primary_condition(hits: List[dict]) -> Optional[str]:
     return None
 
 
+def _check_part_compatibility(
+    ing_part: Optional[str], edible_parts: Optional[str]
+) -> bool:
+    """라벨 사용 부위(`ing_part`) 가 식용 가능 부위(`edible_parts`) 에 포함되는지.
+
+    비교 규칙 (관대하게):
+        - 둘 중 하나라도 비어있으면 True (검증 불가 → 통과)
+        - 부분 문자열 매칭 (예: ing_part='뿌리' / edible='뿌리,줄기' → True)
+        - 양쪽 strip 후 비교
+
+    Returns:
+        True 면 호환 (또는 검증 불가), False 면 명시적 불일치.
+    """
+    if not ing_part or not edible_parts:
+        return True
+    return ing_part.strip() in edible_parts
+
+
 def _primary_edible_parts(hits: List[dict]) -> Optional[str]:
     """첫 번째 `EDIBLE_USE_CONT` (식용 가능 부위)."""
     for h in hits:
@@ -662,10 +680,24 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
             if verdict == "restricted":
                 ing.restriction_condition = _primary_condition(matched)
                 ing.edible_parts = _primary_edible_parts(matched)
+                ing.law_source = "식품의 기준 및 규격 (조건부 사용)"
                 conditional.append(ing)
             elif verdict == "allowed":
                 ing.edible_parts = _primary_edible_parts(matched)
+                ing.law_source = "식품의 기준 및 규격 (사용 가능 원료)"
+                # P6 (2026-04-20): 사용 부위 검증 — 라벨 부위가 식용 가능 부위에
+                # 포함되지 않으면 restricted 강제 (담당자 HITL 확인 유도).
+                # 예: 감초 — 식용=뿌리, 라벨=잎 → 약용 부위 → restricted
+                if not _check_part_compatibility(ing.part, ing.edible_parts):
+                    ing.allow_verdict = "restricted"
+                    ing.restriction_condition = (
+                        f"라벨 사용 부위 '{ing.part}' 가 식용 가능 부위 "
+                        f"'{ing.edible_parts}' 에 포함되지 않음 — 담당자 확인 필요"
+                    )
+                    ing.law_source = "식품의 기준 및 규격 (사용 부위 제한)"
+                    conditional.append(ing)
             elif verdict == "prohibited":
+                ing.law_source = "식품의 기준 및 규격 [별표 3] 사용할 수 없는 원료"
                 stopped = True
             elif verdict == "unidentified":
                 if ing.name not in unidentified:

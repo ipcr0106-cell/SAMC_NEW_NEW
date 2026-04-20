@@ -305,6 +305,17 @@ class QueryContext(BaseModel):
         default_factory=list,
         description="Step C fail 항목 (원재료명 + 시험항목)",
     )
+    # P6 (2026-04-20) — Step D 키워드 정확도 강화
+    # food_type 만으로는 ingredient.name (예: "밀가루") 자체가 키워드에서 빠져
+    # _FALLBACK 으로 무관 article 5건이 반환되는 회귀를 차단하기 위해 추가.
+    ingredient_names: list[str] = Field(
+        default_factory=list,
+        description="Step B enriched 또는 raw ingredients 의 원재료명 — Step D 키워드 (P6 추가)",
+    )
+    ingredient_codes: list[str] = Field(
+        default_factory=list,
+        description="Step B 의 component_code (data.go.kr 15094202) — 첨가물 item_cd 매칭 (P6 추가)",
+    )
 
 
 class StepDResult(BaseModel):

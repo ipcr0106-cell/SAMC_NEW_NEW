@@ -46,7 +46,8 @@ export default function StandardsSummary({ checks }: Props) {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-xs text-gray-600">
             <tr>
-              <th className="px-4 py-2 text-left font-medium">원료/항목</th>
+              <th className="px-4 py-2 text-left font-medium">원료</th>
+              <th className="px-4 py-2 text-left font-medium">시험항목</th>
               <th className="px-4 py-2 text-right font-medium">실측</th>
               <th className="px-4 py-2 text-right font-medium">기준</th>
               <th className="px-4 py-2 text-left font-medium">단위</th>
@@ -58,15 +59,22 @@ export default function StandardsSummary({ checks }: Props) {
           <tbody>
             {checks.map((c, idx) => (
               <tr
-                key={`${c.ingredient_name}-${idx}`}
+                key={`${c.ingredient_name}-${c.test_category ?? ""}-${idx}`}
                 className="border-t border-gray-100"
               >
                 <td className="px-4 py-2 font-medium">{c.ingredient_name}</td>
+                <td className="px-4 py-2 text-xs text-gray-700">
+                  {c.test_category ?? "-"}
+                </td>
                 <td className="px-4 py-2 text-right">
                   {c.actual_value != null ? c.actual_value : "-"}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  {c.threshold_value != null ? c.threshold_value : "-"}
+                  {c.threshold_text
+                    ? c.threshold_text
+                    : c.threshold_value != null
+                      ? c.threshold_value
+                      : "-"}
                 </td>
                 <td className="px-4 py-2 text-xs text-gray-500">{c.unit}</td>
                 <td

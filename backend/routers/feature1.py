@@ -308,8 +308,10 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
                     actual = None
 
             threshold: Optional[float] = ch.get("threshold_value")
-            unit = ch.get("unit_normalized") or ch.get("unit_original") or ""
-            spec_raw = ch.get("spec_raw") or ""
+            # P6 (2026-04-20): 식품공전 원본 단위(%, g/100g 등) 가 사용자에게
+            # 더 자연스러우므로 unit_original 우선. 정규화 단위(mg/kg) 는 fallback.
+            unit = ch.get("unit_original") or ch.get("unit_normalized") or ""
+            spec_raw = ch.get("spec_summary") or ch.get("spec_raw") or ""
 
             status_raw = ch.get("status", "no_data")
             status_map_c = {
@@ -321,6 +323,7 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
             standards_slim.append(
                 {
                     "ingredient_name": ch.get("ingredient_name", ""),
+                    "test_category": ch.get("test_category"),
                     "actual_value": actual,
                     "unit": unit,
                     "threshold_value": threshold,
@@ -368,6 +371,7 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
                 item.get("allow_verdict") or "unidentified", "unidentified"
             )
             counts[v_legacy] = counts.get(v_legacy, 0) + 1
+            mm = item.get("match_method")  # P6: step_b enriched_summary 에서 패스스루
             results_detail.append(
                 {
                     "ingredient": {
@@ -378,11 +382,12 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
                         "part": None,
                     },
                     "verdict": v_legacy,
-                    "match_method": None,
-                    "matched_db_id": None,
-                    "confidence": 1.0 if v_legacy != "unidentified" else 0.0,
-                    "matched_name_ko": None,
-                    "law_source": None,
+                    "match_method": mm,
+                    "matched_db_id": item.get("ingredient_code_f0"),
+                    # 매칭 방법이 있을 때만 신뢰도 의미. 없으면 None (UI는 "-")
+                    "confidence": 1.0 if mm else 0.0,
+                    "matched_name_ko": item.get("matched_name_ko"),
+                    "law_source": item.get("law_source"),
                 }
             )
         # step_b.unidentified (이름 목록) 도 별도 항목으로 추가 (enriched 에서 누락된 경우)
@@ -421,6 +426,20 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
             }
         )
 
+    # P6 (2026-04-20): LawRefCheckbox (판정 근거 법령) 채움.
+    # law_source 는 React key + selectedLawRefs Set 식별자이므로 unique 필수 →
+    # "법령명 — 조항" 합쳐 unique. label 합성은 컴포넌트가 law_source 만 표시.
+    internal_law_refs: list[dict] = []
+    seen_refs: set[str] = set()
+    for c in out.evidence_laws:
+        ln = (c.get("law_name") or "").strip()
+        an = (c.get("article_no") or "").strip()
+        src = f"{ln} — {an}".strip(" —") if (ln or an) else ""
+        if not src or src in seen_refs:
+            continue
+        seen_refs.add(src)
+        internal_law_refs.append({"law_source": src, "law_article": None})
+
     # escalations: warnings 를 EscalationDetail 형태로 파싱
     # 예: "step_a_api_error:대두:TIMEOUT" → module_id="step_a_api_error", reason=전체 문자열
     internal_escalations: list[dict] = []
@@ -453,7 +472,7 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
             "law_citations": internal_law_citations,
             "escalations": internal_escalations,
             "conditional_evaluations": [],
-            "law_refs": [],
+            "law_refs": internal_law_refs,
             "rag_verdict": None,
             "rag_reasoning": None,
             "conflict_status": "rag_skipped",
@@ -534,7 +553,11 @@ def _fetch_f0_parsed_result(case_id: str) -> Optional[dict]:
 
 
 def _convert_f0_to_f1_ingredients(parsed: dict) -> list[Ingredient]:
-    """f0 ParsedResult.ingredients → F1 Ingredient 리스트 변환."""
+    """f0 ParsedResult.ingredients → F1 Ingredient 리스트 변환.
+
+    P6 (2026-04-20): F0 매칭 메타(ingredient_code_name, ingredient_code) 패스스루.
+    매칭 방법은 코드/명칭 일치 유무로 추론.
+    """
     f0_ingredients = parsed.get("ingredients") or []
     result = []
     for item in f0_ingredients:
@@ -547,11 +570,27 @@ def _convert_f0_to_f1_ingredients(parsed: dict) -> list[Ingredient]:
             except (ValueError, TypeError):
                 pass
 
+        raw_name = item.get("name", "")
+        matched_ko = item.get("ingredient_code_name") or None
+        code_f0 = item.get("ingredient_code") or None
+        # 매칭 방법 추론 (F0 가 raw method 미저장 → 결과 기반 추론)
+        if not code_f0:
+            match_method = None  # 미매칭
+        elif matched_ko and matched_ko == raw_name:
+            match_method = "exact_name"
+        else:
+            match_method = "code_normalize"
+
         result.append(Ingredient(
-            name=item.get("name", ""),
+            name=raw_name,
+            matched_name_ko=matched_ko,
+            ingredient_code_f0=code_f0,
+            match_method=match_method,
             percentage=pct,
             ins=item.get("ins_number") or None,
             cas=item.get("cas_number") or None,
+            # P6 (2026-04-20): 사용 부위 패스스루 — Step B 가 edible_parts 와 비교 검증
+            part=item.get("part") or None,
         ))
     return result
 

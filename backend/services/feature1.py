@@ -364,6 +364,10 @@ async def run_feature1_v2(
             query_ctx = QueryContext(
                 food_type=food_type,
                 forbidden_hits=step_a.forbidden_hits,
+                ingredient_names=[
+                    getattr(i, "name", "") for i in ingredients
+                    if getattr(i, "name", "")
+                ],
             )
             step_d = await f1_step_d.run_step_d(query_ctx)
             return F1Output(
@@ -406,6 +410,12 @@ async def run_feature1_v2(
                         "allow_verdict": getattr(i, "allow_verdict", None),
                         "component_code": getattr(i, "component_code", None),
                         "is_gmo": getattr(i, "is_gmo", None),
+                        # P6 추가 — 원재료 매칭 상세 컬럼 채움용
+                        "matched_name_ko": getattr(i, "matched_name_ko", None),
+                        "ingredient_code_f0": getattr(i, "ingredient_code_f0", None),
+                        "match_method": getattr(i, "match_method", None),
+                        "law_source": getattr(i, "law_source", None),
+                        "percentage": getattr(i, "percentage", None),
                     }
                     for i in enriched
                 ],
@@ -422,6 +432,14 @@ async def run_feature1_v2(
                 food_type=food_type,
                 forbidden_hits=step_a.forbidden_hits,
                 restricted_ingredients=restricted_names,
+                ingredient_names=[
+                    getattr(i, "name", "") for i in enriched
+                    if getattr(i, "name", "")
+                ],
+                ingredient_codes=[
+                    getattr(i, "component_code", "") or "" for i in enriched
+                    if getattr(i, "component_code", None)
+                ],
             )
             step_d = await f1_step_d.run_step_d(query_ctx)
             return F1Output(
@@ -480,6 +498,14 @@ async def run_feature1_v2(
             forbidden_hits=[],
             restricted_ingredients=restricted_names,
             failed_standards=failed_standards,
+            ingredient_names=[
+                getattr(i, "name", "") for i in enriched
+                if getattr(i, "name", "")
+            ],
+            ingredient_codes=[
+                getattr(i, "component_code", "") or "" for i in enriched
+                if getattr(i, "component_code", None)
+            ],
         )
         step_d = await f1_step_d.run_step_d(query_ctx)
         evidence_laws = [c.model_dump() for c in step_d.citations]

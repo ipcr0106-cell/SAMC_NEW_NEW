@@ -11,8 +11,9 @@ interface Props {
   results: IngredientMatchDetail[];
 }
 
-const METHOD_LABEL: Record<NonNullable<IngredientMatchDetail["match_method"]>, string> = {
+const METHOD_LABEL: Record<string, string> = {
   exact_name: "정확명",
+  code_normalize: "코드 정규화",
   ins_number: "INS",
   cas_number: "CAS",
   scientific_name: "학명",
@@ -54,12 +55,10 @@ export default function IngredientMatchTable({ results }: Props) {
             <tr>
               <th className="px-4 py-2 text-left font-medium">상태</th>
               <th className="px-4 py-2 text-left font-medium">원본명</th>
-              <th className="px-4 py-2 text-left font-medium">매칭명(정규화 후)</th>
+              <th className="px-4 py-2 text-left font-medium">매칭명(한글 표준)</th>
               <th className="px-4 py-2 text-left font-medium">배합비(%)</th>
               <th className="px-4 py-2 text-left font-medium">매칭 방법</th>
-              <th className="px-4 py-2 text-left font-medium">신뢰도</th>
-              <th className="px-4 py-2 text-left font-medium">조건</th>
-              <th className="px-4 py-2 text-left font-medium">법령</th>
+              <th className="px-4 py-2 text-left font-medium">법령 출처</th>
             </tr>
           </thead>
           <tbody>
@@ -71,7 +70,7 @@ export default function IngredientMatchTable({ results }: Props) {
                 <td className="px-4 py-2">{VERDICT_ICON[r.verdict]}</td>
                 <td className="px-4 py-2 font-medium">{r.ingredient.name}</td>
                 <td className="px-4 py-2 text-gray-700">
-                  {r.matched_name_ko && r.matched_name_ko !== r.ingredient.name ? (
+                  {r.matched_name_ko ? (
                     <span>{r.matched_name_ko}</span>
                   ) : (
                     <span className="text-gray-400">-</span>
@@ -81,13 +80,9 @@ export default function IngredientMatchTable({ results }: Props) {
                   {r.ingredient.percentage != null ? `${r.ingredient.percentage}%` : "-"}
                 </td>
                 <td className="px-4 py-2 text-xs text-gray-600">
-                  {r.match_method ? METHOD_LABEL[r.match_method] : "미매칭"}
-                </td>
-                <td className="px-4 py-2 text-xs">
-                  {r.confidence > 0 ? `${(r.confidence * 100).toFixed(0)}%` : "-"}
-                </td>
-                <td className="px-4 py-2 text-xs text-gray-600">
-                  {r.conditions ?? "-"}
+                  {r.match_method
+                    ? METHOD_LABEL[r.match_method] ?? r.match_method
+                    : "미매칭"}
                 </td>
                 <td className="px-4 py-2 text-xs text-gray-500">
                   {r.law_source ?? "-"}

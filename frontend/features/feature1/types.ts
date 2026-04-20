@@ -81,6 +81,7 @@ export interface IngredientMatchDetail {
   verdict: "permitted" | "restricted" | "prohibited" | "unidentified";
   match_method:
     | "exact_name"
+    | "code_normalize"
     | "ins_number"
     | "cas_number"
     | "scientific_name"
