@@ -322,6 +322,7 @@ async def _save_crop_record(
     original_storage_path: str,
     source_hash: str,
     image_index: int,          # 동일 파일 내 몇 번째 이미지 (0-based)
+    page_bytes: bytes,         # 크롭 전 전체 페이지 이미지 (f4 인증마크 분석용)
     cropped_bytes: bytes,
     bbox: dict,
     width: int,
@@ -438,7 +439,14 @@ async def process_label_image(
                 cw, ch = _img.size
             except Exception:
                 cw, ch = 0, 0
-            crops.append({"cropped_bytes": page_bytes, "bbox": {}, "width": cw, "height": ch, "texts": texts})
+            crops.append({
+                "page_bytes": page_bytes,       # f4 인증마크 분석용 (크롭 전 원본)
+                "cropped_bytes": page_bytes,
+                "bbox": {},
+                "width": cw,
+                "height": ch,
+                "texts": texts,
+            })
             continue
 
         for bbox_idx, bbox_info in enumerate(bboxes):
@@ -449,6 +457,7 @@ async def process_label_image(
                 continue
             # 첫 번째 bbox만 texts 공유, 나머지는 빈 texts
             crops.append({
+                "page_bytes": page_bytes,       # f4 인증마크 분석용 (크롭 전 원본)
                 "cropped_bytes": cropped_bytes,
                 "bbox": bbox,
                 "width": cw,
@@ -467,6 +476,7 @@ async def process_label_image(
             original_storage_path=original_storage_path,
             source_hash=source_hash,
             image_index=image_index,
+            page_bytes=crop["page_bytes"],      # f4 인증마크 분석용 (크롭 전 원본)
             cropped_bytes=crop["cropped_bytes"],
             bbox=crop["bbox"],
             width=crop["width"],
