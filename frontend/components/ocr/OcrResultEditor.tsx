@@ -12,6 +12,7 @@ import { downloadParsedResultFile, getLabelImages, type LabelImageData } from "@
 
 interface ProcessCodeReason {
   code: string;
+  name?: string;
   reason: string;
 }
 
@@ -22,6 +23,8 @@ interface ParsedData {
     is_first_import: boolean;
     is_organic: boolean;
     is_oem: boolean;
+    /** 일본산일 때 F3 전달용 도·현 코드 ("후쿠시마" 또는 "일본34개도부현") */
+    japan_prefecture_code?: string;
   };
   ingredients: Array<{
     id: string;
@@ -179,6 +182,9 @@ export default function OcrResultEditor({
   const [exportCountry, setExportCountry] = useState("");
   const [isOem, setIsOem] = useState(false);
 
+  // 일본 도·현 코드 (일본산일 때만 사용)
+  const [japanPrefectureCode, setJapanPrefectureCode] = useState("");
+
   // 라벨 정보
   const [labelTexts, setLabelTexts] = useState<string[]>([]);
   const [designDescription, setDesignDescription] = useState("");
@@ -226,6 +232,7 @@ export default function OcrResultEditor({
     const li = parsedData.label_info;
     setExportCountry(li?.export_country || parsedData.basic_info.export_country || "");
     setIsOem(li?.is_oem ?? parsedData.basic_info.is_oem ?? false);
+    setJapanPrefectureCode(parsedData.basic_info.japan_prefecture_code ?? "");
     setLabelTexts(li?.label_texts || []);
     setDesignDescription(li?.design_description || "");
     setWarnings(li?.warnings || []);
@@ -242,6 +249,7 @@ export default function OcrResultEditor({
     processCodes?: string[];
     exportCountry?: string;
     isOem?: boolean;
+    japanPrefectureCode?: string;
     labelTexts?: string[];
     designDescription?: string;
     warnings?: string[];
@@ -253,6 +261,7 @@ export default function OcrResultEditor({
     const codes = overrides.processCodes ?? processCodes;
     const country = overrides.exportCountry ?? exportCountry;
     const oem = overrides.isOem ?? isOem;
+    const jpCode = overrides.japanPrefectureCode ?? japanPrefectureCode;
     const lt = overrides.labelTexts ?? labelTexts;
     const dd = overrides.designDescription ?? designDescription;
     const w = overrides.warnings ?? warnings;
@@ -266,6 +275,7 @@ export default function OcrResultEditor({
         is_first_import: bi.isFirstImport,
         is_organic: bi.isOrganic,
         is_oem: oem,
+        ...(jpCode ? { japan_prefecture_code: jpCode } : {}),
       },
       ingredients: ing.map((item) => ({
         id: item.id,
@@ -293,7 +303,7 @@ export default function OcrResultEditor({
       },
       selected_label_image_ids: selIds,
     });
-  }, [basicInfo, ingredients, processCodes, exportCountry, isOem, labelTexts, designDescription, warnings, rawProcessText, selectedLabelImageIds, onDataChange]);
+  }, [basicInfo, ingredients, processCodes, exportCountry, isOem, japanPrefectureCode, labelTexts, designDescription, warnings, rawProcessText, selectedLabelImageIds, onDataChange]);
 
   // 라벨 이미지 선택 핸들러
   const handleLabelImageSelectionChange = useCallback(
@@ -332,7 +342,21 @@ export default function OcrResultEditor({
   const handleExportCountryChange = useCallback(
     (country: string) => {
       setExportCountry(country);
-      notifyParent({ exportCountry: country });
+      // 수출국이 일본이 아니면 도·현 코드 초기화
+      if (country !== "일본") {
+        setJapanPrefectureCode("");
+        notifyParent({ exportCountry: country, japanPrefectureCode: "" });
+      } else {
+        notifyParent({ exportCountry: country });
+      }
+    },
+    [notifyParent]
+  );
+
+  const handleJapanPrefectureCodeChange = useCallback(
+    (code: string) => {
+      setJapanPrefectureCode(code);
+      notifyParent({ japanPrefectureCode: code });
     },
     [notifyParent]
   );
@@ -502,6 +526,8 @@ export default function OcrResultEditor({
             onExportCountryChange={handleExportCountryChange}
             isOem={isOem}
             onOemChange={handleOemChange}
+            japanPrefectureCode={japanPrefectureCode}
+            onJapanPrefectureCodeChange={handleJapanPrefectureCodeChange}
             rawProcessText={rawProcessText || undefined}
             processCodeReasons={processCodeReasons.length > 0 ? processCodeReasons : undefined}
             processCodeCandidates={processCodeCandidates.length > 0 ? processCodeCandidates : undefined}

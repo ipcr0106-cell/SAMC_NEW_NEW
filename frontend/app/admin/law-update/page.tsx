@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import { F3UpdateFlow } from "@/features/feature3/admin/F3UpdateFlow";
 
 // ── 타입 ──
 
@@ -76,6 +77,9 @@ export default function LawUpdatePage() {
   const [laws, setLaws] = useState<LawInfo[]>([]);
   const [slots, setSlots] = useState<UploadSlot[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 탭: "f3" (수입필요서류 안내 — preview/rollback 플로우) vs "bulk" (기존 일괄 업로드)
+  const [activeTab, setActiveTab] = useState<"f3" | "bulk">("f3");
 
   // 업데이트 진행 상태
   const [isUpdating, setIsUpdating] = useState(false);
@@ -232,6 +236,35 @@ export default function LawUpdatePage() {
 
       {/* ── 본문 ── */}
       <div className="pt-[96px] pb-20 max-w-[1280px] mx-auto px-8">
+        {/* 탭 전환 */}
+        <div className="mb-6 flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab("f3")}
+            className={`px-5 py-2 text-[13.5px] font-semibold rounded-md transition-colors ${
+              activeTab === "f3"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            수입필요서류 안내 (미리보기 · 롤백)
+          </button>
+          <button
+            onClick={() => setActiveTab("bulk")}
+            className={`px-5 py-2 text-[13.5px] font-semibold rounded-md transition-colors ${
+              activeTab === "bulk"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            기타 법령 일괄 업데이트 (F1/F2/F4)
+          </button>
+        </div>
+
+        {/* F3 탭 — 미리보기/편집/롤백 플로우 */}
+        {activeTab === "f3" && <F3UpdateFlow />}
+
+        {/* bulk 탭 — 기존 일괄 업로드 UI */}
+        {activeTab === "bulk" && (<>
         {/* 설명 */}
         <div className="mb-8">
           <h2 className="text-[28px] font-extrabold text-slate-900">
@@ -277,6 +310,7 @@ export default function LawUpdatePage() {
             {isUpdating ? "업데이트 진행 중..." : "선택한 법령 업데이트"}
           </button>
         </div>
+        </>)}
       </div>
 
       {/* ── 진행도 모달 ── */}
