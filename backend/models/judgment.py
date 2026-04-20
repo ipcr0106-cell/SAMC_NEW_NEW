@@ -40,6 +40,12 @@ LimitCheckStatus = Literal["pass", "fail", "warning", "no_data"]
 LimitCategory = Literal[
     "additive", "heavy_metal", "microbe", "pesticide", "alcohol", "contaminant"
 ]
+# F1 재설계 allow_verdict 값 집합 (07번 §2-1, W1-B 추가).
+# 주의: 기존 IngredientVerdict ("permitted"|"restricted"|"prohibited"|"unidentified") 와
+#        allow_verdict ("allowed"|"restricted"|"prohibited"|"unidentified") 는 의미상 동일하나
+#        네이밍이 다르다. "permitted" ↔ "allowed" 매핑이 필요한 경우
+#        Step B(W2-B)에서 변환하여 채운다. 이 파일에서는 07번 사양 그대로 snake_case 유지.
+AllowVerdict = Literal["allowed", "restricted", "prohibited", "unidentified"]
 
 
 # ============================================================
@@ -48,7 +54,7 @@ LimitCategory = Literal[
 
 
 class Ingredient(BaseModel):
-    """원재료 입력 단위."""
+    """원재료 입력 단위 — W1-B 신규 필드 6종 추가 (07번 §2-1)."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -62,6 +68,36 @@ class Ingredient(BaseModel):
     is_allergen: Optional[bool] = Field(None, description="라벨상 알레르겐 표시 여부 — 현재 미사용, F3 연동용으로 예약")
     sub_ingredients: Optional[list["Ingredient"]] = Field(
         None, description="복합원재료 하위 성분"
+    )
+
+    # ── W1-B 신규 필드 (07번 §2-1) ──────────────────────────────
+    component_code: Optional[str] = Field(
+        None,
+        description="15094202 성분코드 CPNT_CD (UI 표시·감사 추적용)",
+    )
+    allow_verdict: Optional[AllowVerdict] = Field(
+        None,
+        description=(
+            "Step B 매칭 결과 판정값. "
+            "매핑: 'allowed'=허용, 'restricted'=조건부, 'prohibited'=금지, 'unidentified'=미확인. "
+            "기존 IngredientVerdict의 'permitted'는 'allowed'에 대응 (Step B에서 변환)."
+        ),
+    )
+    restriction_condition: Optional[str] = Field(
+        None,
+        description="조건부 허용 조건 텍스트 (CHRTR_INFO_CONT, HITL-1 표시용)",
+    )
+    edible_parts: Optional[str] = Field(
+        None,
+        description="식용 가능 부위 (EDIBLE_USE_CONT)",
+    )
+    is_gmo: Optional[bool] = Field(
+        None,
+        description="GMO 여부 (15111913 GMO_YN 조회 결과, True=GMO, False=non-GMO, None=미조회)",
+    )
+    source_api: Optional[str] = Field(
+        None,
+        description="매칭된 API endpoint_id (감사 추적, DataGoKrEndpoint 값 또는 'db')",
     )
 
 

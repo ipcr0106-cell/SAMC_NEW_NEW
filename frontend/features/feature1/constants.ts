@@ -14,6 +14,14 @@ export const API_PATHS = {
     `/cases/${caseId}/pipeline/feature/1/confirm`,
   report: (caseId: string) =>
     `/cases/${caseId}/pipeline/feature/1/report`,
+  // ── HITL-0 (F0 파싱 결과 편집·승인) ──
+  f0Edit: (caseId: string) =>
+    `/cases/${caseId}/pipeline/feature/0`,
+  f0Approve: (caseId: string) =>
+    `/cases/${caseId}/pipeline/feature/0/approve`,
+  // ── HITL-1 (불확실 원재료 결정) ──
+  hitl1Decisions: (caseId: string) =>
+    `/cases/${caseId}/pipeline/feature/1/hitl1-decisions`,
 } as const;
 
 // 판정 표시 라벨

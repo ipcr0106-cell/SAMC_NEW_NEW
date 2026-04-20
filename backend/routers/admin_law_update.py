@@ -322,6 +322,8 @@ _F1_LAW_NAME_TO_NAMESPACE = {
     "식품첨가물공전": "additive_code_text",
     "건강기능식품공전": "health_food_text",
     "식품등의 한시적 기준 및 규격 인정 기준": "temporary_standard",
+    # W2-D: 14번 §11-3 결정 10 A' — functional_labeling 쿼리 유지 + 재인덱싱 경로 확보
+    "부당한 표시 또는 광고로 보지 아니하는 식품등의 기능성 표시 또는 광고에 관한 규정": "functional_labeling",
 }
 
 # namespace별 ASCII-only vector_id prefix (Pinecone 제약)

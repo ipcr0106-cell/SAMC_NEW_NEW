@@ -1,0 +1,30 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 10,
+      "totalCount": 1,
+      "items": {
+        "item": [
+          {
+            "INGD_SN": "11111",
+            "INGD_NM": "허용원료",
+            "NKNM_NM": null,
+            "SCNNM_NM": null,
+            "DRNM": null,
+            "EDIBLE_INFO": "가능",
+            "EDIBLE_Y": "o",
+            "EDIBLE_N": null,
+            "EDIBLE_USE_CONT": null,
+            "CHRTR_INFO_CONT": null,
+            "ANML_INFO": null
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,1463 @@
+{
+  "run_meta": {
+    "goldenset_version": "v3",
+    "subset": "full",
+    "mock": false,
+    "total_cases": 57,
+    "started_at": "2026-04-19T19:52:42.338903+00:00",
+    "finished_at": "2026-04-19T19:55:43.475297+00:00",
+    "total_ms": 181125.0
+  },
+  "summary": {
+    "total": 57,
+    "success": 57,
+    "errors": 0,
+    "metrics": {
+      "verdict_accuracy": 0.6316,
+      "forbidden_recall": 0.875,
+      "false_positive_rate": 0.0,
+      "standards_accuracy": 0.2326,
+      "hitl1_rate": 0.7544
+    },
+    "thresholds": {
+      "verdict_accuracy_pass": false,
+      "forbidden_recall_pass": false,
+      "false_positive_rate_pass": true,
+      "standards_accuracy_pass": false,
+      "hitl1_rate_pass": false
+    },
+    "all_thresholds_pass": false,
+    "category_accuracy": {
+      "conditional_alcohol": {
+        "total": 3,
+        "match": 3,
+        "accuracy": 1.0
+      },
+      "conditional_fermented": {
+        "total": 5,
+        "match": 5,
+        "accuracy": 1.0
+      },
+      "conditional_heated": {
+        "total": 4,
+        "match": 4,
+        "accuracy": 1.0
+      },
+      "conditional_restricted_db": {
+        "total": 6,
+        "match": 0,
+        "accuracy": 0.0
+      },
+      "forbidden_drug": {
+        "total": 4,
+        "match": 2,
+        "accuracy": 0.5
+      },
+      "forbidden_endangered": {
+        "total": 3,
+        "match": 3,
+        "accuracy": 1.0
+      },
+      "forbidden_toxin": {
+        "total": 3,
+        "match": 3,
+        "accuracy": 1.0
+      },
+      "forbidden_unauthorized": {
+        "total": 6,
+        "match": 6,
+        "accuracy": 1.0
+      },
+      "multi_ingredient_combo": {
+        "total": 3,
+        "match": 0,
+        "accuracy": 0.0
+      },
+      "permitted_additive": {
+        "total": 7,
+        "match": 7,
+        "accuracy": 1.0
+      },
+      "permitted_db": {
+        "total": 10,
+        "match": 0,
+        "accuracy": 0.0
+      },
+      "unidentified_virtual": {
+        "total": 3,
+        "match": 3,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "results": [
+    {
+      "case_name": "case_001_rice_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 8813.0,
+      "error": null
+    },
+    {
+      "case_name": "case_002_apple_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 6141.0,
+      "error": null
+    },
+    {
+      "case_name": "case_003_milk_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 5640.0,
+      "error": null
+    },
+    {
+      "case_name": "case_004_pork_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3547.0,
+      "error": null
+    },
+    {
+      "case_name": "case_005_salmon_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2672.0,
+      "error": null
+    },
+    {
+      "case_name": "case_006_sesame_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2250.0,
+      "error": null
+    },
+    {
+      "case_name": "case_007_almond_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3594.0,
+      "error": null
+    },
+    {
+      "case_name": "case_008_greentea_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 4765.0,
+      "error": null
+    },
+    {
+      "case_name": "case_009_redginseng_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2719.0,
+      "error": null
+    },
+    {
+      "case_name": "case_010_ginseng_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3516.0,
+      "error": null
+    },
+    {
+      "case_name": "case_011_citric_acid_additive",
+      "category": "permitted_additive",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3828.0,
+      "error": null
+    },
+    {
+      "case_name": "case_012_ascorbic_acid_additive",
+      "category": "permitted_additive",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2687.0,
+      "error": null
+    },
+    {
+      "case_name": "case_013_carrageenan_additive",
+      "category": "permitted_additive",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2844.0,
+      "error": null
+    },
+    {
+      "case_name": "case_014_steviol_additive",
+      "category": "permitted_additive",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3218.0,
+      "error": null
+    },
+    {
+      "case_name": "case_015_sucralose_additive",
+      "category": "permitted_additive",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3516.0,
+      "error": null
+    },
+    {
+      "case_name": "case_016_aspartame_additive",
+      "category": "permitted_additive",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2906.0,
+      "error": null
+    },
+    {
+      "case_name": "case_017_cannabis_forbidden",
+      "category": "forbidden_drug",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 657.0,
+      "error": null
+    },
+    {
+      "case_name": "case_018_poppy_forbidden",
+      "category": "forbidden_drug",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 640.0,
+      "error": null
+    },
+    {
+      "case_name": "case_019_coca_leaf_forbidden",
+      "category": "forbidden_drug",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": false,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3453.0,
+      "error": null
+    },
+    {
+      "case_name": "case_020_thc_alias_forbidden",
+      "category": "forbidden_drug",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": false,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 4500.0,
+      "error": null
+    },
+    {
+      "case_name": "case_021_tiger_bone_forbidden",
+      "category": "forbidden_endangered",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 672.0,
+      "error": null
+    },
+    {
+      "case_name": "case_022_pangolin_forbidden",
+      "category": "forbidden_endangered",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 641.0,
+      "error": null
+    },
+    {
+      "case_name": "case_023_rhino_horn_forbidden",
+      "category": "forbidden_endangered",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 2562.0,
+      "error": null
+    },
+    {
+      "case_name": "case_024_ephedra_forbidden",
+      "category": "forbidden_unauthorized",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 860.0,
+      "error": null
+    },
+    {
+      "case_name": "case_025_senna_leaf_forbidden",
+      "category": "forbidden_unauthorized",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 703.0,
+      "error": null
+    },
+    {
+      "case_name": "case_026_dmaa_forbidden",
+      "category": "forbidden_unauthorized",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 1453.0,
+      "error": null
+    },
+    {
+      "case_name": "case_027_kavakava_forbidden",
+      "category": "forbidden_unauthorized",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 687.0,
+      "error": null
+    },
+    {
+      "case_name": "case_028_comfrey_forbidden",
+      "category": "forbidden_toxin",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 1938.0,
+      "error": null
+    },
+    {
+      "case_name": "case_029_borage_forbidden",
+      "category": "forbidden_toxin",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 1844.0,
+      "error": null
+    },
+    {
+      "case_name": "case_030_aristolochia_forbidden",
+      "category": "forbidden_toxin",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 765.0,
+      "error": null
+    },
+    {
+      "case_name": "case_031_guarana_restricted",
+      "category": "conditional_restricted_db",
+      "expected": {
+        "verdict": "restricted",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 6032.0,
+      "error": null
+    },
+    {
+      "case_name": "case_032_ginkgo_restricted",
+      "category": "conditional_restricted_db",
+      "expected": {
+        "verdict": "restricted",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3984.0,
+      "error": null
+    },
+    {
+      "case_name": "case_033_wasabi_restricted",
+      "category": "conditional_restricted_db",
+      "expected": {
+        "verdict": "restricted",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 6312.0,
+      "error": null
+    },
+    {
+      "case_name": "case_034_senna_restricted",
+      "category": "conditional_restricted_db",
+      "expected": {
+        "verdict": "restricted",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 4438.0,
+      "error": null
+    },
+    {
+      "case_name": "case_035_licorice_restricted",
+      "category": "conditional_restricted_db",
+      "expected": {
+        "verdict": "restricted",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3266.0,
+      "error": null
+    },
+    {
+      "case_name": "case_036_polygonum_restricted",
+      "category": "conditional_restricted_db",
+      "expected": {
+        "verdict": "restricted",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2968.0,
+      "error": null
+    },
+    {
+      "case_name": "case_037_sorbic_acid_heated_T",
+      "category": "conditional_heated",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3485.0,
+      "error": null
+    },
+    {
+      "case_name": "case_038_sorbic_acid_heated_F",
+      "category": "conditional_heated",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 1297.0,
+      "error": null
+    },
+    {
+      "case_name": "case_039_benzoic_acid_heated_T",
+      "category": "conditional_heated",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2984.0,
+      "error": null
+    },
+    {
+      "case_name": "case_040_benzoic_acid_heated_F",
+      "category": "conditional_heated",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2437.0,
+      "error": null
+    },
+    {
+      "case_name": "case_041_propionic_acid_heated",
+      "category": "permitted_additive",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2407.0,
+      "error": null
+    },
+    {
+      "case_name": "case_042_lactobacillus_fermented_T",
+      "category": "conditional_fermented",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3265.0,
+      "error": null
+    },
+    {
+      "case_name": "case_043_lactobacillus_fermented_F",
+      "category": "conditional_fermented",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3797.0,
+      "error": null
+    },
+    {
+      "case_name": "case_044_lacidophilus_fermented",
+      "category": "conditional_fermented",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2594.0,
+      "error": null
+    },
+    {
+      "case_name": "case_045_saccharomyces_fermented",
+      "category": "conditional_fermented",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2609.0,
+      "error": null
+    },
+    {
+      "case_name": "case_046_yeast_bread_fermented",
+      "category": "conditional_fermented",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2969.0,
+      "error": null
+    },
+    {
+      "case_name": "case_047_ethanol_15pct",
+      "category": "conditional_alcohol",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 4828.0,
+      "error": null
+    },
+    {
+      "case_name": "case_048_ethanol_25pct",
+      "category": "conditional_alcohol",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2860.0,
+      "error": null
+    },
+    {
+      "case_name": "case_049_ethanol_40pct",
+      "category": "conditional_alcohol",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2609.0,
+      "error": null
+    },
+    {
+      "case_name": "case_050_strawberry_jam_sub",
+      "category": "multi_ingredient_combo",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 36,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 5984.0,
+      "error": null
+    },
+    {
+      "case_name": "case_051_kimchi_composite",
+      "category": "multi_ingredient_combo",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 36,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 5469.0,
+      "error": null
+    },
+    {
+      "case_name": "case_052_hidden_cannabis_sub",
+      "category": "forbidden_unauthorized",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 1219.0,
+      "error": null
+    },
+    {
+      "case_name": "case_053_cannabis_sugar_mix",
+      "category": "forbidden_unauthorized",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 2422.0,
+      "error": null
+    },
+    {
+      "case_name": "case_054_honey_lemon_water",
+      "category": "multi_ingredient_combo",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 27,
+        "confidence": 0.4
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 4172.0,
+      "error": null
+    },
+    {
+      "case_name": "case_055_virtual_xenostin",
+      "category": "unidentified_virtual",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 4140.0,
+      "error": null
+    },
+    {
+      "case_name": "case_056_virtual_criovela",
+      "category": "unidentified_virtual",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3938.0,
+      "error": null
+    },
+    {
+      "case_name": "case_057_virtual_bernium",
+      "category": "unidentified_virtual",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "gmo_ingredients": [],
+        "warnings_count": 9,
+        "confidence": 0.4
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 3640.0,
+      "error": null
+    }
+  ]
+}

@@ -43,9 +43,9 @@ export default function F1ImportCheckPage() {
                 variant="primary"
                 size="lg"
                 icon={<ArrowRight size={18} />}
-                onClick={() => router.push(`/cases/${caseId}/f2`)}
+                onClick={() => router.push(`/cases/${caseId}/f3`)}
               >
-                F2 유형분류로 이동
+                F3 필요서류로 이동
               </Button>
             </div>
           </div>

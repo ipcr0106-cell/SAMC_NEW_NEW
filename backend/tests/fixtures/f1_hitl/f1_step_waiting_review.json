@@ -1,0 +1,22 @@
+{
+  "id": 3,
+  "case_id": "00000000-0000-0000-0000-000000000003",
+  "step_key": "1",
+  "status": "waiting_review",
+  "ai_result": {
+    "ingredients": [],
+    "verdict": "수입가능",
+    "import_possible": true,
+    "fail_reasons": [],
+    "standards_check": [],
+    "_internal": {
+      "escalations": [],
+      "rag_verdict": null,
+      "conflict_status": "rag_skipped"
+    }
+  },
+  "final_result": null,
+  "edit_reason": null,
+  "created_at": "2026-04-20T00:00:00+00:00",
+  "updated_at": "2026-04-20T00:00:00+00:00"
+}
