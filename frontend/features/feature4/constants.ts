@@ -2,27 +2,12 @@
  * 기능4: 수출국표시사항 검토 — 전용 상수
  */
 
-// 허용 업로드 파일 형식
-export const ALLOWED_LABEL_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "application/pdf",
-] as const;
-
-export const ALLOWED_LABEL_EXTENSIONS = ".jpg, .jpeg, .png, .webp, .pdf";
-
-// 파일 크기 제한 (10MB)
-export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-
 // API 경로
 export const API_PATHS = {
   analyze: (caseId: string) =>
     `/cases/${caseId}/pipeline/feature/4/analyze`,
   validate: (caseId: string) =>
     `/cases/${caseId}/pipeline/feature/4/validate`,
-  uploadLabel: (caseId: string) =>
-    `/cases/${caseId}/pipeline/feature/4/upload`,
   getResult: (caseId: string) =>
     `/cases/${caseId}/pipeline/feature/4`,
   updateResult: (caseId: string) =>
@@ -54,3 +39,9 @@ export const CROSS_CHECK_FIELD_LABEL: Record<string, string> = {
   origin: "원산지",
   manufacturer: "제조사",
 };
+
+// 이슈 심각도 라벨 (UI 표시용)
+export const SEVERITY_LABEL = {
+  must_fix: "삭제/수정 필수",
+  review_needed: "검토 필요",
+} as const;

@@ -48,7 +48,9 @@ _COMBINED_PROMPT = """이 수출국 라벨 이미지를 분석해서 아래 두 
     "content_volume": "",
     "origin": "",
     "manufacturer": "",
-    "case_number": ""
+    "case_number": "",
+    "certification_marks": "",
+    "nutrition_facts": ""
   }
 }
 
@@ -66,6 +68,8 @@ _COMBINED_PROMPT = """이 수출국 라벨 이미지를 분석해서 아래 두 
 - origin: 원산지 / 제조국
 - manufacturer: 제조사명
 - case_number: 케이스 번호 / 품목 코드 (없으면 빈 문자열)
+- certification_marks: 인증마크 목록 (쉼표 구분). 예: "Kosher Pareve, USDA Organic, Halal, Non-GMO, HACCP, ISO, GMP, 유기농 인증, 건강기능식품 마크, 원산지 인증(CRT/NOM 등), Fair Trade" 등 이미지에 보이는 모든 인증·수상·품질 마크를 기재
+- nutrition_facts: 영양성분표 내용 (있으면 원문 그대로 기재. 예: "열량 120kcal, 탄수화물 25g, 단백질 3g, 지방 1.5g, 나트륨 150mg"). 없으면 빈 문자열
 - 해당 항목이 라벨에 없으면 빈 문자열 ""로 반환
 """
 
@@ -329,13 +333,16 @@ async def _save_crop_record(
     height: int,
     texts: dict,
 ) -> Optional[str]:
-    """크롭 PNG Storage 업로드 + case_label_images INSERT.
+    """크롭 PNG + 전체 페이지 이미지 Storage 업로드 + case_label_images INSERT.
 
     image_index: 동일 source_hash(파일) 내 순번. 여러 장 저장 시 충돌 방지.
+    page_bytes: 크롭 전 원본 페이지 이미지. f4에서 인증마크·로고 등 전체 분석에 사용.
     """
     new_id = str(uuid.uuid4())
     cropped_path = f"cases/{case_id}/label_products/{new_id}.png"
+    full_page_path = f"cases/{case_id}/label_pages/{new_id}.png"
 
+    # 1) 크롭 이미지 업로드
     try:
         sb.storage.from_(STORAGE_BUCKET).upload(
             path=cropped_path,
@@ -346,25 +353,43 @@ async def _save_crop_record(
         logger.error(f"크롭 이미지 Storage 업로드 실패: {e}")
         return None
 
+    # 2) 전체 페이지 이미지 업로드 (f4 인증마크 분석용)
+    #    bbox 크롭이 적용된 경우에만 (크롭 전후가 다를 때만 별도 저장)
+    if page_bytes and page_bytes != cropped_bytes:
+        try:
+            sb.storage.from_(STORAGE_BUCKET).upload(
+                path=full_page_path,
+                file=page_bytes,
+                file_options={"content-type": "image/png"},
+            )
+        except Exception as e:
+            logger.warning(f"전체 페이지 이미지 업로드 실패 (무시): {e}")
+            full_page_path = ""
+    else:
+        full_page_path = ""  # 크롭 안 됨 = cropped_path가 곧 전체 이미지
+
     record: dict = {
         "id": new_id,
         "case_id": case_id,
         "source_document_id": source_document_id,
         "cropped_storage_path": cropped_path,
         "original_storage_path": original_storage_path,
+        "full_page_storage_path": full_page_path or None,  # 크롭 전 전체 이미지 (f4 분석용)
         "source_hash": source_hash,
         "image_index": image_index,   # 파일 내 순번 (정렬·dedup용)
         "bbox": bbox or None,         # page 정보는 bbox JSONB에서 제거 (image_index로 대체)
         "width": width,
         "height": height,
         # 텍스트 추출 결과
-        "label_product_name":   texts.get("product_name") or None,
-        "label_ingredients":    texts.get("ingredients") or None,
-        "label_content_volume": texts.get("content_volume") or None,
-        "label_origin":         texts.get("origin") or None,
-        "label_manufacturer":   texts.get("manufacturer") or None,
-        "label_case_number":    texts.get("case_number") or None,
-        "extracted_texts":      texts if texts else None,
+        "label_product_name":        texts.get("product_name") or None,
+        "label_ingredients":         texts.get("ingredients") or None,
+        "label_content_volume":      texts.get("content_volume") or None,
+        "label_origin":              texts.get("origin") or None,
+        "label_manufacturer":        texts.get("manufacturer") or None,
+        "label_case_number":         texts.get("case_number") or None,
+        "label_certification_marks": texts.get("certification_marks") or None,
+        "label_nutrition_facts":     texts.get("nutrition_facts") or None,
+        "extracted_texts":           texts if texts else None,
     }
 
     try:
@@ -476,12 +501,21 @@ async def process_label_image(
             original_storage_path=original_storage_path,
             source_hash=source_hash,
             image_index=image_index,
+<<<<<<< HEAD
             page_bytes=crop["page_bytes"],      # f4 인증마크 분석용 (크롭 전 원본)
             cropped_bytes=crop["cropped_bytes"],
             bbox=crop["bbox"],
             width=crop["width"],
             height=crop["height"],
             texts=crop["texts"],
+=======
+            page_bytes=page_bytes,       # 크롭 전 전체 이미지 (f4 인증마크 분석용)
+            cropped_bytes=cropped_bytes,
+            bbox=bbox,
+            width=cw,
+            height=ch,
+            texts=texts,
+>>>>>>> origin/develope
         )
 
     save_results = await asyncio.gather(
