@@ -145,6 +145,7 @@ export interface Feature3Result {
 
 export interface LabelIssue {
   text: string;           // 문제 문구 원문
+  evidence?: string;      // 판정 근거 (라벨 텍스트 원문 또는 시각 요소)
   location?: string;      // 라벨 상 위치 설명
   reason: string;         // 삭제/수정 이유
   law_ref: string;        // 근거 법령
