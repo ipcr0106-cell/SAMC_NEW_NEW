@@ -53,7 +53,8 @@ export default function IngredientMatchTable({ results }: Props) {
           <thead className="bg-gray-50 text-xs text-gray-600">
             <tr>
               <th className="px-4 py-2 text-left font-medium">상태</th>
-              <th className="px-4 py-2 text-left font-medium">원재료명</th>
+              <th className="px-4 py-2 text-left font-medium">원본명</th>
+              <th className="px-4 py-2 text-left font-medium">매칭명(정규화 후)</th>
               <th className="px-4 py-2 text-left font-medium">배합비(%)</th>
               <th className="px-4 py-2 text-left font-medium">매칭 방법</th>
               <th className="px-4 py-2 text-left font-medium">신뢰도</th>
@@ -68,12 +69,12 @@ export default function IngredientMatchTable({ results }: Props) {
                 className={`border-t border-gray-100 ${VERDICT_BG[r.verdict]}`}
               >
                 <td className="px-4 py-2">{VERDICT_ICON[r.verdict]}</td>
-                <td className="px-4 py-2 font-medium">
-                  {r.ingredient.name}
-                  {r.matched_name_ko && r.matched_name_ko !== r.ingredient.name && (
-                    <span className="ml-1 text-xs text-gray-500">
-                      → {r.matched_name_ko}
-                    </span>
+                <td className="px-4 py-2 font-medium">{r.ingredient.name}</td>
+                <td className="px-4 py-2 text-gray-700">
+                  {r.matched_name_ko && r.matched_name_ko !== r.ingredient.name ? (
+                    <span>{r.matched_name_ko}</span>
+                  ) : (
+                    <span className="text-gray-400">-</span>
                   )}
                 </td>
                 <td className="px-4 py-2 text-gray-600">

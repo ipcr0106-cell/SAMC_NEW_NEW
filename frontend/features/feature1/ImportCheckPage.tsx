@@ -123,6 +123,24 @@ export default function ImportCheckPage({ caseId }: Props) {
     }
   }, [caseId, setFoodTypeHierarchy, setIsRunningF2, setF2RunError]);
 
+  // ── F1 재분석 ────────────────────────────────────────────────────────
+  const [rerunning, setRerunning] = useLocalState(false);
+  const [rerunError, setRerunError] = useLocalState<string | null>(null);
+
+  const handleRerun = useCallback(async () => {
+    setRerunning(true);
+    setRerunError(null);
+    try {
+      const { runImportCheck } = await import("./api/importCheck");
+      await runImportCheck(caseId, { ingredients: [] });
+      window.location.reload();
+    } catch (e: unknown) {
+      const msg = (e as any)?.response?.data?.detail?.message ?? "재분석 실패. 잠시 후 다시 시도하세요.";
+      setRerunError(msg);
+      setRerunning(false);
+    }
+  }, [caseId]);
+
   // ── HITL-1 로컬 결정 상태 ──────────────────────────────────────────
   const [ingredientDecisions, setIngredientDecisions] = useLocalState<readonly IngredientDecision[]>([]);
   const [conditionalResolutions, setConditionalResolutions] = useLocalState<readonly ConditionalResolution[]>([]);
@@ -328,9 +346,40 @@ export default function ImportCheckPage({ caseId }: Props) {
         {/* ── HITL-1: needs_review ── */}
         {currentStatus === "needs_review" && (
           <div data-testid="hitl1-panel" className="space-y-4">
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-              <b>HITL-1:</b> 아래 항목을 검토하고 결정을 제출하세요.
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center justify-between gap-3">
+              <span><b>HITL-1:</b> 아래 항목을 검토하고 결정을 제출하세요.</span>
+              <button
+                type="button"
+                onClick={handleRerun}
+                disabled={rerunning}
+                className="shrink-0 rounded border border-amber-400 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+              >
+                {rerunning ? "재분석 중..." : "F1 재분석"}
+              </button>
             </div>
+            {rerunError && (
+              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                {rerunError}
+              </div>
+            )}
+
+            {internal?.forbidden_hits && internal.forbidden_hits.length > 0 && (
+              <ForbiddenAlert hits={internal.forbidden_hits} />
+            )}
+
+            {internal?.aggregation && (
+              <AggregationSummary aggregation={internal.aggregation} />
+            )}
+
+            {internal?.aggregation && (
+              <IngredientMatchTable results={internal.aggregation.results} />
+            )}
+
+            <StandardsSummary checks={source.standards_check} />
+
+            {internal?.law_citations && internal.law_citations.length > 0 && (
+              <LawCitationList citations={internal.law_citations} />
+            )}
 
             {unidentifiedIngredients.length > 0 && (
               <UnidentifiedIngredientReview
@@ -383,6 +432,12 @@ export default function ImportCheckPage({ caseId }: Props) {
             {internal?.aggregation && (
               <AggregationSummary aggregation={internal.aggregation} />
             )}
+
+            {internal?.aggregation && (
+              <IngredientMatchTable results={internal.aggregation.results} />
+            )}
+
+            <StandardsSummary checks={source.standards_check} />
 
             {internal?.law_citations && internal.law_citations.length > 0 && (
               <LawCitationList citations={internal.law_citations} />
@@ -443,6 +498,16 @@ export default function ImportCheckPage({ caseId }: Props) {
 
             {internal?.aggregation && (
               <AggregationSummary aggregation={internal.aggregation} />
+            )}
+
+            {internal?.aggregation && (
+              <IngredientMatchTable results={internal.aggregation.results} />
+            )}
+
+            <StandardsSummary checks={source.standards_check} />
+
+            {internal?.law_citations && internal.law_citations.length > 0 && (
+              <LawCitationList citations={internal.law_citations} />
             )}
 
             <VerdictPanel
