@@ -151,9 +151,6 @@ export interface LabelIssue {
   law_ref: string;        // 근거 법령
   law_excerpt?: string;   // 근거 법령 원문 구절
   severity: "must_fix" | "review_needed";
-  law_ref?: string;       // 관련 법령
-  reason?: string;        // 위반 이유
-  law_excerpt?: string;   // 참고 법령 원문
 }
 
 export interface ImageIssue {
