@@ -6,7 +6,7 @@
  */
 
 import { apiClient } from "@/services/apiClient";
-import type { Feature1Result } from "@/types/pipeline";
+import type { Feature1Result, HITL1DecisionsRequest, HITL2ConfirmRequest } from "@/types/pipeline";
 import type { Feature1Response } from "../types";
 import { API_PATHS } from "../constants";
 
@@ -75,4 +75,36 @@ export const downloadReport = async (caseId: string): Promise<void> => {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+};
+
+// ── HITL-0: F0 파싱 결과 편집 (PATCH /pipeline/feature/0) ──
+export const editF0Result = async (
+  caseId: string,
+  payload: { final_result: Record<string, unknown>; edit_reason: string }
+): Promise<void> => {
+  await apiClient.patch(API_PATHS.f0Edit(caseId), payload);
+};
+
+// ── HITL-0: F0 결과 승인 (POST /pipeline/feature/0/approve) ──
+export const approveF0Result = async (
+  caseId: string,
+  payload: { approver_id: string; approved_at: string; signature?: string }
+): Promise<void> => {
+  await apiClient.post(API_PATHS.f0Approve(caseId), payload);
+};
+
+// ── HITL-1: 불확실 원재료 결정 제출 (POST /hitl1-decisions) ──
+export const submitHitl1Decisions = async (
+  caseId: string,
+  payload: HITL1DecisionsRequest
+): Promise<void> => {
+  await apiClient.post(API_PATHS.hitl1Decisions(caseId), payload);
+};
+
+// ── HITL-2: 최종 판정 확정 (POST /confirm with body) ──
+export const confirmHitl2 = async (
+  caseId: string,
+  payload: HITL2ConfirmRequest
+): Promise<void> => {
+  await apiClient.post(API_PATHS.confirm(caseId), payload);
 };

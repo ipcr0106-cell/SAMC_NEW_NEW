@@ -27,11 +27,29 @@ from fastapi.responses import StreamingResponse
 from fpdf import FPDF
 from pydantic import BaseModel
 
+from config.feature_flags import F1_REQUIRE_HITL0_APPROVAL, should_use_new_pipeline
 from db.supabase_client import get_supabase
+from models.f1_hitl import (
+    F0ApproveRequest,
+    F0ApproveResponse,
+    F0EditRequest,
+    F0EditResponse,
+    HITL1DecisionsRequest,
+    HITL1DecisionsResponse,
+    HITL2ConfirmRequest,
+    HITL2ConfirmResponse,
+)
 from models.f1_law_citation import RagJudgement
+from models.f1_types import F1Output
 from models.judgment import (Feature1Input, Feature1Output, Ingredient,
                                      ProcessConditions)
-from services.feature1 import run_feature1, run_feature1_with_rag
+from services.feature1 import run_feature1, run_feature1_with_rag, run_feature1_v2
+from services.f1_hitl_service import (
+    apply_f0_edit,
+    approve_f0,
+    confirm_hitl2,
+    submit_hitl1_decisions,
+)
 
 router = APIRouter(
     prefix="/api/v1/cases",
@@ -210,6 +228,239 @@ def _to_pipeline_result(
     }
 
 
+def _f1output_to_pipeline_result(out: F1Output) -> dict:
+    """F1Output (신규 v2 파이프라인) → 팀 약속 Feature1Result (types/pipeline.ts) 형식 변환.
+
+    verdict 한글 변환:
+        permitted  → 수입가능
+        restricted → 수입가능 (조건부)
+        prohibited → 수입불가
+        needs_review, 기타 → 검토 필요
+
+    import_possible: verdict in ("permitted", "restricted") → True, 나머지 False.
+
+    ingredients[]: evidence_external_data step=B enriched_summary 에서 추출.
+    fail_reasons[]: warnings + step=A forbidden_hits.
+    standards_check[]: evidence_external_data step=C checks.
+    _internal: v2 전용 필드 + pipeline_version="v2".
+    """
+    _VERDICT_KO = {
+        "permitted": "수입가능",
+        "restricted": "수입가능 (조건부)",
+        "prohibited": "수입불가",
+        "needs_review": "검토 필요",
+    }
+    verdict_ko = _VERDICT_KO.get(out.verdict, "검토 필요")
+    import_possible = out.verdict in ("permitted", "restricted")
+
+    # ── ingredients: step=B enriched_summary ──────────────────
+    ingredients_slim: list[dict] = []
+    step_b_data: Optional[dict] = None
+    step_a_data: Optional[dict] = None
+    step_c_data: Optional[dict] = None
+    for ev in out.evidence_external_data:
+        if ev.get("step") == "B":
+            step_b_data = ev
+        elif ev.get("step") == "A":
+            step_a_data = ev
+        elif ev.get("step") == "C":
+            step_c_data = ev
+
+    if step_b_data:
+        for item in step_b_data.get("enriched_summary", []):
+            allow_v = item.get("allow_verdict", "unidentified")
+            # allow_verdict: "allowed"→"허용", "restricted"→"조건부", "prohibited"→"금지", "unidentified"→"미확인"
+            status_map = {
+                "allowed": "allowed",
+                "restricted": "allowed",
+                "prohibited": "not_found",
+                "unidentified": "not_found",
+            }
+            ingredients_slim.append(
+                {
+                    "name": item.get("name", ""),
+                    "percentage": None,
+                    "status": status_map.get(allow_v, "not_found"),
+                    "law_ref": None,
+                }
+            )
+
+    # ── fail_reasons: warnings + step A forbidden_hits ────────
+    fail_reasons: list[str] = []
+    for w in out.warnings:
+        fail_reasons.append(w)
+    if step_a_data:
+        for h in step_a_data.get("forbidden_hits", []):
+            reason = h.get("reason") or h.get("matched_name", "")
+            if reason:
+                fail_reasons.append(f"금지원료: {h.get('ingredient_name', '')} — {reason}")
+
+    # ── standards_check: step=C checks ────────────────────────
+    standards_slim: list[dict] = []
+    if step_c_data:
+        for ch in step_c_data.get("checks", []):
+            actual: Optional[float] = None
+            actual_raw = ch.get("actual_value")
+            if actual_raw:
+                try:
+                    actual = float(str(actual_raw).split()[0])
+                except (ValueError, IndexError):
+                    actual = None
+
+            threshold: Optional[float] = ch.get("threshold_value")
+            unit = ch.get("unit_normalized") or ch.get("unit_original") or ""
+            spec_raw = ch.get("spec_raw") or ""
+
+            status_raw = ch.get("status", "no_data")
+            status_map_c = {
+                "pass": "pass",
+                "fail": "fail",
+                "review_needed": "no_threshold",
+                "no_data": "no_threshold",
+            }
+            standards_slim.append(
+                {
+                    "ingredient_name": ch.get("ingredient_name", ""),
+                    "actual_value": actual,
+                    "unit": unit,
+                    "threshold_value": threshold,
+                    "threshold_text": spec_raw,
+                    "status": status_map_c.get(status_raw, "no_threshold"),
+                    "law_ref": ch.get("law_ref"),
+                }
+            )
+
+    # ── 레거시 FE 컴포넌트 재사용을 위한 _internal 매핑 ────────
+    # ImportCheckPage 의 기존 ForbiddenAlert / AggregationSummary / LawCitationList /
+    # EscalationAckList 는 _internal.forbidden_hits / aggregation / law_citations /
+    # escalations 를 기준으로 조건부 렌더한다. v2 path 에서도 이 필드들을 채워
+    # 별도 Step 패널 없이 기존 UI 자연 재사용.
+
+    # forbidden_hits: step_a.forbidden_hits → ForbiddenHitDetail
+    internal_forbidden: list[dict] = []
+    if step_a_data:
+        for h in step_a_data.get("forbidden_hits", []):
+            internal_forbidden.append(
+                {
+                    "name_ko": h.get("ingredient_name", ""),
+                    "category": "other",
+                    "law_source": h.get("law_ref"),
+                    "reason": h.get("reason"),
+                }
+            )
+
+    # aggregation: step_b.enriched_summary 집계
+    # v2 allow_verdict(allowed/restricted/prohibited/unidentified) →
+    # legacy verdict(permitted/restricted/prohibited/unidentified) 매핑
+    _VERDICT_LEGACY = {
+        "allowed": "permitted",
+        "restricted": "restricted",
+        "prohibited": "prohibited",
+        "unidentified": "unidentified",
+    }
+    internal_aggregation: Optional[dict] = None
+    if step_b_data:
+        enriched = step_b_data.get("enriched_summary", [])
+        counts = {"permitted": 0, "restricted": 0, "prohibited": 0, "unidentified": 0}
+        results_detail: list[dict] = []
+        for item in enriched:
+            v_legacy = _VERDICT_LEGACY.get(
+                item.get("allow_verdict") or "unidentified", "unidentified"
+            )
+            counts[v_legacy] = counts.get(v_legacy, 0) + 1
+            results_detail.append(
+                {
+                    "ingredient": {
+                        "name": item.get("name", ""),
+                        "percentage": item.get("percentage"),
+                        "ins": None,
+                        "cas": None,
+                        "part": None,
+                    },
+                    "verdict": v_legacy,
+                    "match_method": None,
+                    "matched_db_id": None,
+                    "confidence": 1.0 if v_legacy != "unidentified" else 0.0,
+                    "matched_name_ko": None,
+                    "law_source": None,
+                }
+            )
+        # step_b.unidentified (이름 목록) 도 별도 항목으로 추가 (enriched 에서 누락된 경우)
+        known_names = {item.get("name") for item in enriched}
+        for uname in step_b_data.get("unidentified", []):
+            if uname not in known_names:
+                counts["unidentified"] += 1
+                results_detail.append(
+                    {
+                        "ingredient": {"name": uname, "percentage": None},
+                        "verdict": "unidentified",
+                        "match_method": None,
+                        "matched_db_id": None,
+                        "confidence": 0.0,
+                        "matched_name_ko": None,
+                        "law_source": None,
+                    }
+                )
+        internal_aggregation = {
+            "total": sum(counts.values()),
+            **counts,
+            "results": results_detail,
+        }
+
+    # law_citations: F1Output.evidence_laws → LawCitation (FE 기대 shape)
+    internal_law_citations: list[dict] = []
+    for c in out.evidence_laws:
+        internal_law_citations.append(
+            {
+                "chunk_id": c.get("chunk_id", ""),
+                "namespace": c.get("namespace", ""),
+                "regulation_id": None,
+                "section_path": c.get("article_no"),
+                "text": c.get("text", ""),
+                "score": c.get("score", 0.0),
+            }
+        )
+
+    # escalations: warnings 를 EscalationDetail 형태로 파싱
+    # 예: "step_a_api_error:대두:TIMEOUT" → module_id="step_a_api_error", reason=전체 문자열
+    internal_escalations: list[dict] = []
+    for w in out.warnings:
+        module_id = w.split(":")[0] if ":" in w else w
+        internal_escalations.append(
+            {
+                "module_id": module_id,
+                "trigger_type": "warning",
+                "confidence_score": 0.0,
+                "reason": w,
+            }
+        )
+
+    return {
+        "ingredients": ingredients_slim,
+        "verdict": verdict_ko,
+        "import_possible": import_possible,
+        "fail_reasons": fail_reasons,
+        "standards_check": standards_slim,
+        "_internal": {
+            "evidence_laws": out.evidence_laws,
+            "gmo_ingredients": out.gmo_ingredients,
+            "api_call_stats": out.api_call_stats,
+            "unit_conversions": out.unit_conversions,
+            "pipeline_version": "v2",
+            # ── 레거시 FE 컴포넌트 재사용용 매핑 ──
+            "forbidden_hits": internal_forbidden,
+            "aggregation": internal_aggregation,
+            "law_citations": internal_law_citations,
+            "escalations": internal_escalations,
+            "conditional_evaluations": [],
+            "law_refs": [],
+            "rag_verdict": None,
+            "rag_reasoning": None,
+            "conflict_status": "rag_skipped",
+        },
+    }
+
+
 def _record_to_json(row: dict, field: str) -> Any:
     """supabase-py는 JSONB를 dict로 자동 반환."""
     return row.get(field)
@@ -342,6 +593,32 @@ def run_feature1_endpoint(
     ingredients = body.ingredients
     process_conditions = body.process_conditions
 
+    # HITL-0 게이트: F1_REQUIRE_HITL0_APPROVAL=true 시 F0 approved 상태 필수
+    if F1_REQUIRE_HITL0_APPROVAL:
+        supabase = get_supabase()
+        f0_row = (
+            supabase.table("pipeline_steps")
+            .select("status")
+            .eq("case_id", case_id)
+            .eq("step_key", "0")
+            .limit(1)
+            .execute()
+        )
+        f0_status = f0_row.data[0]["status"] if f0_row.data else None
+        if f0_status != "approved":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "F0_NOT_APPROVED",
+                    "message": (
+                        "F0 파싱 결과가 담당자 승인을 받지 않았습니다. "
+                        "먼저 /pipeline/feature/0/approve 를 호출하세요."
+                    ),
+                    "feature": 1,
+                    "f0_status": f0_status,
+                },
+            )
+
     # ingredients가 없으면 f0 파싱 결과에서 자동 추출
     if not ingredients:
         parsed = _fetch_f0_parsed_result(case_id)
@@ -370,18 +647,49 @@ def run_feature1_endpoint(
 
     try:
         # 옵션 B: f1_수정_요청_사항 §7 "async def 엔드포인트 금지" 룰 준수.
-        # 엔드포인트는 sync 로 유지하고, run_feature1_with_rag (async) 는 asyncio.run() 으로 호출.
-        out, rag, conflict_status = asyncio.run(
-            run_feature1_with_rag(
-                ingredients=ingredients,
-                food_type=body.food_type,
-                process_conditions=process_conditions or ProcessConditions(),
-                payload_for_rag={
-                    "ingredients": [i.name for i in ingredients],
-                    "food_type": body.food_type,
-                },
+        # 엔드포인트는 sync 로 유지하고, async 서비스는 asyncio.run() 으로 호출.
+        if should_use_new_pipeline(case_id):
+            # ── 신규 v2 파이프라인 경로 ──────────────────────────────
+            v2_out: F1Output = asyncio.run(
+                run_feature1_v2(
+                    ingredients=ingredients,
+                    food_type=body.food_type,
+                    food_type_hierarchy=None,
+                    process_conditions=process_conditions or ProcessConditions(),
+                )
             )
-        )
+            ai_result = _f1output_to_pipeline_result(v2_out)
+            # v2 verdict 기반 HITL status 결정
+            new_status = (
+                "needs_review"
+                if v2_out.verdict in ("needs_review", "prohibited")
+                else "waiting_review"
+            )
+        else:
+            # ── 레거시 RAG 경로 (기본) ────────────────────────────────
+            out, rag, conflict_status = asyncio.run(
+                run_feature1_with_rag(
+                    ingredients=ingredients,
+                    food_type=body.food_type,
+                    process_conditions=process_conditions or ProcessConditions(),
+                    payload_for_rag={
+                        "ingredients": [i.name for i in ingredients],
+                        "food_type": body.food_type,
+                    },
+                )
+            )
+            ai_result = _to_pipeline_result(out, rag, conflict_status)
+            # HITL status 결정 (총괄 §2.7 엄격)
+            #   - conflict / rag_supplemented → needs_review (사람 결정 필요)
+            #   - agreed / rag_unavailable / rag_skipped → waiting_review (기존 흐름)
+            new_status = (
+                "needs_review"
+                if conflict_status in ("conflict", "rag_supplemented")
+                else "waiting_review"
+            )
+    except HTTPException:
+        # code-review MEDIUM-1: HITL-0 400 등 의미 있는 HTTPException 은 원본 그대로 전파.
+        raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=500,
@@ -392,16 +700,6 @@ def run_feature1_endpoint(
             },
         )
 
-    ai_result = _to_pipeline_result(out, rag, conflict_status)
-
-    # HITL status 결정 (총괄 §2.7 엄격)
-    #   - conflict / rag_supplemented → needs_review (사람 결정 필요)
-    #   - agreed / rag_unavailable / rag_skipped → waiting_review (기존 흐름)
-    new_status = (
-        "needs_review"
-        if conflict_status in ("conflict", "rag_supplemented")
-        else "waiting_review"
-    )
     _upsert_pipeline_step(case_id, new_status, ai_result)
 
     return {
@@ -445,12 +743,37 @@ def update_feature1(
 
 
 # ============================================================
-# POST /feature/1/confirm — 담당자 확인 완료
+# POST /feature/1/confirm — 담당자 확인 완료 (레거시 + HITL-2 통합)
+#
+# Wave 3 W3-BE: HITL2ConfirmRequest Body가 있으면 HITL-2 서비스로 위임.
+# Body 없는 레거시 호출(Body=None)은 기존 동작(status='completed') 유지.
 # ============================================================
 
 
-@router.post("/{case_id}/pipeline/feature/1/confirm")
-def confirm_feature1(case_id: str) -> dict:
+@router.post("/{case_id}/pipeline/feature/1/confirm", response_model=None)
+def confirm_feature1(
+    case_id: str,
+    body: Optional[HITL2ConfirmRequest] = None,
+) -> dict:
+    # HITL-2 Body 있으면 Wave 3 서비스로 위임
+    # code-review CRITICAL-1 fix: HITL2ConfirmResponse(BaseModel) 를 dict 로
+    # 직렬화하여 legacy dict 분기와 응답 shape 일관성 확보.
+    if body is not None:
+        try:
+            return confirm_hitl2(case_id, body).model_dump(mode="json")
+        except ValueError as exc:
+            error_msg = str(exc)
+            if "존재하지 않습니다" in error_msg:
+                raise HTTPException(
+                    status_code=404,
+                    detail={"error": "F1_STEP_NOT_FOUND", "message": error_msg},
+                )
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "HITL2_CONFIRM_FAILED", "message": error_msg},
+            )
+
+    # 레거시: Body 없는 단순 확인 완료
     row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
@@ -754,3 +1077,96 @@ def download_feature1_report(case_id: str):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# ============================================================
+# HITL 엔드포인트 (Wave 3 W3-BE 추가)
+# 05_HITL_플로우_설계.md §3-3, §4-3, §5-3
+# 기존 F1 엔드포인트는 건드리지 않음.
+# ============================================================
+
+
+@router.patch(
+    "/{case_id}/pipeline/feature/0",
+    response_model=F0EditResponse,
+    summary="HITL-0: F0 파싱 결과 편집",
+)
+def patch_f0_edit(case_id: str, body: F0EditRequest) -> F0EditResponse:
+    """F0 파싱 결과를 담당자가 편집한다.
+
+    - final_result 를 갱신하고 status 를 'completed' 로 강등한다.
+    - 편집 후에는 /approve 를 다시 호출해야 F1 실행 가능(flag on 기준).
+    - status='locked' 또는 'confirmed' 에서는 403 반환.
+    """
+    try:
+        return apply_f0_edit(case_id, body)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "F0_LOCKED",
+                "message": str(exc),
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "F0_STEP_NOT_FOUND",
+                "message": str(exc),
+            },
+        )
+
+
+@router.post(
+    "/{case_id}/pipeline/feature/0/approve",
+    response_model=F0ApproveResponse,
+    summary="HITL-0: F0 파싱 결과 승인",
+)
+def post_f0_approve(case_id: str, body: F0ApproveRequest) -> F0ApproveResponse:
+    """F0 파싱 결과를 담당자가 승인한다.
+
+    - pipeline_steps(step_key='0').status = 'approved' 로 전이.
+    - 이후 F1/F2/F3 실행 가능(F1_REQUIRE_HITL0_APPROVAL=true 기준).
+    """
+    try:
+        return approve_f0(case_id, body)
+    except ValueError as exc:
+        status_code = 404 if "존재하지 않습니다" in str(exc) else 400
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": "F0_APPROVE_FAILED",
+                "message": str(exc),
+            },
+        )
+
+
+@router.post(
+    "/{case_id}/pipeline/feature/1/hitl1-decisions",
+    response_model=HITL1DecisionsResponse,
+    summary="HITL-1: 불확실 원재료 / 자동 판정 불가 처리",
+)
+def post_hitl1_decisions(
+    case_id: str, body: HITL1DecisionsRequest
+) -> HITL1DecisionsResponse:
+    """HITL-1 담당자 결정을 제출한다.
+
+    - 모든 에스컬레이션에 ack 하면 status='waiting_review'.
+    - 일부만 ack 하면 status='needs_review' 유지.
+    - 모든 에스컬레이션 ack 후에만 HITL-2 confirm 가능.
+    """
+    try:
+        return submit_hitl1_decisions(case_id, body)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "F1_STEP_NOT_FOUND",
+                "message": str(exc),
+            },
+        )
+
+
+# NOTE: HITL-2 POST /feature/1/confirm 은 위 confirm_feature1 내부에서 처리됨.
+# (HITL2ConfirmRequest Body 존재 여부로 레거시/HITL-2 분기)

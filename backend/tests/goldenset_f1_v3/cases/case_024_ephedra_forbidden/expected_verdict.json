@@ -1,0 +1,11 @@
+{
+  "_comment": "담당자 최종 판정 정답 라벨. v2 라벨 기반 v3 F1Output.verdict 형식으로 변환.",
+  "verdict": "prohibited",
+  "v2_exact_verdict": "prohibited",
+  "v2_conflict_status": "rag_skipped",
+  "is_forbidden_ingredient": true,
+  "hitl1_required": false,
+  "gmo_ingredients": [],
+  "category": "forbidden_unauthorized",
+  "notes": "f1_forbidden unauthorized. 의약품 원료 분류. aliases=['마황','에페드린']."
+}

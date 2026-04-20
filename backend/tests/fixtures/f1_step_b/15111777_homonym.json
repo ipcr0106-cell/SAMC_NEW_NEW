@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "INGD_SN": "900",
+      "INGD_NM": "참꽃",
+      "NKNM_NM": "진달래",
+      "SCNNM_NM": "Rhododendron mucronulatum",
+      "DRNM": "-",
+      "EDIBLE_INFO": "가능",
+      "EDIBLE_Y": "o",
+      "EDIBLE_N": "x",
+      "EDIBLE_USE_CONT": "꽃잎",
+      "CHRTR_INFO_CONT": null,
+      "ANML_INFO": "식물성"
+    },
+    {
+      "INGD_SN": "901",
+      "INGD_NM": "참꽃",
+      "NKNM_NM": "철쭉",
+      "SCNNM_NM": "Rhododendron schlippenbachii",
+      "DRNM": "-",
+      "EDIBLE_INFO": "불가",
+      "EDIBLE_Y": "x",
+      "EDIBLE_N": "o",
+      "EDIBLE_USE_CONT": null,
+      "CHRTR_INFO_CONT": "유독성분 함유",
+      "ANML_INFO": "식물성"
+    }
+  ],
+  "total_count": 2,
+  "raw": {}
+}

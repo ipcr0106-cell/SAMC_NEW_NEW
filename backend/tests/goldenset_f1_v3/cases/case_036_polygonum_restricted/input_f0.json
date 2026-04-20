@@ -1,0 +1,19 @@
+{
+  "_comment": "F0 파싱 결과 고정 픽스처. HITL-0 승인 후 run_feature1_v2 에 전달되는 형태.",
+  "v3_case_id": "v3_case_036_polygonum_restricted",
+  "v2_source_id": "g065",
+  "food_type": "건강기능식품",
+  "process_conditions": {},
+  "ingredients": [
+    {
+      "name": "하수오",
+      "percentage": 1.0,
+      "part": "덩이뿌리"
+    }
+  ],
+  "doc_types": [
+    "원재료_명세서",
+    "성분_분석표"
+  ],
+  "hitl0_approved": true
+}

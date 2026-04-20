@@ -1,0 +1,51 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 50,
+      "totalCount": 2,
+      "items": [
+        {
+          "PC_KOR_NM": "구기준물질",
+          "PRDLST_CD": "D0300100000000",
+          "T_KOR_NM": "함량",
+          "FNPRT_ITM_NM": null,
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "50.0이상",
+          "SPEC_VAL_SUMUP": "이 품목은 50.0% 이상을 함유한다",
+          "MIMM_VAL": "50.0",
+          "MXMM_VAL": null,
+          "UNIT_NM": "%",
+          "INJRY_YN": "N",
+          "SORC": "식품첨가물공전",
+          "VALD_BEGN_DT": "20100101",
+          "VALD_END_DT": "20150101",
+          "UPDT_PRVNS": "구기준",
+          "LAST_UPDT_DTM": "2015-01-02 10:00:00"
+        },
+        {
+          "PC_KOR_NM": "구기준물질",
+          "PRDLST_CD": "D0300100000000",
+          "T_KOR_NM": "함량",
+          "FNPRT_ITM_NM": null,
+          "PIAM_KOR_NM": null,
+          "SPEC_VAL": "80.0이상",
+          "SPEC_VAL_SUMUP": "이 품목은 80.0% 이상을 함유한다",
+          "MIMM_VAL": "80.0",
+          "MXMM_VAL": null,
+          "UNIT_NM": "%",
+          "INJRY_YN": "N",
+          "SORC": "식품첨가물공전",
+          "VALD_BEGN_DT": "20150102",
+          "VALD_END_DT": "99991231",
+          "UPDT_PRVNS": "갱신",
+          "LAST_UPDT_DTM": "2020-01-01 09:00:00"
+        }
+      ]
+    }
+  }
+}

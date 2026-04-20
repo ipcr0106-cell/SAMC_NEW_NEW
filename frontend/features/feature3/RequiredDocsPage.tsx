@@ -734,14 +734,42 @@ export default function StepAPage() {
     const loadPipelineData = async () => {
       setLoading(true);
       try {
-        // === MOCK: 기능 2에서 넘어오는 정보 (food_type + keywords만) ===
-        await new Promise(r => setTimeout(r, 600));
+        // 기능 2(식품유형) + 기능 1(원재료) 결과를 pipeline_steps 에서 로드
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+
+        const [f2Res, f1Res] = await Promise.all([
+          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`),
+          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/1`),
+        ]);
+
+        if (!f2Res.ok) {
+          throw new Error(
+            "기능2(식품유형 분류) 결과를 찾을 수 없습니다. 먼저 식품유형 분류를 완료해주세요.",
+          );
+        }
+
+        const f2Row = await f2Res.json();
+        const f2Data = f2Row.final_result ?? f2Row.ai_result ?? {};
+        if (!f2Data.food_type) {
+          throw new Error("기능2 결과에 식품유형(food_type)이 없습니다.");
+        }
+
+        let ingredientNames: string[] = [];
+        if (f1Res.ok) {
+          const f1Row = await f1Res.json();
+          const f1Data = f1Row.final_result ?? f1Row.ai_result ?? {};
+          ingredientNames = (f1Data.ingredients ?? [])
+            .map((ing: { name?: string }) => ing?.name ?? "")
+            .filter((n: string) => n.length > 0);
+        }
+
         const fromPipeline = {
           case_id: caseId,
-          food_type: "리큐르",
-          product_keywords: ["정제수", "설탕", "증류알코올", "살구씨증류액", "바닐라추출물", "천연향료", "구연산(E330)", "캐러멜색소(E150a)"],
+          food_type: f2Data.food_type as string,
+          food_large_category: f2Data.category_name as string | undefined,
+          food_mid_category: f2Data.subcategory_name as string | undefined,
+          product_keywords: ingredientNames,
         };
-        // ==============================================
 
         // AI 성분 분석: 원재료를 DB 키워드로 자동 매핑
         let enrichedKeywords = [...fromPipeline.product_keywords];

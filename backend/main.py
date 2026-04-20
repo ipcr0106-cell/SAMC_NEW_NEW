@@ -24,6 +24,7 @@ from routers.feature2 import router as feature2_router
 from routers.feature3 import router as feature3_router
 from routers.feature5 import router as feature5_router
 from routers.dummy_seed import router as dummy_seed_router
+from middleware.error_handler import register_error_handlers
 
 
 app = FastAPI(
@@ -45,6 +46,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# F1 파이프라인 에러 핸들러 등록 (08_에러_처리_설계.md §4)
+register_error_handlers(app)
 
 # 라우터 등록
 app.include_router(upload_router)

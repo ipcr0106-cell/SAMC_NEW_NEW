@@ -1,0 +1,180 @@
+{
+  "run_meta": {
+    "goldenset_version": "v3",
+    "subset": "mini",
+    "mock": true,
+    "total_cases": 5,
+    "started_at": "2026-04-19T18:52:59.909651+00:00",
+    "finished_at": "2026-04-19T18:53:07.894894+00:00",
+    "total_ms": 7984.0
+  },
+  "summary": {
+    "total": 5,
+    "success": 5,
+    "errors": 0,
+    "metrics": {
+      "verdict_accuracy": 0.6,
+      "forbidden_recall": 1.0,
+      "false_positive_rate": 0.0,
+      "standards_accuracy": 0.0,
+      "hitl1_rate": 0.8
+    },
+    "thresholds": {
+      "verdict_accuracy_pass": false,
+      "forbidden_recall_pass": true,
+      "false_positive_rate_pass": true,
+      "standards_accuracy_pass": false,
+      "hitl1_rate_pass": false
+    },
+    "all_thresholds_pass": false,
+    "category_accuracy": {
+      "conditional_heated": {
+        "total": 1,
+        "match": 1,
+        "accuracy": 1.0
+      },
+      "conditional_restricted_db": {
+        "total": 1,
+        "match": 0,
+        "accuracy": 0.0
+      },
+      "forbidden_drug": {
+        "total": 1,
+        "match": 1,
+        "accuracy": 1.0
+      },
+      "permitted_db": {
+        "total": 1,
+        "match": 0,
+        "accuracy": 0.0
+      },
+      "unidentified_virtual": {
+        "total": 1,
+        "match": 1,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "results": [
+    {
+      "case_name": "case_001_rice_permitted",
+      "category": "permitted_db",
+      "expected": {
+        "verdict": "permitted",
+        "overall_status": "pass",
+        "is_forbidden": false,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 1,
+        "confidence": 0.45
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 1312.0,
+      "error": null
+    },
+    {
+      "case_name": "case_017_cannabis_forbidden",
+      "category": "forbidden_drug",
+      "expected": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "is_forbidden": true,
+        "hitl1_required": false
+      },
+      "actual": {
+        "verdict": "prohibited",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 0,
+        "confidence": 0.95
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": true,
+      "false_positive": false,
+      "hitl1_triggered": false,
+      "latency_ms": 0.0,
+      "error": null
+    },
+    {
+      "case_name": "case_031_guarana_restricted",
+      "category": "conditional_restricted_db",
+      "expected": {
+        "verdict": "restricted",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 1,
+        "confidence": 0.45
+      },
+      "verdict_match": false,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 1781.0,
+      "error": null
+    },
+    {
+      "case_name": "case_037_sorbic_acid_heated_T",
+      "category": "conditional_heated",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "review_needed",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 1,
+        "confidence": 0.45
+      },
+      "verdict_match": true,
+      "standards_match": false,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 1344.0,
+      "error": null
+    },
+    {
+      "case_name": "case_055_virtual_xenostin",
+      "category": "unidentified_virtual",
+      "expected": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "is_forbidden": false,
+        "hitl1_required": true
+      },
+      "actual": {
+        "verdict": "needs_review",
+        "overall_status": "no_data",
+        "gmo_ingredients": [],
+        "warnings_count": 1,
+        "confidence": 0.45
+      },
+      "verdict_match": true,
+      "standards_match": true,
+      "forbidden_detected": null,
+      "false_positive": false,
+      "hitl1_triggered": true,
+      "latency_ms": 2375.0,
+      "error": null
+    }
+  ]
+}
