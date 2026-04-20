@@ -334,7 +334,7 @@ def build_pdf(
 
     def _bullet(text: str, indent: float = 6, size: int = 9):
         _set(size)
-        pdf.set_x(pdf.get_x() + indent)
+        pdf.set_x(pdf.l_margin + indent)  # l_margin 기준 고정 indent
         pdf.multi_cell(0, 6, f"• {text}", border=0)
 
     def _text(text: str, size: int = 9):
@@ -381,10 +381,11 @@ def build_pdf(
     # ── 2. 원재료 배합비율 ──
     _section("2. 원재료 배합비율")
     if ings:
+        # A4 유효폭: 210 - 18(left) - 18(right) = 174mm → 합계 170mm 이내로 유지
         _set(8, bold=True)
         pdf.set_fill_color(15, 23, 42)
         pdf.set_text_color(255, 255, 255)
-        col_ws = [45, 16, 22, 16, 28, 24, 29]
+        col_ws = [42, 14, 18, 14, 26, 22, 34]  # 합계 = 170mm
         for h_txt, cw in zip(["성분명", "비율%", "원산지", "INS", "CAS", "식약처코드", "공식성분명"], col_ws):
             pdf.cell(cw, 7, h_txt, border=1, fill=True)
         pdf.ln()
@@ -394,16 +395,16 @@ def build_pdf(
             fill_color = (248, 250, 252) if i % 2 == 1 else (255, 255, 255)
             pdf.set_fill_color(*fill_color)
             row_data = [
-                str(ing.get("name") or ""),
-                str(ing.get("ratio") or ""),
-                str(ing.get("origin") or ""),
-                str(ing.get("ins_number") or ""),
-                str(ing.get("cas_number") or ""),
-                str(ing.get("ingredient_code") or ""),
-                str(ing.get("ingredient_code_name") or ""),
+                str(ing.get("name") or "")[:22],
+                str(ing.get("ratio") or "")[:8],
+                str(ing.get("origin") or "")[:10],
+                str(ing.get("ins_number") or "")[:8],
+                str(ing.get("cas_number") or "")[:14],
+                str(ing.get("ingredient_code") or "")[:10],
+                str(ing.get("ingredient_code_name") or "")[:18],
             ]
             for val, cw in zip(row_data, col_ws):
-                pdf.cell(cw, 7, val[:20], border=1, fill=True)
+                pdf.cell(cw, 7, val, border=1, fill=True)
             pdf.ln()
     else:
         _text("(추출된 원재료 없음)")
@@ -446,18 +447,21 @@ def build_pdf(
             pdf.multi_cell(0, 6, label_txt)
 
             _set(9)
-            pdf.set_x(pdf.get_x() + 8)
+            pdf.set_x(pdf.l_margin + 8)       # get_x() 대신 l_margin 기준으로 고정
             pdf.set_text_color(5, 150, 105)   # 초록
-            pdf.multi_cell(0, 6, f"  추천: {rcode} - {rname}   |   {rrsn}")
+            rec_txt = f"추천: {rcode} - {rname}"
+            if rrsn:
+                rec_txt += f"   |   {rrsn}"
+            pdf.multi_cell(0, 6, rec_txt)
             pdf.set_text_color(30, 30, 30)
 
             for sc in sims:
                 sc_code = sc.get("code", "")
                 sc_name = sc.get("name", "")
                 sc_note = sc.get("confusion_note", "") or sc.get("reason", "")
-                pdf.set_x(pdf.get_x() + 14)
+                pdf.set_x(pdf.l_margin + 14)  # 고정 indent
                 pdf.set_text_color(100, 116, 139)  # 회색
-                note_txt = f"  유사: {sc_code} - {sc_name}"
+                note_txt = f"유사: {sc_code} - {sc_name}"
                 if sc_note:
                     note_txt += f"   →   {sc_note}"
                 pdf.multi_cell(0, 5, note_txt)

@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "CPNT_CD": "B9999999999999",
+      "KOR_NM": "다목적성분",
+      "ENG_NM": "MULTI",
+      "NKNM_INFO_CONT": "",
+      "CPNT_LCLS_CD_NM": "기타",
+      "USE_DIVS_CD_NM": "기타"
+    },
+    {
+      "CPNT_CD": "A5000001000000",
+      "KOR_NM": "다목적성분",
+      "ENG_NM": "MULTI",
+      "NKNM_INFO_CONT": "",
+      "CPNT_LCLS_CD_NM": "식품첨가물",
+      "USE_DIVS_CD_NM": "사용가능"
+    },
+    {
+      "CPNT_CD": "A1111111111111",
+      "KOR_NM": "다목적성분",
+      "ENG_NM": "MULTI",
+      "NKNM_INFO_CONT": "",
+      "CPNT_LCLS_CD_NM": "식품원료",
+      "USE_DIVS_CD_NM": "사용가능"
+    }
+  ],
+  "total_count": 3,
+  "raw": {}
+}

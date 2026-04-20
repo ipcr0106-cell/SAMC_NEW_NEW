@@ -1,21 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import {
-  ArrowRight,
-  Save,
-  Globe,
-  Loader2,
-} from "lucide-react";
+import { ArrowRight, Save, Globe, Loader2 } from "lucide-react";
 import StepNavigation from "@/components/layout/StepNavigation";
 import CaseSummaryPanel from "@/components/layout/CaseSummaryPanel";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 
 import { useForeignLabelCheck } from "@/features/feature4/hooks/useForeignLabelCheck";
-import { OVERALL_LABEL, OVERALL_COLOR, CROSS_CHECK_FIELD_LABEL } from "@/features/feature4/constants";
-import { SEVERITY_LABEL } from "@/features/feature4/types";
+import { OVERALL_LABEL, OVERALL_COLOR, CROSS_CHECK_FIELD_LABEL, SEVERITY_LABEL } from "@/features/feature4/constants";
 import type { ImageIssue, LabelIssue } from "@/types/pipeline";
 
 // ─── 서브 컴포넌트 ───────────────────────────────────────
@@ -30,6 +24,17 @@ function SeverityBadge({ severity }: { severity: "must_fix" | "review_needed" })
       {SEVERITY_LABEL.review_needed}
     </span>
   );
+}
+
+/** reasoning 텍스트에서 (1), (2) 등 번호 항목을 줄바꿈 처리 */
+function formatReasoning(text: string) {
+  const formatted = text.replace(/\s*(\(\d+\))/g, "\n$1");
+  return formatted.split("\n").map((line, i) => (
+    <span key={i}>
+      {i > 0 && <br />}
+      {line}
+    </span>
+  ));
 }
 
 function ImageIssueCard({
@@ -60,22 +65,26 @@ function ImageIssueCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap mb-1">
           <SeverityBadge severity={issue.severity} />
-          <span className="text-xs font-medium text-slate-700">{issue.violation_type}</span>
+          <span className="text-xs text-slate-400">{issue.law_ref}</span>
         </div>
         <p className="text-sm text-slate-800 mb-1">{issue.description}</p>
         {issue.location && (
           <p className="text-xs text-slate-400 mb-1">위치: {issue.location}</p>
         )}
-        <div className="bg-white border border-slate-100 rounded-lg p-2.5 mt-1.5">
-          <p className="text-xs text-slate-500 font-medium mb-0.5">판단 근거</p>
-          <p className="text-xs text-slate-700 leading-relaxed">{issue.reasoning}</p>
-        </div>
+        <p className="text-xs text-slate-600 leading-relaxed mt-1">
+          {formatReasoning(issue.reasoning)}
+        </p>
         {issue.recommendation && (
           <p className="text-xs text-blue-700 mt-1.5">
             <span className="font-medium">권고:</span> {issue.recommendation}
           </p>
         )}
-        <p className="text-xs text-slate-400 mt-1">{issue.law_ref}</p>
+        {issue.law_excerpt && (
+          <div className="bg-white border border-slate-100 rounded-lg p-2.5 mt-1.5">
+            <p className="text-xs text-slate-500 font-medium mb-0.5">참고 법령</p>
+            <pre className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">{issue.law_excerpt}</pre>
+          </div>
+        )}
       </div>
     </label>
   );
@@ -90,13 +99,11 @@ export default function F4LabelReviewPage() {
 
   const {
     state,
-    form,
     error,
     selectedIssueIdxs,
     selectedImageIssueIdxs,
     validationResult,
     validateStatus,
-    handleFormChange,
     handleAnalyze,
     handleToggleIssue,
     handleToggleImageIssue,
@@ -107,7 +114,13 @@ export default function F4LabelReviewPage() {
     handleConfirm,
     handleDownloadReport,
     downloadStatus,
+    fetchResult,
   } = useForeignLabelCheck(caseId);
+
+  // 페이지 진입 시 기존 분석 결과 조회
+  useEffect(() => {
+    fetchResult();
+  }, [fetchResult]);
 
   const { analysisStatus, result, isConfirmed } = state;
   const isAnalyzing = analysisStatus === "running";
@@ -115,7 +128,7 @@ export default function F4LabelReviewPage() {
 
   return (
     <div className="max-w-[1440px] mx-auto px-6 py-6 pb-28">
-      <StepNavigation currentStep="F4" completedSteps={["upload", "F1", "F2", "F3"]} />
+      <StepNavigation currentStep="F4" completedSteps={["upload", "F1", "F3"]} />
 
       <div className="mt-6 grid lg:grid-cols-3 gap-6">
         {/* 좌측: 메인 콘텐츠 */}
@@ -134,110 +147,39 @@ export default function F4LabelReviewPage() {
             </div>
           )}
 
-          {/* ── STEP 1: 분석 입력 폼 ── */}
-          <Card padding="lg">
-            <div className="mb-4">
-              <h2 className="text-lg font-bold text-slate-900">라벨 검토</h2>
-              <p className="text-sm text-slate-500 mt-1">
-                라벨 텍스트를 입력하고 AI 분석을 실행하세요
-              </p>
-            </div>
-
-            <div className="space-y-3">
-              {/* 라벨 전체 텍스트 */}
-              <div>
-                <label className="text-xs font-medium text-slate-600 mb-1 block">
-                  라벨 전체 텍스트 <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  value={form.label_text}
-                  onChange={(e) => handleFormChange("label_text", e.target.value)}
-                  rows={5}
-                  placeholder="라벨에 표기된 모든 텍스트를 입력하세요. (OCR 결과 또는 직접 입력)"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
+          {/* ── 분석 실행 카드 (기존 결과가 없을 때만 표시) ── */}
+          {!isDone && !isAnalyzing && (
+            <Card padding="lg">
+              <div className="mb-4">
+                <h2 className="text-lg font-bold text-slate-900">수출국 표시사항 검토</h2>
+                <p className="text-sm text-slate-500 mt-1">
+                  F0(OCR), F1(원재료), F2(식품유형) 결과를 기반으로 라벨을 자동 분석합니다.
+                </p>
               </div>
+              <Button
+                onClick={handleAnalyze}
+                disabled={isAnalyzing}
+                className="w-full"
+                variant="primary"
+                size="lg"
+                icon={<Globe size={16} />}
+              >
+                분석 시작
+              </Button>
+            </Card>
+          )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-medium text-slate-600 mb-1 block">식품 유형</label>
-                  <input
-                    type="text"
-                    value={form.food_type}
-                    onChange={(e) => handleFormChange("food_type", e.target.value)}
-                    placeholder="예: 건강기능식품, 일반식품"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-600 mb-1 block">원재료 (콤마 구분)</label>
-                  <input
-                    type="text"
-                    value={form.ingredients_raw}
-                    onChange={(e) => handleFormChange("ingredients_raw", e.target.value)}
-                    placeholder="예: 포도당, 비타민C, 대두"
-                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                  />
-                </div>
+          {/* 분석 진행 중 */}
+          {isAnalyzing && (
+            <Card padding="lg">
+              <div className="flex items-center justify-center gap-3 py-8">
+                <Loader2 size={24} className="animate-spin text-blue-500" />
+                <p className="text-sm text-slate-600">F0/F1/F2 데이터를 기반으로 라벨을 분석하고 있습니다...</p>
               </div>
+            </Card>
+          )}
 
-              {/* 이미지 URL */}
-              <div>
-                <label className="text-xs font-medium text-slate-600 mb-1 block">
-                  라벨 이미지 URL{" "}
-                  <span className="text-slate-400 font-normal">(선택 — 이미지 위반 분석용)</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.label_image_url}
-                  onChange={(e) => handleFormChange("label_image_url", e.target.value)}
-                  placeholder="https://..."
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                />
-              </div>
-
-              {/* 교차검증 입력 */}
-              <details className="border border-slate-100 rounded-lg">
-                <summary className="text-xs font-medium text-slate-500 px-3 py-2 cursor-pointer select-none">
-                  교차검증 서류 정보 입력 (선택)
-                </summary>
-                <div className="px-3 pb-3 pt-2 grid grid-cols-2 gap-3">
-                  {(
-                    [
-                      ["doc_product_name", "제품명"],
-                      ["doc_content_volume", "내용량"],
-                      ["doc_origin", "원산지"],
-                      ["doc_manufacturer", "제조사"],
-                      ["doc_ingredients", "원재료 (서류 기준)"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <div key={key} className={key === "doc_ingredients" ? "col-span-2" : ""}>
-                      <label className="text-xs text-slate-500 mb-1 block">{label}</label>
-                      <input
-                        type="text"
-                        value={form[key]}
-                        onChange={(e) => handleFormChange(key, e.target.value)}
-                        className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </details>
-            </div>
-
-            <Button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || !form.label_text.trim()}
-              className="mt-4 w-full"
-              variant="primary"
-              size="lg"
-              icon={isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Globe size={16} />}
-            >
-              {isAnalyzing ? "분석 중..." : "분석 시작"}
-            </Button>
-          </Card>
-
-          {/* ── STEP 2: 분석 결과 ── */}
+          {/* ── 분석 결과 ── */}
           {isDone && (
             <>
               {/* 전반 판정 */}
@@ -266,6 +208,16 @@ export default function F4LabelReviewPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* 재분석 버튼 */}
+                {!isConfirmed && (
+                  <button
+                    onClick={handleAnalyze}
+                    className="mt-3 text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                  >
+                    다시 분석하기
+                  </button>
+                )}
               </Card>
 
               {/* 텍스트 위반 항목 */}
@@ -307,7 +259,13 @@ export default function F4LabelReviewPage() {
                           {issue.location && (
                             <p className="text-xs text-slate-400 mb-0.5">위치: {issue.location}</p>
                           )}
-                          <p className="text-xs text-slate-600">{issue.reason}</p>
+                          <p className="text-xs text-slate-600 leading-relaxed">{issue.reason}</p>
+                          {issue.law_excerpt && (
+                            <div className="bg-white border border-slate-100 rounded-lg p-2.5 mt-1.5">
+                              <p className="text-xs text-slate-500 font-medium mb-0.5">참고 법령</p>
+                              <pre className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap font-sans">{issue.law_excerpt}</pre>
+                            </div>
+                          )}
                         </div>
                       </label>
                     ))}
@@ -415,7 +373,7 @@ export default function F4LabelReviewPage() {
                 </Card>
               )}
 
-              {/* ── STEP 3: 법령 정합성 검증 ── */}
+              {/* ── 법령 정합성 검증 ── */}
               <Card padding="lg">
                 <div className="mb-3">
                   <h3 className="text-sm font-semibold text-slate-800">법령 정합성 검토</h3>
@@ -494,7 +452,7 @@ export default function F4LabelReviewPage() {
                 )}
               </Card>
 
-              {/* ── STEP 4: 최종 저장 & 확인 ── */}
+              {/* ── 최종 저장 & 확인 ── */}
               <Card padding="lg">
                 <div className="mb-3">
                   <h3 className="text-sm font-semibold text-slate-800">최종 저장</h3>

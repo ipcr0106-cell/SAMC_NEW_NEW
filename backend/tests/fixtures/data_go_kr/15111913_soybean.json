@@ -1,0 +1,45 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 10,
+      "totalCount": 2,
+      "items": [
+        {
+          "ORM_STD_NM": "대두",
+          "ORM_STD_NM_ENG": "Soybean",
+          "ORM_STD_CD": "A1000100000000",
+          "GMO_YN": "Y",
+          "IMPORT_YN": "Y",
+          "PRV_NATN_CD": null,
+          "ORM_SPEC": null,
+          "ORM_SPEC_UNIT": null,
+          "HRNK_RAWMTRL_ORDNO": "1583",
+          "ORM_ORDNO": "1001",
+          "PRDLST_REPORT_LEDG_NO": "2023021000337332",
+          "ENTP_CD": "1000695",
+          "USE_FLAG": "Y"
+        },
+        {
+          "ORM_STD_NM": "대두 분말",
+          "ORM_STD_NM_ENG": null,
+          "ORM_STD_CD": "A1000100100000",
+          "GMO_YN": "N",
+          "IMPORT_YN": "Y",
+          "PRV_NATN_CD": null,
+          "ORM_SPEC": null,
+          "ORM_SPEC_UNIT": null,
+          "HRNK_RAWMTRL_ORDNO": "1583",
+          "ORM_ORDNO": "1002",
+          "PRDLST_REPORT_LEDG_NO": "2023021000337333",
+          "ENTP_CD": "1000695",
+          "USE_FLAG": "Y"
+        }
+      ]
+    }
+  }
+}

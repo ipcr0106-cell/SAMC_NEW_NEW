@@ -28,6 +28,7 @@ export default function ConfirmActions({
       {onDownloadPdf && (
         <button
           type="button"
+          data-testid="download-pdf-btn"
           onClick={onDownloadPdf}
           className="rounded border border-gray-300 bg-white px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
         >
@@ -44,6 +45,7 @@ export default function ConfirmActions({
       </button>
       <button
         type="button"
+        data-testid="hitl2-confirm-btn"
         onClick={onConfirm}
         disabled={!canConfirm || isConfirming || isConfirmed}
         className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"

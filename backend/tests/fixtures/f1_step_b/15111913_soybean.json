@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "ORM_STD_NM": "대두",
+      "ORM_STD_NM_ENG": "SOYBEAN",
+      "ORM_STD_CD": "A1000244000001",
+      "GMO_YN": "Y",
+      "IMPORT_YN": "Y",
+      "USE_FLAG": "Y"
+    },
+    {
+      "ORM_STD_NM": "대두",
+      "ORM_STD_NM_ENG": "SOYBEAN",
+      "ORM_STD_CD": "A1000244000002",
+      "GMO_YN": "N",
+      "IMPORT_YN": "N",
+      "USE_FLAG": "Y"
+    }
+  ],
+  "total_count": 2,
+  "raw": {}
+}

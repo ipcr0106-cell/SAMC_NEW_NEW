@@ -23,11 +23,9 @@ tiktoken>=0.7.0
 sentence-transformers>=3.3.0
 # F4: PDF 레포트 생성
 fpdf2>=2.8.1
-# F4: PDF 법령 텍스트 추출
+# F4/F5: PDF 법령 텍스트 추출
 pdfplumber==0.11.4
 # F4: 전처리 진행도 표시
 tqdm>=4.66.0
 # F5: Voyage-3 임베딩
 voyageai>=0.3.0
-# F5: 법령 PDF 텍스트 추출 (임베딩 스크립트)
-pdfplumber>=0.11.0

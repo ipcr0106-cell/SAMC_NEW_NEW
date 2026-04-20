@@ -858,7 +858,7 @@ def upsert_to_pinecone(
                 "조문번호":   chunk["조문번호"],
                 "법령_tier":  chunk["tier"],      # 1=법률 2=시행령 3=시행규칙 4=고시
                 "law_doc_id": law_doc_id,
-                "text":       chunk["text"][:1000],
+                "text":       chunk["text"][:3000],
             },
         })
 

@@ -1,17 +1,28 @@
-"""단위 변환 엔진 — 텍스트 레벨 + 수치 레벨.
+"""단위 변환 엔진 — 텍스트 레벨 + 수치 레벨 + F1 공통 단위 정규화.
 
 출처:
     - newsamc src/lib/translation/unit-converter.ts (텍스트 레벨)
     - 계획/기능1_참고자료/05_단위변환_엔진.md (수치 레벨)
+    - 계획/f1 재설계 계획/11_단위_정규화_모듈_설계.md (F1 공통 단위 정규화)
 
 용도:
     A. 텍스트 레벨: 라벨 OCR 결과 "16 oz" → "453.59g (16 oz)" 정규화
     B. 수치 레벨: 사용자 입력 "0.05%" vs 기준치 "0.6 g/kg" 단위 통일 후 비교
+    C. F1 공통 단위 정규화: 15116583 UNIT_NM 혼재 단위 → "mg/kg" 기준 통일
+       (normalize_to_common_unit, parse_numeric_spec, parse_non_numeric_spec,
+        SpecEvaluation, UnitIncompatibleError)
+
+에지 케이스 (§7):
+    - 복합 단위 ("mg/kg (건조물 기준)") — 접미 주석 무시, mg/kg 추출
+    - 한글 단위 ("퍼센트" → "%", "피피엠" → "ppm") — 매핑 테이블 적용
+    - 부등호 범위 ("85.0이상", "0.1이하", "0.01~0.1") — 정규식 파서
+    - null/빈 단위 — parse_non_numeric_spec 위임
 """
 
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass, field
 from typing import Literal, Optional
 
 from pydantic import BaseModel
@@ -91,7 +102,7 @@ def convert_units_in_text(text: str) -> tuple[str, list[UnitConversion]]:
         def _sub(m: re.Match[str], _fn=fn, _type=ctype) -> str:
             try:
                 num = float(m.group(1))
-            except ValueError:
+            except ValueError:  # pragma: no cover  — 정규식이 숫자만 캡처하므로 도달 불가
                 return m.group(0)
             replacement = _fn(num)
             original = m.group(0).strip()
@@ -200,5 +211,244 @@ def parse_numeric_limit(limit_text: str) -> Optional[tuple[float, str]]:
         return None
     try:
         return float(m.group(1)), m.group(2)
-    except ValueError:
+    except ValueError:  # pragma: no cover  — 정규식이 숫자만 캡처하므로 도달 불가
         return None
+
+
+# ============================================================
+# C. F1 공통 단위 정규화 (11_단위_정규화_모듈_설계.md §2~§5)
+# ============================================================
+
+# TODO Wave 2: UnitIncompatibleError 를 backend/exceptions.py F1PipelineError
+#              계층으로 이관하여 에러 계층 통일 검토.
+class UnitIncompatibleError(Exception):
+    """변환 불가 단위 조합 — 예: IU/kg (국제단위, mg/kg 수치 대응 없음).
+
+    Wave 2에서 exceptions.py 계층(F1PipelineError 하위)으로 이관 검토.
+    """
+
+    def __init__(self, unit: str, message: str = "") -> None:
+        self.unit = unit
+        super().__init__(message or f"Unit '{unit}' cannot be converted to mg/kg")
+
+
+@dataclass
+class SpecEvaluation:
+    """비수치 기준값 평가 결과 (11_단위_정규화_모듈_설계.md §4).
+
+    Attributes:
+        kind: 분류
+            - "numeric"     : 수치 비교 가능 (min_val/max_val 참조)
+            - "non_detect"  : 불검출/음성 — 측정값 > 0 이면 fail
+            - "qualitative" : 적합/적정량 — 담당자 판단 필요 (requires_hitl=True)
+            - "unknown"     : 파싱 실패 — HITL 에스컬레이션 필요
+        value: numeric kind에서 단일 수치 (범위가 아닌 경우)
+        label: 원문 텍스트 ("적합", "불검출" 등)
+        requires_hitl: True이면 자동 판정 불가, 담당자 개입 필요
+    """
+
+    kind: Literal["numeric", "non_detect", "qualitative", "unknown"]
+    value: Optional[float] = None
+    label: Optional[str] = None
+    requires_hitl: bool = False
+
+
+# 한글 단위 → 표준 영문 단위 매핑
+_HANGUL_UNIT_MAP: dict[str, str] = {
+    "퍼센트": "%",
+    "피피엠": "ppm",
+    "마이크로그램퍼킬로그램": "μg/kg",
+    "그램퍼킬로그램": "g/kg",
+    "밀리그램퍼킬로그램": "mg/kg",
+    "그램퍼리터": "g/L",
+    "밀리그램퍼리터": "mg/L",
+    "아이유퍼킬로그램": "IU/kg",
+    # 축약 형태
+    "퍼센": "%",
+    "피피엠(ppm)": "ppm",
+}
+
+# 복합 단위 접미 주석 제거 패턴 — "mg/kg (건조물 기준)" → "mg/kg"
+_UNIT_SUFFIX_COMMENT_RE = re.compile(r"\s*\([^)]*\)\s*$")
+
+# 정규화된 단위 문자열 → 변환 배율 (결과 단위: mg/kg)
+# g/L, mg/L 는 density 의존이라 별도 처리
+_UNIT_TO_MGKG: dict[str, float] = {
+    "mg/kg": 1.0,
+    "ppm": 1.0,          # ppm ≡ mg/kg (고체 기준)
+    "g/kg": 1_000.0,
+    "μg/kg": 0.001,
+    "ug/kg": 0.001,      # μ 대신 u 표기 허용
+    "%": 10_000.0,       # 1% = 10,000 mg/kg
+}
+
+# 변환 불가 단위 (UnitIncompatibleError)
+_INCOMPATIBLE_UNITS: frozenset[str] = frozenset({"IU/kg", "iu/kg"})
+
+# 비수치 SPEC_VAL 매핑
+_NON_NUMERIC_MAP: dict[str, SpecEvaluation] = {
+    "불검출": SpecEvaluation(kind="non_detect", label="불검출", requires_hitl=False),
+    "음성": SpecEvaluation(kind="non_detect", label="음성", requires_hitl=False),
+    "적합": SpecEvaluation(kind="qualitative", label="적합", requires_hitl=True),
+    "적정량": SpecEvaluation(kind="qualitative", label="적정량", requires_hitl=True),
+}
+
+# parse_numeric_spec 정규식 패턴
+# 지원: "85.0이상", "0.1이하", "0.01~0.1", "5.0"
+_NUMERIC_RANGE_RE = re.compile(
+    r"^\s*"
+    r"(?P<lo>\d+(?:\.\d+)?)"          # 첫 번째 수
+    r"\s*"
+    r"(?:"
+    r"(?P<tilde>[~～])\s*(?P<hi>\d+(?:\.\d+)?)"  # ~hi (범위)
+    r"|(?P<gte>이상)"                              # 이상 (≥)
+    r"|(?P<lte>이하)"                              # 이하 (≤)
+    r"|(?P<gt>초과)"                               # 초과 (>)
+    r"|(?P<lt>미만)"                               # 미만 (<)
+    r")?\s*$"
+)
+
+
+def _normalize_unit_str(unit: str) -> str:
+    """단위 문자열을 정규화.
+
+    처리 순서:
+        1. 한글 단위 매핑 (퍼센트 → %)
+        2. 복합 단위 접미 주석 제거 (mg/kg (건조물 기준) → mg/kg)
+        3. strip
+    """
+    stripped = unit.strip()
+    # 한글 매핑 먼저
+    if stripped in _HANGUL_UNIT_MAP:
+        return _HANGUL_UNIT_MAP[stripped]
+    # 복합 단위 주석 제거
+    cleaned = _UNIT_SUFFIX_COMMENT_RE.sub("", stripped).strip()
+    return cleaned
+
+
+def normalize_to_common_unit(
+    value: float,
+    from_unit: str,
+    *,
+    density: float = 1.0,
+) -> tuple[float, str]:
+    """혼재 단위를 mg/kg 기준으로 정규화 (11_단위_정규화_모듈_설계.md §2~§3).
+
+    Args:
+        value: 원본 수치
+        from_unit: 원본 단위 문자열 (한글·복합 단위 포함)
+        density: 액체 단위(g/L, mg/L) 변환 시 사용하는 비중 [g/mL].
+                 기본값 1.0 (물 기준). backend/constants/density.py 참조.
+
+    Returns:
+        (정규화된 값, "mg/kg")
+
+    Raises:
+        UnitIncompatibleError: IU/kg 등 mg/kg 으로 변환 불가능한 단위
+        ValueError: 인식 불가능한 단위 (unknown unit)
+
+    에지 케이스:
+        - "mg/kg (건조물 기준)" → 접미 주석 무시, mg/kg 처리
+        - "퍼센트" → % → 10,000 배
+        - "피피엠" → ppm → 1배
+        - density=0 이면 ZeroDivisionError (호출자 책임)
+    """
+    normalized_unit = _normalize_unit_str(from_unit)
+
+    # 변환 불가 단위 체크
+    if normalized_unit in _INCOMPATIBLE_UNITS or normalized_unit.lower() in _INCOMPATIBLE_UNITS:
+        raise UnitIncompatibleError(from_unit)
+
+    # 고정 배율 변환
+    if normalized_unit in _UNIT_TO_MGKG:
+        return float(value) * _UNIT_TO_MGKG[normalized_unit], "mg/kg"
+
+    # 소문자 시도 (대소문자 혼용 방어)
+    lower = normalized_unit.lower()
+    if lower in _UNIT_TO_MGKG:
+        return float(value) * _UNIT_TO_MGKG[lower], "mg/kg"
+
+    # 액체 단위 — density 필요
+    if normalized_unit in ("g/L", "g/l"):
+        # g/L × (1000 mg/g) / (density g/mL × 1000 mL/L) = mg/kg
+        # 단순화: g/L ÷ density × 1000 = mg/kg  (density in g/mL)
+        return float(value) * 1_000.0 / density, "mg/kg"
+
+    if normalized_unit in ("mg/L", "mg/l"):
+        # mg/L ÷ density = mg/kg
+        return float(value) / density, "mg/kg"
+
+    raise ValueError(f"Unknown unit: '{from_unit}' (normalized: '{normalized_unit}')")
+
+
+def parse_numeric_spec(spec: str) -> tuple[Optional[float], Optional[float]]:
+    """SPEC_VAL 수치 표현 파싱 (11_단위_정규화_모듈_설계.md §5).
+
+    지원 패턴:
+        "85.0이상"  → (85.0, None)   # min=85, max 없음
+        "0.1이하"   → (None, 0.1)    # min 없음, max=0.1
+        "0.01~0.1"  → (0.01, 0.1)   # 범위
+        "5.0"       → (5.0, 5.0)    # 단일 값 (등호)
+        "3.0초과"   → (3.0, None)   # 초과 (> 방향, min 근사)
+        "1.0미만"   → (None, 1.0)   # 미만 (< 방향, max 근사)
+
+    Returns:
+        (min_val, max_val). 한쪽만 존재하면 나머지는 None.
+        파싱 실패 시 (None, None).
+
+    Note:
+        "이상"/"초과" 는 의미론적 차이(≥ vs >) 가 있으나 수치 비교 목적상
+        동일 반환 구조를 사용한다. 호출자가 context 를 보고 판단.
+    """
+    if not spec or not spec.strip():
+        return None, None
+
+    m = _NUMERIC_RANGE_RE.match(spec.strip())
+    if not m:
+        return None, None
+
+    lo = float(m.group("lo"))
+
+    if m.group("tilde") is not None:
+        hi = float(m.group("hi"))
+        return lo, hi
+    if m.group("gte") is not None or m.group("gt") is not None:
+        return lo, None
+    if m.group("lte") is not None or m.group("lt") is not None:
+        return None, lo
+    # 단일 값
+    return lo, lo
+
+
+def parse_non_numeric_spec(spec: str) -> SpecEvaluation:
+    """비수치 SPEC_VAL 파싱 (11_단위_정규화_모듈_설계.md §4).
+
+    Args:
+        spec: SPEC_VAL 원문 (예: "적합", "불검출", "음성", "적정량")
+
+    Returns:
+        SpecEvaluation — kind/label/requires_hitl 설정됨.
+        인식 불가 텍스트는 kind="unknown", requires_hitl=True.
+
+    Note:
+        수치 표현("85.0이상" 등)도 입력될 수 있으나 이 함수의 책임 범위 外.
+        호출자는 parse_numeric_spec 를 먼저 시도하고 실패 시 이 함수를 호출한다.
+    """
+    if not spec:
+        return SpecEvaluation(kind="unknown", label=spec, requires_hitl=True)
+
+    stripped = spec.strip()
+    if stripped in _NON_NUMERIC_MAP:
+        return _NON_NUMERIC_MAP[stripped]
+
+    # 수치 패턴이면 numeric으로 분류 (방어적 처리)
+    min_val, max_val = parse_numeric_spec(stripped)
+    if min_val is not None or max_val is not None:
+        return SpecEvaluation(
+            kind="numeric",
+            value=min_val if min_val == max_val else None,
+            label=stripped,
+            requires_hitl=False,
+        )
+
+    return SpecEvaluation(kind="unknown", label=stripped, requires_hitl=True)

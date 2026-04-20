@@ -14,6 +14,10 @@ export interface Ingredient {
   origin: string;
   insNumber: string;
   casNumber: string;
+  /** 식약처 성분코드 (백엔드 자동 조회) */
+  ingredientCode?: string;
+  /** 성분코드 공식 명칭 */
+  ingredientCodeName?: string;
 }
 
 interface IngredientTableProps {
@@ -39,7 +43,7 @@ export default function IngredientTable({
     const newId = `ing-${Date.now()}`;
     onChange([
       ...ingredients,
-      { id: newId, name: "", ratio: "", origin: "", insNumber: "", casNumber: "" },
+      { id: newId, name: "", ratio: "", origin: "", insNumber: "", casNumber: "", ingredientCode: "", ingredientCodeName: "" },
     ]);
   };
 
@@ -102,6 +106,9 @@ export default function IngredientTable({
               </th>
               <th className="text-left text-xs font-medium text-slate-400 py-2.5 px-2 w-[120px]">
                 CAS 번호
+              </th>
+              <th className="text-left text-xs font-medium text-slate-400 py-2.5 px-2 w-[140px]">
+                성분코드
               </th>
               <th className="w-10" />
             </tr>
@@ -167,6 +174,22 @@ export default function IngredientTable({
                     placeholder="—"
                     className="font-mono"
                   />
+                </td>
+                <td className="px-2 py-0.5">
+                  {ing.ingredientCode ? (
+                    <div className="flex flex-col gap-0.5">
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-mono font-semibold leading-none">
+                        {ing.ingredientCode}
+                      </span>
+                      {ing.ingredientCodeName && (
+                        <span className="text-[10px] text-slate-500 leading-none truncate max-w-[120px]" title={ing.ingredientCodeName}>
+                          {ing.ingredientCodeName}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-[10px] text-slate-300">—</span>
+                  )}
                 </td>
                 <td className="text-center">
                   <button
