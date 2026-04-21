@@ -7,6 +7,10 @@
 
 import type { Feature1Result, PipelineStepStatus, HITL1DecisionsRequest } from "@/types/pipeline";
 
+// API 조회 결과 상태 (Wave A Phase 1 — Phase 2에서 백엔드 실제 연동 예정)
+// "ok": 정상 조회, "partial": 일부 조회 실패, "error": 전체 조회 실패
+export type ApiQueryStatus = "ok" | "partial" | "error";
+
 // 백엔드 응답 래퍼 (ai_result + final_result + status)
 //
 // Wave 3 HITL:
@@ -17,6 +21,8 @@ export interface Feature1Response {
   case_id: string;
   /** code-review MEDIUM-6: PipelineStepStatus 로 교체 (Wave 4 P2) */
   status: PipelineStepStatus;
+  /** API 조회 결과 상태 — Phase 2에서 백엔드가 실제로 내려줄 예정 (Wave A Phase 1) */
+  feature_status?: ApiQueryStatus;
   ai_result: (Feature1Result & { _internal?: Feature1Internal }) | null;
   final_result: (Feature1Result & { _internal?: Feature1Internal }) | null;
   edit_reason?: string | null;
@@ -81,6 +87,7 @@ export interface IngredientMatchDetail {
   verdict: "permitted" | "restricted" | "prohibited" | "unidentified";
   match_method:
     | "exact_name"
+    | "code_normalize"
     | "ins_number"
     | "cas_number"
     | "scientific_name"

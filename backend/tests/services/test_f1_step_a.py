@@ -175,7 +175,7 @@ class TestRunStepA:
     # ------------------------------------------------------------------
     @pytest.mark.asyncio
     async def test_db_hit_only_stops(self) -> None:
-        db_rows = [{"name_ko": "아편", "reason": "마약류관리법", "law_ref": "law-001"}]
+        db_rows = [{"name_ko": "아편", "reason": "마약류관리법", "law_source": "law-001"}]
         mock_client = _make_mock_client(items=[])
 
         with _patch_supabase(db_rows):
@@ -193,7 +193,9 @@ class TestRunStepA:
 
     # ------------------------------------------------------------------
     # 시나리오 2: API hit (EDIBLE_INFO="불가") → stopped=True
+    # P6-b: 15111777 제거로 API 교차검증 경로 폐기. skip.
     # ------------------------------------------------------------------
+    @pytest.mark.skip(reason="P6-b: 15111777 제거로 API 교차검증 경로 폐기")
     @pytest.mark.asyncio
     async def test_api_hit_edible_info_stops(self) -> None:
         api_item = {
@@ -218,7 +220,9 @@ class TestRunStepA:
 
     # ------------------------------------------------------------------
     # 시나리오 3: API hit (EDIBLE_N="o") → stopped=True
+    # P6-b: 15111777 제거로 API 교차검증 경로 폐기. skip.
     # ------------------------------------------------------------------
+    @pytest.mark.skip(reason="P6-b: 15111777 제거로 API 교차검증 경로 폐기")
     @pytest.mark.asyncio
     async def test_api_hit_edible_n_stops(self) -> None:
         api_item = {
@@ -240,7 +244,9 @@ class TestRunStepA:
 
     # ------------------------------------------------------------------
     # 시나리오 4: DB + API 동일 원재료 → 중복 제거, source="db" 우선
+    # P6-b: API 경로 제거 — DB only 이므로 "중복 제거" 시나리오 의미 없음. skip.
     # ------------------------------------------------------------------
+    @pytest.mark.skip(reason="P6-b: API 제거 — dedup 시나리오 의미 없음")
     @pytest.mark.asyncio
     async def test_db_and_api_both_hit_deduplication(self) -> None:
         db_rows = [{"name_ko": "아편", "reason": "마약류관리법", "law_ref": "law-001"}]
@@ -266,7 +272,9 @@ class TestRunStepA:
 
     # ------------------------------------------------------------------
     # 시나리오 5: API 장애 → api_errors 기록, DB 결과로만 판정
+    # P6-b: API 제거 — api_errors 는 항상 []. skip.
     # ------------------------------------------------------------------
+    @pytest.mark.skip(reason="P6-b: 15111777 제거 — api_errors 경로 폐기")
     @pytest.mark.asyncio
     async def test_api_error_falls_back_to_db(self) -> None:
         from exceptions import DataGoKrError
@@ -288,6 +296,7 @@ class TestRunStepA:
         assert len(result.api_errors) == 1
         assert "아편" in result.api_errors[0]
 
+    @pytest.mark.skip(reason="P6-b: 15111777 제거 — api_errors 경로 폐기")
     @pytest.mark.asyncio
     async def test_api_error_no_db_hit_not_stopped(self) -> None:
         from exceptions import DataGoKrError
@@ -415,8 +424,8 @@ class TestRunStepA:
     @pytest.mark.asyncio
     async def test_law_refs_collected(self) -> None:
         db_rows = [
-            {"name_ko": "아편", "reason": "마약류관리법", "law_ref": "law-001"},
-            {"name_ko": "대마초", "reason": "마약류관리법", "law_ref": "law-002"},
+            {"name_ko": "아편", "reason": "마약류관리법", "law_source": "law-001"},
+            {"name_ko": "대마초", "reason": "마약류관리법", "law_source": "law-002"},
         ]
         mock_client = _make_mock_client(items=[])
 
@@ -484,8 +493,75 @@ class TestRunStepA:
         assert result.forbidden_hits[0].ingredient_name == "아편"
 
     # ------------------------------------------------------------------
-    # API 응답에 여러 건 — 하나라도 불가면 hit
+    # #7: aliases 경로 — "마리화나" 입력이 aliases=['마리화나']인 대마초 레코드에 hit
     # ------------------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_alias_hit_마리화나(self) -> None:
+        db_rows = [
+            {
+                "name_ko": "대마초",
+                "name_en": "Cannabis",
+                "aliases": ["마리화나", "대마"],
+                "reason": "마약류관리법",
+                "law_source": "law-002",
+            }
+        ]
+        with _patch_supabase(db_rows):
+            result = await run_step_a([Ingredient(name="마리화나")])
+
+        assert result.stopped is True
+        assert len(result.forbidden_hits) == 1
+        assert result.forbidden_hits[0].matched_name == "대마초"
+        assert result.forbidden_hits[0].source == "db"
+
+    # ------------------------------------------------------------------
+    # #8a: name_en 경로 — "Cannabis" 영문 입력이 name_en="Cannabis" 레코드에 hit
+    # ------------------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_english_name_hit_cannabis(self) -> None:
+        db_rows = [
+            {
+                "name_ko": "대마초",
+                "name_en": "Cannabis",
+                "aliases": [],
+                "reason": "마약류관리법",
+                "law_source": "law-002",
+            }
+        ]
+        with _patch_supabase(db_rows):
+            result = await run_step_a([Ingredient(name="Cannabis")])
+
+        assert result.stopped is True
+        assert len(result.forbidden_hits) == 1
+        assert result.forbidden_hits[0].matched_name == "대마초"
+        assert result.forbidden_hits[0].source == "db"
+
+    # ------------------------------------------------------------------
+    # #8b: name_en 대소문자 무관 — "cannabis" 소문자도 hit
+    # ------------------------------------------------------------------
+    @pytest.mark.asyncio
+    async def test_case_insensitive_english(self) -> None:
+        db_rows = [
+            {
+                "name_ko": "대마초",
+                "name_en": "Cannabis",
+                "aliases": [],
+                "reason": "마약류관리법",
+                "law_source": "law-002",
+            }
+        ]
+        with _patch_supabase(db_rows):
+            result = await run_step_a([Ingredient(name="cannabis")])
+
+        assert result.stopped is True
+        assert len(result.forbidden_hits) == 1
+        assert result.forbidden_hits[0].matched_name == "대마초"
+
+    # ------------------------------------------------------------------
+    # API 응답에 여러 건 — 하나라도 불가면 hit
+    # P6-b: API 제거 — skip.
+    # ------------------------------------------------------------------
+    @pytest.mark.skip(reason="P6-b: 15111777 제거로 API 교차검증 경로 폐기")
     @pytest.mark.asyncio
     async def test_api_multiple_items_one_forbidden(self) -> None:
         api_items = [

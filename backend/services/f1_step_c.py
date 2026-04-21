@@ -12,7 +12,8 @@ Wave 2 W2-C 트랙 구현. `run_step_c` 시그니처는 Day 0 스켈레톤(4c547
     6. 수치 비교: MIMM_VAL/MXMM_VAL 우선, 없으면 parse_numeric_spec(SPEC_VAL).
        unit_converter.normalize_to_common_unit 으로 mg/kg 정규화.
        density 는 food_type_hierarchy.food_type → DENSITY_BY_FOOD_TYPE.
-    7. 시험항목 분기: "함량" 수치 비교, "성상"/"확인시험"/"순도시험" 비수치 review_needed.
+    7. 시험항목 분기: "함량"만 수치 비교, "성상"/"확인시험"/"순도시험" 등 비수치
+       메타데이터는 중간재 판정 범위 밖으로 출력에서 제외.
     8. INJRY_YN=="Y" → is_dangerous=True 플래그 + review_reasons 경고.
     9. overall_status: 모두 pass → pass, 하나라도 fail → fail,
        review_needed 존재 → review_needed, 기준 0건 → no_data.
@@ -61,7 +62,50 @@ _PAGE_SIZE = 50
 _MAX_PAGES = 5  # numOfRows=50 × 5 = 250 → 한 품목 실제 건수 충분히 커버
 
 # 식품유형 매칭 일반 키워드 — 한정 표현이어도 "일반"이면 공통 취급
-_GENERIC_FOOD_TYPE_TOKENS = ("일반", "모든 식품", "전체")
+_GENERIC_FOOD_TYPE_TOKENS = ("일반", "모든 식품", "전체", "식품일반", "모든식품", "공통")
+
+# 식품유형 상위 카테고리 매핑 (fallback용)
+# 현재 food_type 이 하위 카테고리일 때 상위 카테고리로 재매칭 시도
+_FOOD_TYPE_PARENT_MAP: dict[str, tuple[str, ...]] = {
+    # 주류 계열
+    "탁주": ("주류",),
+    "청주": ("주류",),
+    "맥주": ("주류",),
+    "과실주": ("주류",),
+    "소주": ("주류",),
+    "위스키": ("주류", "증류주"),
+    "브랜디": ("주류", "증류주"),
+    "일반증류주": ("주류", "증류주"),
+    # 유제품 계열
+    "우유": ("유가공품", "유류"),
+    "발효유": ("유가공품",),
+    "치즈": ("유가공품",),
+    "버터": ("유가공품",),
+    "분유": ("유가공품",),
+    # 음료 계열
+    "탄산음료": ("음료류",),
+    "과채음료": ("음료류",),
+    "혼합음료": ("음료류",),
+    "인삼음료": ("음료류",),
+    # 과자류 계열
+    "과자": ("과자류",),
+    "캔디류": ("과자류",),
+    "빙과류": ("과자류",),
+    "초콜릿류": ("과자류",),
+    # 면류 계열
+    "국수": ("면류",),
+    "냉면": ("면류",),
+    "당면": ("면류",),
+    # 식용유지 계열
+    "대두유": ("식용유지류", "식용유지"),
+    "옥수수유": ("식용유지류", "식용유지"),
+    "올리브유": ("식용유지류", "식용유지"),
+    "해바라기유": ("식용유지류", "식용유지"),
+    # 수산물 계열
+    "어류": ("수산물", "수산가공품"),
+    "패류": ("수산물", "수산가공품"),
+    "갑각류": ("수산물", "수산가공품"),
+}
 
 
 # ============================================================
@@ -141,11 +185,13 @@ def _pick_latest(specs: list[AdditiveSpec]) -> AdditiveSpec:
 
 
 def _is_applicable(spec: AdditiveSpec, food_type: Optional[str]) -> bool:
-    """식품유형 매칭 (03번 §7).
+    """식품유형 매칭 (03번 §7, T2 fallback 보강).
 
     SPEC_VAL_SUMUP / FNPRT_ITM_NM 에 식품유형 한정 표현이 있으면
     - 해당 food_type 이 포함된 경우에만 채택
     - 한정 표현이 없거나 "일반/모든 식품" 류면 공통으로 채택
+    - 직접 매칭 실패 시 상위 카테고리로 재매칭 시도 (fallback a)
+    - 상위 카테고리도 miss 시 review_needed 처리를 위해 False 반환 (fallback b)
     food_type 이 None 이면 필터 없음 (모두 공통으로 간주).
     """
     summary_parts = [spec.spec_val_sumup or "", spec.fnprt_itm_nm or ""]
@@ -159,7 +205,16 @@ def _is_applicable(spec: AdditiveSpec, food_type: Optional[str]) -> bool:
     # food_type 미지정이면 공통 간주 (보수적)
     if not food_type:
         return True
-    return food_type in summary
+    # 직접 매칭
+    if food_type in summary:
+        return True
+    # fallback (a): 상위 카테고리로 재매칭 시도
+    parent_types = _FOOD_TYPE_PARENT_MAP.get(food_type, ())
+    for parent in parent_types:
+        if parent in summary:
+            return True
+    # fallback (b): 매칭 실패 → False (호출자가 review_needed 처리)
+    return False
 
 
 def _coerce_float(value: Any) -> Optional[float]:
@@ -375,12 +430,19 @@ def _evaluate_specs_for_test_category(
     measured: Optional[MeasuredValue],
     density: float,
     ingredient_name: str,
-) -> StandardCheck:
+) -> Optional[StandardCheck]:
     """T_KOR_NM 1건 분기.
 
     - '함량' → 수치 비교
-    - '성상' / '확인시험' / '순도시험' / 기타 → 비수치 (review_needed)
+    - '성상' / '확인시험' / '순도시험' → None (중간재 메타데이터는 판정 범위 외)
+    - 기타: MIMM/MXMM 값이 있으면 수치 비교, 없으면 None
     """
+    # 비수치 메타데이터는 판정 대상 아님 (중간재 물성 검증은 F1 범위 밖)
+    if test_category == _QUALITATIVE_TEST_CATEGORY:
+        return None
+    if test_category in _HITL_TEST_CATEGORIES:
+        return None
+
     # 유효 + 단일 채택
     latest = _pick_latest(specs)
 
@@ -388,18 +450,14 @@ def _evaluate_specs_for_test_category(
         return _evaluate_numeric(
             latest, measured, density=density, ingredient_name=ingredient_name
         )
-    if test_category == _QUALITATIVE_TEST_CATEGORY:
-        return _evaluate_non_numeric(latest, ingredient_name=ingredient_name)
-    if test_category in _HITL_TEST_CATEGORIES:
-        return _evaluate_non_numeric(latest, ingredient_name=ingredient_name)
 
-    # 알 수 없는 test_category — 수치로 시도해보고 실패하면 비수치
+    # 알 수 없는 test_category — 수치 값 있으면 평가, 없으면 스킵
     min_raw, max_raw = _extract_min_max(latest)
     if min_raw is not None or max_raw is not None:
         return _evaluate_numeric(
             latest, measured, density=density, ingredient_name=ingredient_name
         )
-    return _evaluate_non_numeric(latest, ingredient_name=ingredient_name)
+    return None
 
 
 # ============================================================
@@ -411,56 +469,51 @@ async def _fetch_all_specs_for_ingredient(
     client: DataGoKrClient,
     name: str,
 ) -> tuple[list[AdditiveSpec], Optional[str]]:
-    """한 원재료의 모든 페이지 조회 → AdditiveSpec 리스트.
+    """safetydata.go.kr 식품공전 스냅샷(f1_safetydata_food_code)에서 조회.
 
-    첫 페이지는 `get_additive_standard(name)` (Day 0 고수준 API 사용).
-    후속 페이지는 `client.call(ADDITIVE_STANDARD, {"PC_KOR_NM": name,
-    "pageNo": n})` 로 명시 순회. 결과는 response body (raw) 로 돌아오므로
-    `response.body.items` 평탄화 필요.
+    배경: data.go.kr 15116583 `PC_KOR_NM` 필터가 서버측에서 미작동하여
+    엉뚱한 기준치가 반환되는 버그를 회피. safetydata.go.kr 전수 스냅샷을
+    Supabase에 적재 후 ILIKE/trgm 검색.
+
+    `client` 인자는 시그니처 호환을 위해 유지하지만 실제로 사용하지 않음.
 
     Returns:
-        (specs, error_reason). error_reason 이 있으면 API 장애 (no_data).
+        (specs, error_reason). error_reason 이 있으면 조회 장애 (no_data).
+
+    참조:
+        .omc/research/f1_api_15111777_filter_issue.md
+        backend/scripts/f1_sync_safetydata.py
     """
-    # 지연 import — 순환 회피 및 테스트 단순화
-    from services.data_go_kr import ADDITIVE_STANDARD
+    from services.safetydata_client import lookup_food_additive
+
+    # 결함 #1 수정: Silent masking 제거 — 예외를 catch하지 않고 전파.
+    # 호출부(run_step_c)의 asyncio.gather 가 return_exceptions=True 로 수집하여
+    # api_error 사유로 처리한다.
+    # 식품첨가물공전(f1_safetydata_food_additive)만 조회 — 식품공전 전체
+    # (f1_safetydata_food_code)를 조회하면 쌀·사과 등 일반 원료에도 기준치가
+    # 반환되어 전부 review_needed 오판되는 Bug 1 회귀를 유발한다.
+    records = await lookup_food_additive(name)
 
     aggregated: list[AdditiveSpec] = []
-    try:
-        # 1페이지: 고수준 API — items 리스트 + total_count 반환
-        first = await client.get_additive_standard(name)
-        first_items = first.get("items") or []
-        total = int(first.get("total_count") or 0)
-        for item in first_items:
-            try:
-                aggregated.append(AdditiveSpec.model_validate(item))
-            except Exception:  # pragma: no cover - defensive
-                logger.warning("Step C: AdditiveSpec validate failed item=%s", item)
-
-        # 2페이지 이상 필요 여부: total > 첫페이지 items 수
-        if total > len(first_items) and len(first_items) >= _PAGE_SIZE:
-            for page_no in range(2, _MAX_PAGES + 1):
-                body = await client.call(
-                    ADDITIVE_STANDARD,
-                    {"PC_KOR_NM": name, "pageNo": str(page_no)},
-                )
-                items = _extract_items_from_raw(body)
-                if not items:
-                    break
-                for item in items:
-                    try:
-                        aggregated.append(AdditiveSpec.model_validate(item))
-                    except Exception:  # pragma: no cover - defensive
-                        logger.warning(
-                            "Step C: AdditiveSpec validate failed item=%s", item
-                        )
-                if len(items) < _PAGE_SIZE or len(aggregated) >= total:
-                    break
-    except DataGoKrError as exc:
-        logger.warning("Step C: data.go.kr error for %s: %s", name, exc)
-        return aggregated, f"api_error:{exc.__class__.__name__}"
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.exception("Step C: unexpected error for %s", name)
-        return aggregated, f"unexpected:{exc.__class__.__name__}"
+    for r in records:
+        raw = {
+            "PC_KOR_NM": r.item_korn_nm,
+            "T_KOR_NM": r.test_artcl_korn_nm,
+            "FNPRT_ITM_NM": r.spcs_artcl_nm,
+            "SPEC_VAL": r.crtr_spcfct_vl,
+            "SPEC_VAL_SUMUP": r.crtr_spcfct_vl_smry,
+            "MIMM_VAL": r.min_vl,
+            "MXMM_VAL": r.max_vl,
+            "UNIT_NM": r.unit_nm,
+            "INJRY_YN": r.hzr_yn,
+            "VALD_BEGN_DT": None,
+            "VALD_END_DT": None,
+            "SORC": r.src or "식품첨가물공전",
+        }
+        try:
+            aggregated.append(AdditiveSpec.model_validate(raw))
+        except Exception:  # pragma: no cover - defensive
+            logger.warning("Step C: AdditiveSpec adapter validate failed raw=%s", raw)
     return aggregated, None
 
 
@@ -520,8 +573,18 @@ async def run_step_c(
     """
     # ingredients 사전 필터: prohibited 는 Step A/B 종료 흐름에서 제외됐어야 하나
     # 방어적으로 skip (03번 §3-1)
+    # Step C = 식품첨가물 기준규격 조회:
+    #   - restricted / unidentified → 항상 포함 (조건 또는 미지 원료)
+    #   - allowed + 식품첨가물 출처 → 포함 (사용량 기준 확인 필요)
+    #   - allowed + 식품원료(별표1)/db_fallback → 제외 (첨가물 기준 없음)
+    #   - prohibited / permitted → 제외
     target_ingredients: list[Ingredient] = [
-        ing for ing in ingredients if (getattr(ing, "allow_verdict", None) != "prohibited")
+        ing for ing in ingredients
+        if getattr(ing, "allow_verdict", None) in ("restricted", "unidentified")
+        or (
+            getattr(ing, "allow_verdict", None) == "allowed"
+            and "식품첨가물" in (getattr(ing, "law_source", None) or "")
+        )
     ]
 
     if not target_ingredients:
@@ -533,27 +596,51 @@ async def run_step_c(
     food_type = _get_food_type(food_type_hierarchy)
     ref_date = today or date.today()
 
-    # 클라이언트 준비
+    # 클라이언트 준비 — Step C는 safetydata.go.kr 로컬 DB를 사용하므로
+    # data.go.kr API 키가 없어도 정상 동작한다.
     owns_client = False
     if client is None:
         api_key = os.environ.get("F1_DATA_GO_KR_API_KEY", "")
-        if not api_key:
-            # 키 없으면 API 호출 자체 불가 → no_data
-            return StepCResult(
-                checks=[],
-                overall_status="no_data",
-                review_reasons=["data_go_kr_api_key_missing"],
-            )
-        client = DataGoKrClient(api_key=api_key)
-        owns_client = True
+        if api_key:
+            client = DataGoKrClient(api_key=api_key)
+            owns_client = True
+        # API 키 없어도 safetydata 조회로 계속 진행
 
     try:
         # 1) 원재료당 병렬 조회
+        # 결함 #6 수정: 전체 gather 에 60초 타임아웃 적용.
+        # 결함 #1 수정: return_exceptions=True 로 개별 예외를 값으로 수집하여
+        #   Silent masking 없이 api_error 사유로 처리.
+        async def _fetch_with_fallback_names(client, ing):
+            """여러 이름 변형으로 시도: matched_name_ko → 원본명 → 괄호제거명."""
+            names_to_try = []
+            matched = (ing.matched_name_ko or "").strip()
+            if matched:
+                names_to_try.append(matched)
+            raw = (ing.name or "").strip()
+            if raw and raw != matched:
+                names_to_try.append(raw)
+            # 괄호 이전 한글명 (예: "이산화황(산화방지제)" → "이산화황")
+            paren = raw.find("(") if raw else -1
+            if paren > 0:
+                short = raw[:paren].strip()
+                if short and short not in names_to_try:
+                    names_to_try.append(short)
+
+            for name in names_to_try:
+                result = await _fetch_all_specs_for_ingredient(client, name)
+                if result[0]:  # specs가 있으면 반환
+                    return result
+            return ([], None)
+
         fetch_tasks = [
-            _fetch_all_specs_for_ingredient(client, ing.name)
+            _fetch_with_fallback_names(client, ing)
             for ing in target_ingredients
         ]
-        fetch_results = await asyncio.gather(*fetch_tasks, return_exceptions=False)
+        fetch_results = await asyncio.wait_for(
+            asyncio.gather(*fetch_tasks, return_exceptions=True),
+            timeout=60.0,
+        )
     finally:
         if owns_client:
             try:
@@ -565,13 +652,43 @@ async def run_step_c(
     all_checks: list[StandardCheck] = []
     review_reasons: list[str] = []
 
-    for ing, (specs, err) in zip(target_ingredients, fetch_results):
+    for ing, fetch_result in zip(target_ingredients, fetch_results):
+        # return_exceptions=True 이므로 예외 인스턴스가 올 수 있음
+        if isinstance(fetch_result, BaseException):
+            logger.exception(
+                "Step C: fetch failed for %s: %s",
+                ing.name,
+                fetch_result,
+                exc_info=fetch_result,
+            )
+            review_reasons.append(
+                f"api_error:{ing.name}:{fetch_result.__class__.__name__}"
+            )
+            continue
+        specs, err = fetch_result
         if err is not None:
             review_reasons.append(f"api_error:{ing.name}:{err}")
             continue
         if not specs:
-            # 기준 0건 — 이 원재료는 checks 에 기록하지 않음 (overall_status 계산에서 제외)
-            # review_reasons 에 누적하지 않음 (03번 §5: no_data 는 담당자 확인이지 review 는 아님)
+            # 기준규격 없음 — 첨가물이면 "공통규정 적용(사용량 제한 없음)" 표시
+            ing_name = (getattr(ing, "matched_name_ko", "") or "").strip() or ing.name
+            law_src = getattr(ing, "law_source", None) or ""
+            if "식품첨가물" in law_src:
+                all_checks.append(
+                    StandardCheck(
+                        ingredient_name=ing_name,
+                        test_category="함량",
+                        spec_raw="사용량 제한 없음 (첨가물공전 II.2.1 공통규정)",
+                        spec_summary="사용량 제한 없음",
+                        actual_value=None,
+                        unit_original=None,
+                        unit_normalized=None,
+                        threshold_value=None,
+                        is_dangerous=None,
+                        status="pass",
+                        law_ref="식품첨가물공전 II. 2. 1) 공통사용기준",
+                    )
+                )
             continue
 
         # 3) 유효기간 필터
@@ -593,6 +710,7 @@ async def run_step_c(
 
         # 6) 시험항목별 평가
         measured = (measured_values or {}).get(ing.name)
+        ing_checks_before = len(all_checks)
         for test_category, group_specs in grouped.items():
             tc = None if test_category == "__unknown__" else test_category
             check = _evaluate_specs_for_test_category(
@@ -600,8 +718,10 @@ async def run_step_c(
                 group_specs,
                 measured=measured,
                 density=density,
-                ingredient_name=ing.name,
+                ingredient_name=(getattr(ing, "matched_name_ko", "") or "").strip() or ing.name,
             )
+            if check is None:
+                continue
             # INJRY_YN=Y 경고 누적
             if check.is_dangerous:
                 review_reasons.append(
@@ -612,6 +732,26 @@ async def run_step_c(
                 if reason not in review_reasons:
                     review_reasons.append(reason)
             all_checks.append(check)
+
+        # 결함 #12 수정: applicable_specs 는 있으나 평가 가능한 시험항목이 전혀 없는
+        # 원재료("기준 있음, 수치 비교 불가")를 checks 에 no_data 로 명시적 기록.
+        # — UI 까지 "기준 없음" 상태가 전달될 수 있도록 한다 (03번 §5).
+        if len(all_checks) == ing_checks_before:
+            all_checks.append(
+                StandardCheck(
+                    ingredient_name=(getattr(ing, "matched_name_ko", "") or "").strip() or ing.name,
+                    test_category=None,
+                    spec_raw=None,
+                    spec_summary=None,
+                    actual_value=None,
+                    unit_original=None,
+                    unit_normalized=None,
+                    threshold_value=None,
+                    is_dangerous=None,
+                    status="no_data",  # type: ignore[arg-type]
+                    law_ref=None,
+                )
+            )
 
     # 7) overall_status 결정
     overall_status = _decide_overall_status(all_checks)

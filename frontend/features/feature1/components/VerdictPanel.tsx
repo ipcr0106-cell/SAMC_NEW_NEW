@@ -154,13 +154,13 @@ export default function VerdictPanel({
         )}
       </div>
 
-      {/* HITL-2: 판정 사유 (final_reason) — 필수 최소 10자 */}
-      {isHitl2Mode && (
+      {/* HITL-2: 판정 사유 — AI 판정과 다를 때만 표시 */}
+      {isHitl2Mode && userVerdict && userVerdict !== aiVerdict && (
         <div className="mt-4 space-y-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-700">
-              판정 사유 <span className="text-red-500">*</span>
-              <span className="ml-2 text-gray-400">(최소 10자, 감사 기록 포함)</span>
+              판정 변경 사유
+              <span className="ml-2 text-gray-400">(AI 판정과 다른 판정 선택 시 입력)</span>
             </label>
             <textarea
               value={finalReason ?? ""}
@@ -169,33 +169,12 @@ export default function VerdictPanel({
                 if (!isLocked) onChangeFinalReason?.(e.target.value);
               }}
               disabled={isLocked}
-              rows={4}
-              placeholder="최종 판정 근거를 상세히 입력하세요. (필수 최소 10자)"
-              className={`w-full rounded border p-2 text-sm focus:outline-none disabled:bg-gray-50 ${
-                finalReasonTouched && !finalReasonValid
-                  ? "border-red-400 focus:border-red-500"
-                  : "border-gray-300 focus:border-blue-500"
-              }`}
+              rows={3}
+              placeholder="판정을 변경한 사유를 입력하세요."
+              className="w-full rounded border border-gray-300 p-2 text-sm focus:outline-none focus:border-blue-500 disabled:bg-gray-50"
             />
-            <div className={`mt-0.5 text-right text-xs ${finalReasonTouched && !finalReasonValid ? "text-red-500" : "text-gray-400"}`}>
-              {finalReasonLen}자 {!finalReasonValid && "(최소 10자 필요)"}
-            </div>
           </div>
 
-          {/* 전자서명 (signer_id) */}
-          <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">
-              서명자 ID <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={signerId ?? ""}
-              onChange={(e) => !isLocked && onChangeSignerId?.(e.target.value)}
-              disabled={isLocked}
-              placeholder="담당자 사용자 ID"
-              className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:outline-none disabled:bg-gray-50"
-            />
-          </div>
         </div>
       )}
     </section>

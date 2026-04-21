@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import pytest
 
+from common.result import Result
 from models.f1_types import (
     ForbiddenHit,
     LawCitation,
@@ -57,7 +58,7 @@ def patch_steps(monkeypatch):
 
         async def _d(_ctx, top_k=5):
             state["d_called"] = True
-            return d_result
+            return Result.ok(d_result)
 
         monkeypatch.setattr(f1_step_a, "run_step_a", _a)
         monkeypatch.setattr(f1_step_b, "run_step_b", _b)

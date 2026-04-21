@@ -553,12 +553,99 @@ reasoning에 "AI 판단 불확실 — 직접 확인 권고"를 포함하세요.
     return prompt
 
 
+def _extract_pdf_texts(supabase, case_id: str) -> list[str]:
+    """documents 테이블에서 PDF 원본을 다운받아 텍스트 추출. OCR보다 정확."""
+    try:
+        import pdfplumber
+        import tempfile
+
+        docs = (
+            supabase.table("documents")
+            .select("id, doc_type, file_name, storage_path")
+            .eq("case_id", case_id)
+            .execute()
+        )
+        if not docs.data:
+            return []
+
+        texts = []
+        for doc in docs.data:
+            path = doc.get("storage_path", "")
+            fname = doc.get("file_name", "")
+            # PDF 파일만 처리
+            if not (fname.lower().endswith(".pdf") or path.lower().endswith(".pdf")):
+                continue
+            try:
+                # Supabase Storage에서 다운로드
+                bucket = "documents"
+                file_bytes = supabase.storage.from_(bucket).download(path)
+                if not file_bytes:
+                    continue
+                # 임시 파일에 저장 후 pdfplumber로 텍스트 추출
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    tmp.write(file_bytes)
+                    tmp_path = tmp.name
+                with pdfplumber.open(tmp_path) as pdf:
+                    page_texts = []
+                    for page in pdf.pages:
+                        t = page.extract_text()
+                        if t and t.strip():
+                            page_texts.append(t.strip())
+                    if page_texts:
+                        doc_label = f"[{doc.get('doc_type', 'document')}: {fname}]"
+                        texts.append(f"{doc_label}\n" + "\n".join(page_texts))
+                import os
+                os.unlink(tmp_path)
+            except Exception as e:
+                print(f"[경고] PDF 텍스트 추출 실패 ({fname}): {e}")
+                continue
+        return texts
+    except Exception as e:
+        print(f"[경고] PDF 텍스트 추출 전체 실패: {e}")
+        return []
+
+
+def _ocr_label_image(claude: OpenAI, image_url: str) -> str:
+    """OpenAI Vision으로 라벨 이미지의 모든 텍스트를 추출 (PDF 없을 때 보조 수단)."""
+    try:
+        resp = claude.chat.completions.create(
+            model="gpt-5.4",  # OCR은 정확도가 중요하므로 full 모델 사용
+            max_completion_tokens=4096,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": image_url},
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "이 식품 라벨 이미지에 있는 모든 텍스트를 빠짐없이 읽어서 그대로 출력하세요.\n"
+                            "- 한글, 영문, 독일어, 베트남어 등 모든 언어의 텍스트를 포함하세요.\n"
+                            "- 제품명, 원재료명, 영양정보, 원산지, 제조사, 경고문, 인증마크 텍스트 등 모두 포함하세요.\n"
+                            "- 줄바꿈을 유지하세요.\n"
+                            "- 텍스트 외의 설명(예: '이 라벨에는...')은 쓰지 마세요. 읽은 텍스트만 출력하세요.\n"
+                            "- 글자가 흐리거나 읽기 어려우면 [?]로 표시하세요. 절대 추측하지 마세요.\n"
+                            "- '신장', '치료', '효능' 같은 단어가 보이면 정확히 읽었는지 재확인하세요. "
+                            "'산화방지제'를 '신화'로, '원산지'를 '신장'으로 잘못 읽는 경우가 흔합니다."
+                        ),
+                    },
+                ],
+            }],
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[경고] 라벨 OCR 오류: {e}")
+        return ""
+
+
 def _analyze_image(claude: OpenAI, image_url: str, supabase=None) -> list[dict]:
     """OpenAI Vision으로 라벨 이미지의 그림 요소 위반 분석."""
     prompt = _build_image_prompt(supabase) if supabase else _IMAGE_ANALYSIS_PROMPT
     try:
         resp = claude.chat.completions.create(
-            model="gpt-5.4-nano",
+            model="gpt-5.4-mini",
             max_completion_tokens=4096,
             messages=[{
                 "role": "user",
@@ -872,10 +959,80 @@ def _apply_evidence_gate(issues: list[dict]) -> list[dict]:
     return filtered
 
 
+def _check_mandatory_labeling(
+    cross_check: list[dict],
+    label_text: str,
+    law_chunks: list[str],
+    food_type: str = "",
+) -> list[dict]:
+    """
+    의무 표시사항 누락 검사.
+    교차검증에서 label_value가 비어있는 항목 중
+    법적 의무 표시사항에 해당하면 위반으로 생성.
+
+    법령 근거는 RAG에서 가져온 law_chunks에서 동적으로 검색.
+    """
+    # 필드 → 표시사항명 + 검색 키워드
+    FIELD_INFO = {
+        "product_name":    {"name": "제품명",               "search": ["제품명", "명칭"]},
+        "ingredients":     {"name": "원재료명",             "search": ["원재료명", "원료명", "원재료"]},
+        "content_volume":  {"name": "내용량",               "search": ["내용량"]},
+        "origin":          {"name": "원산지",               "search": ["원산지", "원산지 표시"]},
+        "manufacturer":    {"name": "영업소 명칭 및 소재지", "search": ["영업소", "소재지", "제조사"]},
+    }
+
+    def _find_law_chunk(search_keywords: list[str]) -> tuple[str, str]:
+        """law_chunks에서 관련 법령 근거를 찾아 (law_ref, law_excerpt) 반환."""
+        best_chunk = ""
+        best_score = 0
+        for chunk in law_chunks:
+            score = sum(1 for kw in search_keywords if kw in chunk)
+            # "표시하여야 한다", "표시기준" 등이 함께 있으면 가점
+            if "표시하여야" in chunk or "표시사항" in chunk:
+                score += 2
+            if score > best_score:
+                best_score = score
+                best_chunk = chunk
+
+        if not best_chunk:
+            return ("", "")
+
+        # 제목 추출 ([법령명 조문번호] 형태)
+        title_match = re.match(r"^\[(.+?)\]\s*", best_chunk)
+        law_ref = title_match.group(1) if title_match else ""
+        # 본문에서 관련 부분 발췌 (최대 300자)
+        body = best_chunk[title_match.end():].strip() if title_match else best_chunk
+        excerpt = body[:300]
+        return (law_ref, excerpt)
+
+    missing_issues = []
+    for cc in cross_check:
+        field = cc.get("field", "")
+        label_val = (cc.get("label_value") or "").strip()
+        match = cc.get("match", True)
+
+        # label_value가 비어있고, 서류에는 있는 경우 → 누락
+        if not label_val and not match and field in FIELD_INFO:
+            info = FIELD_INFO[field]
+            law_ref, law_excerpt = _find_law_chunk(info["search"])
+
+            missing_issues.append({
+                "text": f"의무 표시사항 누락: {info['name']}",
+                "evidence": f"라벨에 {info['name']} 표기가 없음 (서류에는 '{cc.get('doc_value', '')[:60]}' 기재)",
+                "location": "라벨 전체",
+                "reason": f"{info['name']}은(는) 의무 표시사항입니다. 라벨에 {info['name']}을(를) 추가하세요.",
+                "law_ref": law_ref,
+                "law_excerpt": law_excerpt,
+                "severity": "must_fix",
+            })
+
+    return missing_issues
+
+
 def _call_ai(claude, prompt: str) -> dict | list:
     """AI 호출 후 JSON 파싱."""
     resp = claude.chat.completions.create(
-        model="gpt-5.4-nano",
+        model="gpt-5.4-mini",
         max_completion_tokens=4096,
         messages=[{"role": "user", "content": prompt}],
     )
@@ -1158,6 +1315,41 @@ def _run_analysis(req: AnalyzeRequest, clients: dict, case_id: str = "") -> dict
             if label_ocr:
                 label_text = label_ocr.get("label_text", "")
 
+    # 1.5 F4 텍스트 보충 — 2단계 전략
+    #   1순위: 업로드된 PDF 원본에서 텍스트 추출 (OCR 불필요, 정확도 높음)
+    #   2순위: PDF가 없으면 라벨 이미지 OCR (보조 수단)
+    label_images = []
+    if case_id:
+        # 1순위: PDF 텍스트 추출
+        pdf_texts = _extract_pdf_texts(sb, case_id)
+        if pdf_texts:
+            pdf_combined = "\n\n".join(pdf_texts)
+            if label_text:
+                label_text = label_text + "\n\n[원본 서류 텍스트]\n" + pdf_combined
+            else:
+                label_text = pdf_combined
+
+        # 2순위: PDF에서 텍스트를 못 뽑았으면 이미지 OCR
+        label_images = _fetch_label_images(sb, case_id)
+        if not pdf_texts:
+            f4_ocr_texts = []
+            for img in label_images:
+                signed_url = None
+                if img.get("full_page_path"):
+                    signed_url = _create_signed_url(sb, img["full_page_path"])
+                if not signed_url:
+                    signed_url = _create_signed_url(sb, img["storage_path"])
+                if signed_url:
+                    ocr_text = _ocr_label_image(clients["claude"], signed_url)
+                    if ocr_text:
+                        f4_ocr_texts.append(ocr_text)
+            if f4_ocr_texts:
+                f4_ocr_combined = "\n\n".join(f4_ocr_texts)
+                if label_text:
+                    label_text = label_text + "\n\n[F4 이미지 OCR 보충]\n" + f4_ocr_combined
+                else:
+                    label_text = f4_ocr_combined
+
     if not label_text:
         raise ValueError("label_text가 비어 있습니다. 직접 입력하거나 OCR 결과가 DB에 있어야 합니다.")
 
@@ -1180,9 +1372,8 @@ def _run_analysis(req: AnalyzeRequest, clients: dict, case_id: str = "") -> dict
             _analyze_image(clients["claude"], req.label_image_url, sb)
         )
 
-    # 2-b. DB에서 라벨 이미지 조회 (dedup 적용)
+    # 2-b. DB 라벨 이미지로 시각 요소 추출 (label_images는 위에서 이미 조회됨)
     if case_id:
-        label_images = _fetch_label_images(sb, case_id)
         for img in label_images:
             signed_url = None
             if img.get("full_page_path"):
@@ -1195,13 +1386,22 @@ def _run_analysis(req: AnalyzeRequest, clients: dict, case_id: str = "") -> dict
                     el["source_image_id"] = img["image_id"]
                 detected_visual_elements.extend(per_elements)
 
-    # 이미지 추출 결과를 텍스트로 정리 (텍스트 분석 프롬프트에 전달)
-    if detected_visual_elements:
+    # 이미지 추출 결과 필터링 + 텍스트 정리
+    # health_claim_graphic/medical_graphic은 confidence "high"만 허용
+    # 곡면 병 라벨에서 일반 표시사항(원재료명 등)을 건강/치료 문구로 오독하는 문제 방지
+    filtered_visual = [
+        el for el in detected_visual_elements
+        if not (
+            el.get("element_type") in ("health_claim_graphic", "medical_graphic")
+            and el.get("confidence") != "high"
+        )
+    ]
+    if filtered_visual:
         visual_summary = "\n".join(
             f"- [{el.get('element_type', 'other')}] {el.get('element', '')} "
             f"(위치: {el.get('location', '')}, 텍스트: {el.get('text_in_element', '')}, "
             f"신뢰도: {el.get('confidence', '')})"
-            for el in detected_visual_elements
+            for el in filtered_visual
         )
     else:
         visual_summary = "감지된 시각 요소 없음"
@@ -1251,6 +1451,12 @@ def _run_analysis(req: AnalyzeRequest, clients: dict, case_id: str = "") -> dict
     # 6. 후처리 게이트 — evidence 없는 위반 자동 기각
     text_issues = analysis_result.get("issues", [])
     text_issues = _apply_evidence_gate(text_issues)
+
+    # 7. 의무 표시사항 누락 검사 — 교차검증에서 라벨에 없는 항목을 위반으로 추가
+    #    법령 근거는 RAG에서 가져온 law_chunks에서 동적 검색
+    if cross_check:
+        missing_issues = _check_mandatory_labeling(cross_check, label_text, law_chunks, req.food_type)
+        text_issues.extend(missing_issues)
 
     # overall 판정
     if any(i.get("severity") == "must_fix" for i in text_issues):

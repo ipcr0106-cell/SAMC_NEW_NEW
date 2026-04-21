@@ -64,3 +64,4 @@ app.include_router(dummy_seed_router, prefix="/api/v1") # DEV: 더미 데이터 
 @app.get("/health", tags=["system"])
 async def health_check():
     return {"status": "ok", "service": "samc-backend"}
+

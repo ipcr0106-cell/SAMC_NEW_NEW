@@ -100,6 +100,24 @@ class Ingredient(BaseModel):
         description="매칭된 API endpoint_id (감사 추적, DataGoKrEndpoint 값 또는 'db')",
     )
 
+    # ── P6 추가 (2026-04-20) — 원재료 매칭 상세 컬럼 채움용 ───────────
+    matched_name_ko: Optional[str] = Field(
+        None,
+        description="F0 성분코드 조회로 도출된 한글 표준명 (IngredientItem.ingredient_code_name)",
+    )
+    ingredient_code_f0: Optional[str] = Field(
+        None,
+        description="F0 식약처 성분코드 (IngredientItem.ingredient_code, 예: A1000911320001)",
+    )
+    match_method: Optional[str] = Field(
+        None,
+        description="F0 매칭 방법 추론: 'exact_name' | 'code_normalize' | None(=미매칭)",
+    )
+    law_source: Optional[str] = Field(
+        None,
+        description="Step B verdict 도출 근거 법령 (예: '식품의 기준 및 규격 [별표 3]')",
+    )
+
 
 class ProcessConditions(BaseModel):
     """제조공정 조건."""
@@ -232,8 +250,8 @@ class Feature1Output(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    import_possible: bool
-    verdict: str = Field(..., description="수입가능/수입불가 + 한국어 사유")
+    import_possible: Optional[bool] = None
+    verdict: str = Field(..., description="수입가능/수입불가/검토필요 + 한국어 사유")
     aggregation: Optional[AggregationResult] = None
     conditional_evaluations: list[ConditionalEvaluation] = Field(default_factory=list)
     standards_check: Optional[StandardsCheckResult] = None

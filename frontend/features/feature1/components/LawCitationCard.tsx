@@ -18,13 +18,19 @@ interface Props {
 
 const PREVIEW_LEN = 300;
 
+/** 법령 원문의 <br> 태그를 줄바꿈으로 변환. */
+function cleanLawText(raw: string): string {
+  return raw.replace(/<br\s*\/?>/gi, "\n");
+}
+
 export default function LawCitationCard({ citation }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const needsTruncate = citation.text.length > PREVIEW_LEN;
+  const cleaned = cleanLawText(citation.text);
+  const needsTruncate = cleaned.length > PREVIEW_LEN;
   const displayText =
     !needsTruncate || expanded
-      ? citation.text
-      : citation.text.slice(0, PREVIEW_LEN) + "…";
+      ? cleaned
+      : cleaned.slice(0, PREVIEW_LEN) + "…";
 
   const nsLabel = NAMESPACE_LABEL[citation.namespace] ?? citation.namespace;
 
@@ -46,9 +52,14 @@ export default function LawCitationCard({ citation }: Props) {
             <span className="text-gray-400">· {citation.section_path}</span>
           )}
         </div>
-        <span className="shrink-0 text-[11px] text-gray-400">
-          score: {citation.score.toFixed(3)}
-        </span>
+        {citation.score > 0 && (
+          <span
+            title="매칭된 키워드 수 / 전체 쿼리 키워드 수"
+            className="shrink-0 text-[11px] text-gray-400"
+          >
+            score: {citation.score.toFixed(3)}
+          </span>
+        )}
       </header>
       <p className="whitespace-pre-wrap text-sm leading-relaxed text-gray-700">
         {displayText}

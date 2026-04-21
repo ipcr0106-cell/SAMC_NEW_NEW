@@ -3,7 +3,7 @@
 커버 시나리오 (03번 §10 테스트 포인트):
     - L-아스코르브산 + 87% → pass (기준 85% 이상)
     - L-아스코르브산 + 80% → fail
-    - 성상/확인시험 행 → review_needed (자동 판정 불가)
+    - 성상/확인시험 행 → 출력 제외 (중간재 메타데이터 판정 범위 밖)
     - g/L 기준 + 비중 주입 → mg/kg 변환 정확
     - VALD_END_DT="99991231" → 적용
     - VALD_END_DT 오늘보다 과거 → 제외
@@ -385,14 +385,13 @@ class TestRunStepC:
             client=client,
             today=date(2026, 4, 20),
         )
-        # 3 checks (함량 pass, 성상 review, 확인시험 review)
-        assert len(result.checks) == 3
+        # 함량 pass 1건만 출력 (성상/확인시험은 중간재 메타데이터로 제외)
+        assert len(result.checks) == 1
         statuses = {c.test_category: c.status for c in result.checks}
         assert statuses["함량"] == "pass"
-        assert statuses["성상"] == "review_needed"
-        assert statuses["확인시험"] == "review_needed"
-        # 하나라도 review_needed 있으므로 overall = review_needed (fail 없음)
-        assert result.overall_status == "review_needed"
+        assert "성상" not in statuses
+        assert "확인시험" not in statuses
+        assert result.overall_status == "pass"
 
     async def test_ascorbic_acid_fail_scenario(self) -> None:
         client = make_client_for_fixture("ascorbic_acid.json")
@@ -495,13 +494,15 @@ class TestRunStepC:
             client=client,
             today=date(2026, 4, 20),
         )
-        # 실측값 없음 → 함량은 no_data, 성상/확인시험 review_needed
-        quant = next(c for c in result.checks if c.test_category == "함량")
+        # 실측값 없음 + 성상/확인시험은 제외 → 함량만 no_data
+        assert len(result.checks) == 1
+        quant = result.checks[0]
+        assert quant.test_category == "함량"
         assert quant.status == "no_data"
         assert quant.actual_value is None
         assert quant.threshold_value == 85.0 * 10_000
-        # 성상/확인 이 review_needed 이므로 overall = review_needed
-        assert result.overall_status == "review_needed"
+        # 함량만 no_data → overall no_data
+        assert result.overall_status == "no_data"
 
     async def test_api_error_propagates_to_review_reasons(self) -> None:
         """data.go.kr 장애 → api_error:{name} 사유 누적 + checks 비어있음."""
@@ -634,10 +635,65 @@ class TestRunStepC:
         )
         # pagination 호출됐는지 확인
         client.call.assert_called_once()
-        # 순도시험(page2) + 함량(page1 의 최신 LAST_UPDT_DTM 1건) = 2 categories
+        # 순도시험은 중간재 메타데이터로 제외 → 함량(page1 최신 1건)만 남음
         categories = {c.test_category for c in result.checks}
-        assert "순도시험" in categories
+        assert "순도시험" not in categories
         assert "함량" in categories
+
+
+# ============================================================
+# T2 신규: 식품유형 매칭 fallback edge case 5건
+# ============================================================
+
+
+class TestFoodTypeMatchingFallback:
+    """T2 — _is_applicable 식품유형 매칭 fallback edge case."""
+
+    # F-01: 상위 카테고리 fallback — 탁주 → 주류 매칭
+    def test_f01_parent_category_fallback(self) -> None:
+        """탁주(food_type)가 '주류'만 언급하는 기준에 fallback 매칭."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="주류의 함량은 0.1 mg/kg 이하",
+        )
+        # 탁주 → 상위 카테고리 주류로 fallback
+        assert _is_applicable(spec, "탁주") is True
+
+    # F-02: 하위 카테고리가 상위와 다른 경우 미매칭
+    def test_f02_unrelated_category_miss(self) -> None:
+        """음료류 기준에 유가공품을 매칭 시도 → False (fallback 없음)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="음료류에 한하여 적용",
+        )
+        assert _is_applicable(spec, "유가공품") is False
+
+    # F-03: 공통 키워드 "공통" 추가 인식
+    def test_f03_generic_keyword_gongtoong(self) -> None:
+        """'공통 기준 적용' → 공통 취급 (True)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="공통 기준 적용",
+        )
+        assert _is_applicable(spec, "음료류") is True
+
+    # F-04: 공통 키워드 "식품일반" 인식
+    def test_f04_generic_keyword_sikpum_general(self) -> None:
+        """'식품일반에 적용' → 공통 취급 (True)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            FNPRT_ITM_NM="식품일반",
+        )
+        assert _is_applicable(spec, "탁주") is True
+
+    # F-05: food_type=None 일 때 모두 통과
+    def test_f05_none_food_type_passes_all(self) -> None:
+        """food_type=None 이면 한정 표현이 있어도 True (필터 없음)."""
+        spec = AdditiveSpec(
+            PC_KOR_NM="x",
+            SPEC_VAL_SUMUP="유가공품에만 적용",
+        )
+        assert _is_applicable(spec, None) is True
 
 
 class TestExtractItemsFromRaw:
@@ -665,3 +721,115 @@ class TestExtractItemsFromRaw:
 
         body = {"response": {"body": {"items": {"item": {"a": 1}}}}}
         assert _extract_items_from_raw(body) == [{"a": 1}]
+
+
+# ============================================================
+# Wave A Phase 1 — 결함 #1 / #6 / #12 신규 테스트
+# ============================================================
+
+
+@pytest.mark.asyncio
+class TestWaveAPhase1Fixes:
+    """결함 #1(Silent masking 제거) / #6(gather 타임아웃) / #12(no_data 명시 기록) 검증."""
+
+    # ── 결함 #1: Silent masking 제거 ──────────────────────────────────────
+    async def test_silent_masking_removed(self) -> None:
+        """lookup_food_code 가 예외를 던질 때 빈 배열이 아닌 api_error 사유로 처리됨.
+
+        수정 전: except Exception → ([], "safetydata_error:…") 반환 — review_reasons 누락(silent).
+        수정 후: 예외 전파 → gather(return_exceptions=True) 수집 → api_error:… 기록.
+        """
+        from unittest.mock import patch
+
+        db_error = RuntimeError("DB connection refused")
+
+        client = MagicMock()
+        client.aclose = AsyncMock()
+
+        # lookup_food_code 는 _fetch_all_specs_for_ingredient 내에서
+        # `from services.safetydata_client import lookup_food_code` 로 호출되므로
+        # safetydata_client 모듈의 함수를 patch 한다.
+        with patch(
+            "services.safetydata_client.lookup_food_code",
+            new=AsyncMock(side_effect=db_error),
+        ):
+            result = await run_step_c(
+                ingredients=[make_ingredient("테스트물질")],
+                food_type_hierarchy=None,
+                measured_values=None,
+                client=client,
+                today=date(2026, 4, 20),
+            )
+
+        # 예외가 silently masked 되지 않고 api_error 로 기록됨
+        assert any(
+            r.startswith("api_error:테스트물질:") for r in result.review_reasons
+        ), f"api_error 사유가 없음: {result.review_reasons}"
+        # fetch 자체가 실패했으므로 checks 는 비어있음
+        assert result.checks == []
+
+    # ── 결함 #6: gather 타임아웃 전파 ────────────────────────────────────
+    async def test_gather_timeout(self) -> None:
+        """asyncio.wait_for 60초 타임아웃이 코드에 적용돼 있고,
+        TimeoutError 발생 시 run_step_c 가 이를 전파한다."""
+        import asyncio
+        from unittest.mock import patch
+
+        client = MagicMock()
+        client.aclose = AsyncMock()
+
+        # services.f1_step_c 모듈 내에서 호출하는 asyncio.wait_for 를 mock 하여
+        # 즉시 TimeoutError 를 발생시킨다 (실제 60초 대기 없이 경로 검증).
+        with patch("services.f1_step_c.asyncio.wait_for", side_effect=asyncio.TimeoutError):
+            with pytest.raises(asyncio.TimeoutError):
+                await run_step_c(
+                    ingredients=[make_ingredient("느린물질")],
+                    food_type_hierarchy=None,
+                    measured_values=None,
+                    client=client,
+                    today=date(2026, 4, 20),
+                )
+
+    # ── 결함 #12: no_data 명시적 기록 ───────────────────────────────────
+    async def test_no_data_recorded(self) -> None:
+        """기준 있음(specs 반환) 하지만 모든 시험항목이 '성상'/'확인시험'으로
+        평가 제외되어 아무 check 도 생성되지 않는 원재료가
+        checks 에 no_data 로 명시적 기록됨.
+
+        이전: 해당 원재료는 checks 에서 완전히 누락 → UI 에서 "기준 없음" 파악 불가.
+        수정: StandardCheck(status='no_data') 가 추가되어 UI 까지 전달 가능.
+        """
+        from unittest.mock import patch
+        from services.data_go_kr import AdditiveSpec as ASpec
+
+        # 성상 + 확인시험만 있는 specs — 함량 기준 없어서 평가 가능한 check 0건
+        spec_objs = [
+            ASpec(PC_KOR_NM="무함량기준물질", T_KOR_NM="성상", SPEC_VAL="백색의 결정성 분말",
+                  VALD_END_DT="99991231", LAST_UPDT_DTM="2023-01-01 00:00:00"),
+            ASpec(PC_KOR_NM="무함량기준물질", T_KOR_NM="확인시험", SPEC_VAL="적합",
+                  VALD_END_DT="99991231", LAST_UPDT_DTM="2023-01-01 00:00:00"),
+        ]
+
+        client = MagicMock()
+        client.aclose = AsyncMock()
+
+        # _fetch_all_specs_for_ingredient 를 patch 하여 위 specs 를 직접 반환
+        with patch(
+            "services.f1_step_c._fetch_all_specs_for_ingredient",
+            new=AsyncMock(return_value=(spec_objs, None)),
+        ):
+            result = await run_step_c(
+                ingredients=[make_ingredient("무함량기준물질")],
+                food_type_hierarchy=None,
+                measured_values=None,
+                client=client,
+                today=date(2026, 4, 20),
+            )
+
+        # 성상/확인시험은 평가 제외 → check 0건이 아닌 no_data 1건 기록됨
+        assert len(result.checks) == 1, (
+            f"no_data check 가 기록되지 않음: {result.checks}"
+        )
+        assert result.checks[0].status == "no_data"
+        assert result.checks[0].ingredient_name == "무함량기준물질"
+        assert result.overall_status == "no_data"
