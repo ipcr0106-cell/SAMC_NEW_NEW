@@ -2,19 +2,30 @@
 기능 3 FastAPI 라우터 — 수입 필요서류 안내.
 
 엔드포인트:
-  POST /cases/{case_id}/pipeline/feature/3/run  — f0+F1+F2 결과 자동 조회 → 서류 매칭
-  GET  /cases/{case_id}/pipeline/feature/3      — 결과 조회
-  POST /api/v1/required-docs/rag               — 법령 본문 시맨틱 검색 (선택)
-  POST /api/v1/required-docs/reload            — 캐시 리로드
+  POST  /cases/{case_id}/pipeline/feature/3/run      — f0+F1+F2 결과 자동 조회 → 서류 매칭
+  GET   /cases/{case_id}/pipeline/feature/3           — 결과 조회
+  PATCH /cases/{case_id}/pipeline/feature/3           — 사용자 수정 결과(final_result) 저장
+  POST  /cases/{case_id}/pipeline/feature/3/confirm   — 담당자 확인 완료
+  POST  /api/v1/required-docs/rag                    — 법령 본문 시맨틱 검색 (선택)
+  POST  /api/v1/required-docs/reload                 — 캐시 리로드
 """
 import os
+from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from db.f3_supabase_client import reload_cache, save_pipeline_step
 from models.f3_schemas import ProductInfo, RequiredDocsResponse
 from services.f3_pinecone_client import search_law_chunks
 from services.f3_required_docs import match_required_docs
+
+
+# ── 요청 모델 ─────────────────────────────────────────────
+class Feature3UpdateRequest(BaseModel):
+    """사용자가 선택/수정한 서류 목록을 final_result로 저장."""
+    final_result: dict
+    edit_reason: Optional[str] = None
 
 
 router = APIRouter(tags=["feature-3"])
@@ -176,6 +187,94 @@ async def get_feature3(case_id: str):
     if not result:
         raise HTTPException(404, detail="기능3 결과가 없습니다. 먼저 /run을 실행하세요.")
     return result
+
+
+# ════════════════════════════════════════════════════════════
+# PATCH / confirm — 사용자 수정 결과 저장 & 확인 완료
+# ════════════════════════════════════════════════════════════
+
+@router.patch("/cases/{case_id}/pipeline/feature/3")
+async def update_feature3(case_id: str, body: Feature3UpdateRequest):
+    """사용자가 선택/수정한 서류 목록을 final_result로 저장."""
+    import httpx
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise HTTPException(503, detail="Supabase 연결 불가")
+
+    # 기존 결과 확인
+    existing = _fetch_pipeline(case_id, "3")
+    if not existing:
+        raise HTTPException(404, detail={
+            "error": "FEATURE3_NOT_RUN",
+            "message": "먼저 /run 으로 기능3을 실행해주세요.",
+            "feature": 3,
+        })
+
+    update_payload = {
+        "final_result": body.final_result,
+        "edit_reason": body.edit_reason,
+    }
+    r = httpx.patch(
+        f"{url}/rest/v1/pipeline_steps?case_id=eq.{case_id}&step_key=eq.3",
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        json=update_payload,
+        timeout=10.0,
+    )
+    r.raise_for_status()
+    return {"case_id": case_id, "updated": True}
+
+
+@router.post("/cases/{case_id}/pipeline/feature/3/confirm")
+async def confirm_feature3(case_id: str):
+    """담당자 확인 완료 — status를 completed로 변경."""
+    import httpx
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        raise HTTPException(503, detail="Supabase 연결 불가")
+
+    existing = _fetch_pipeline(case_id, "3")
+    if not existing:
+        raise HTTPException(404, detail={
+            "error": "FEATURE3_NOT_RUN",
+            "message": "먼저 /run 으로 기능3을 실행해주세요.",
+            "feature": 3,
+        })
+
+    # final_result 없으면 ai_result를 승격
+    final = existing if isinstance(existing, dict) else {}
+
+    update_payload: dict = {"status": "completed"}
+    # ai_result만 있고 final_result가 없는 경우 → ai_result를 final_result로 복사
+    r_check = httpx.get(
+        f"{url}/rest/v1/pipeline_steps?case_id=eq.{case_id}&step_key=eq.3&select=final_result",
+        headers={"apikey": key, "Authorization": f"Bearer {key}"},
+        timeout=10.0,
+    )
+    r_check.raise_for_status()
+    rows = r_check.json()
+    if rows and not rows[0].get("final_result"):
+        update_payload["final_result"] = final
+
+    r = httpx.patch(
+        f"{url}/rest/v1/pipeline_steps?case_id=eq.{case_id}&step_key=eq.3",
+        headers={
+            "apikey": key,
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Prefer": "return=minimal",
+        },
+        json=update_payload,
+        timeout=10.0,
+    )
+    r.raise_for_status()
+    return {"case_id": case_id, "status": "completed"}
 
 
 # ════════════════════════════════════════════════════════════

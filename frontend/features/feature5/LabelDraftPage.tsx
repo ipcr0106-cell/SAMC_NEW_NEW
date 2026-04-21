@@ -111,85 +111,37 @@ function ConfirmPortal({
 
   return createPortal(
     <div className="rounded-xl overflow-hidden mt-2"
-      style={{ border: `1px solid ${confirmed ? "var(--ds-color-success)" : "var(--ds-color-border)"}` }}>
+      style={{ border: "1px solid var(--ds-color-border)" }}>
       <div className="px-3 py-2.5 flex items-center gap-2"
         style={{
           borderBottom: "1px solid var(--ds-color-border-subtle)",
-          background: confirmed ? "var(--ds-color-success-soft)" : "var(--ds-color-surface)",
+          background: "var(--ds-color-surface)",
         }}>
-        {confirmed
-          ? <CheckCircle size={13} style={{ color: "var(--ds-color-success)" }} />
-          : <FileText size={13} style={{ color: "var(--ds-color-text-tertiary)" }} />
-        }
-        <p className="text-[12px] font-semibold"
-          style={{ color: confirmed ? "var(--ds-color-success-text)" : "var(--ds-color-text-heading)" }}>
-          {confirmed ? "확정 완료" : "실무자 최종 확정"}
+        <Download size={13} style={{ color: "var(--ds-color-text-tertiary)" }} />
+        <p className="text-[12px] font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>
+          검토내역서 다운로드
         </p>
       </div>
-
       <div className="p-3" style={{ background: "var(--ds-color-bg)" }}>
-        {confirmed ? (
-          <div className="space-y-2.5">
-            <p className="text-[11px]" style={{ color: "var(--ds-color-success-text)" }}>
-              <strong>{confirmedBy}</strong>님이 검토 완료하였습니다.
-            </p>
-            <div className="flex gap-1.5">
-              <button
-                onClick={() => onDownload("docx")}
-                disabled={!!downloading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-semibold transition-all disabled:opacity-60"
-                style={{ background: "var(--ds-color-primary)", color: "#fff" }}
-              >
-                {downloading === "docx" ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
-                DOCX
-              </button>
-              <button
-                onClick={() => onDownload("pdf")}
-                disabled={!!downloading}
-                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-[11px] font-medium border transition-all disabled:opacity-60"
-                style={{ color: "var(--ds-color-text-secondary)", borderColor: "var(--ds-color-border)" }}
-              >
-                {downloading === "pdf" ? <Loader2 size={11} className="animate-spin" /> : <Download size={11} />}
-                PDF
-              </button>
-            </div>
-            {errorMsg && <p className="text-[11px]" style={{ color: "var(--ds-color-error-text)" }}>{errorMsg}</p>}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-[11px]" style={{ color: "var(--ds-color-text-secondary)" }}>
-              담당자 이름 입력 후 확정하면 검토내역서를 다운로드할 수 있습니다.
-            </p>
-            <div className="flex gap-1.5">
-              <input
-                type="text"
-                value={confirmedBy}
-                onChange={e => onConfirmedByChange(e.target.value)}
-                placeholder="담당자 이름"
-                onKeyDown={e => e.key === "Enter" && onConfirm()}
-                className="flex-1 px-2.5 py-1.5 rounded-lg text-[12px] focus:outline-none"
-                style={{
-                  border: "1px solid var(--ds-color-border)",
-                  background: "var(--ds-color-surface)",
-                  color: "var(--ds-color-text-primary)",
-                }}
-              />
-              <button
-                onClick={onConfirm}
-                disabled={!confirmedBy.trim()}
-                className="px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all disabled:opacity-50"
-                style={{
-                  background: confirmedBy.trim() ? "var(--ds-color-primary)" : "var(--ds-color-surface)",
-                  color: confirmedBy.trim() ? "#fff" : "var(--ds-color-text-tertiary)",
-                  border: confirmedBy.trim() ? "none" : "1px solid var(--ds-color-border)",
-                }}
-              >
-                확정
-              </button>
-            </div>
-            {errorMsg && <p className="text-[11px]" style={{ color: "var(--ds-color-error-text)" }}>{errorMsg}</p>}
-          </div>
-        )}
+        <div className="flex gap-1.5">
+          <button
+            onClick={() => onDownload("docx")}
+            disabled={!!downloading}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors disabled:opacity-50"
+          >
+            {downloading === "docx" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            DOCX
+          </button>
+          <button
+            onClick={() => onDownload("pdf")}
+            disabled={!!downloading}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-red-50 hover:border-red-300 hover:text-red-700 transition-colors disabled:opacity-50"
+          >
+            {downloading === "pdf" ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} />}
+            PDF
+          </button>
+        </div>
+        {errorMsg && <p className="text-[11px] mt-1.5" style={{ color: "var(--ds-color-error-text)" }}>{errorMsg}</p>}
       </div>
     </div>,
     portal
@@ -356,6 +308,25 @@ export default function LabelPage() {
 
   const lawCacheRef = useRef<Map<string, LawChunk[]>>(new Map());
   const additionalIssuesRef = useRef<HTMLDivElement>(null);
+
+  // 페이지 로드 시 DB에서 F5 결과 자동 로드
+  useEffect(() => {
+    (async () => {
+      try {
+        const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+        const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+        const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+        const res = await fetch(`${baseUrl}/cases/${caseId}/pipeline/feature/5`, { headers });
+        if (!res.ok) return;
+        const row = await res.json();
+        const data = row.final_result ?? row.ai_result;
+        if (data && data.phase1) {
+          setResult(data as Result);
+          setStep("done");
+        }
+      } catch { /* F5 결과 없으면 idle 유지 */ }
+    })();
+  }, [caseId]);
 
   useEffect(() => {
     if (result?.phase2?.draft) {

@@ -208,7 +208,7 @@ def run_pipeline(case_id: str, body: RunRequest):
         )
     except Exception as e:
         get_supabase().table("pipeline_steps").upsert(
-            {"case_id": case_id, "step_key": STEP_KEY, "status": "error"},
+            {"case_id": case_id, "step_key": STEP_KEY, "step_name": "korean_label", "status": "error"},
             on_conflict="case_id,step_key",
         ).execute()
         raise HTTPException(status_code=502, detail=str(e))
@@ -313,13 +313,14 @@ def download_report(
     if not record:
         raise HTTPException(status_code=404, detail="시안 데이터를 찾을 수 없습니다.")
 
-    status = record.get("status")
-    final_result = record.get("final_result")
-    if status != "completed" or not final_result:
+    # final_result(확정 시안) 또는 ai_result(미확정 시안) 중 있는 것 사용
+    if not record.get("final_result") and not record.get("ai_result"):
         raise HTTPException(
             status_code=400,
-            detail="확정된 시안만 다운로드할 수 있습니다. '확정' 버튼을 먼저 눌러주세요.",
+            detail="다운로드할 시안 데이터가 없습니다. F5 분석을 먼저 실행하세요.",
         )
+    if not record.get("final_result"):
+        record["final_result"] = record["ai_result"]
 
     try:
         if format == "docx":

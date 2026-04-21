@@ -250,8 +250,8 @@ class Feature1Output(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    import_possible: bool
-    verdict: str = Field(..., description="수입가능/수입불가 + 한국어 사유")
+    import_possible: Optional[bool] = None
+    verdict: str = Field(..., description="수입가능/수입불가/검토필요 + 한국어 사유")
     aggregation: Optional[AggregationResult] = None
     conditional_evaluations: list[ConditionalEvaluation] = Field(default_factory=list)
     standards_check: Optional[StandardsCheckResult] = None

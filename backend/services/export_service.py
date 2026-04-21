@@ -488,24 +488,6 @@ def build_pdf(
             for w in warns:
                 _bullet(str(w))
 
-    # ── 5. 라벨 제품 이미지 ──
-    if label_images:
-        _section(f"5. 라벨 제품 이미지 ({len(label_images)}개)")
-        for img_data in label_images:
-            img_bytes = img_data.get("bytes")
-            idx = img_data.get("image_index", 0)
-            _set(10, bold=True)
-            pdf.multi_cell(0, 7, f"이미지 {idx + 1}")
-            if img_bytes:
-                try:
-                    tmp = io.BytesIO(img_bytes)
-                    pdf.image(tmp, w=70)
-                except Exception as e:
-                    logger.warning(f"PDF 이미지 삽입 실패 (idx={idx}): {e}")
-                    _text("(이미지 삽입 실패)")
-            fields = [(lbl, img_data.get(key)) for key, lbl in _IMG_FIELD_LABELS if img_data.get(key)]
-            for lbl, val in fields:
-                _row(lbl, str(val), lw=30, vw=140)
-            pdf.ln(4)
+    # 라벨 이미지는 PDF에서 제외 (웹 UI에서 확인)
 
     return pdf.output()

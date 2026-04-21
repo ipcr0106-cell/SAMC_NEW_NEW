@@ -20,7 +20,8 @@ interface Step {
 
 const steps: Step[] = [
   { key: "upload", label: "서류 업로드", icon: <FileText size={15} />, route: "upload" },
-  { key: "F1", label: "수입·유형 판정", icon: <Search size={15} />, route: "f1" },
+  { key: "F1", label: "수입 판정", icon: <Search size={15} />, route: "f1" },
+  { key: "F2", label: "식품유형 분류", icon: <ClipboardCheck size={15} />, route: "f2" },
   { key: "F3", label: "필요서류", icon: <ClipboardCheck size={15} />, route: "f3" },
   { key: "F4", label: "라벨검토", icon: <Globe size={15} />, route: "f4" },
   { key: "F5", label: "한글시안", icon: <FileCheck size={15} />, route: "f5" },
@@ -30,16 +31,23 @@ interface StepNavigationProps {
   currentStep: string;
   /** Steps that are completed (data available). Users can jump to any completed step or the next uncompleted step. */
   completedSteps?: string[];
+  /** 수동 식품분류 입력 건이면 F1/F2를 숨김 */
+  hideF1F2?: boolean;
 }
 
 export default function StepNavigation({
   currentStep,
   completedSteps = [],
+  hideF1F2 = false,
 }: StepNavigationProps) {
   const router = useRouter();
   const params = useParams();
   const caseId = params?.id as string;
-  const currentIndex = steps.findIndex((s) => s.key === currentStep);
+
+  const visibleSteps = hideF1F2
+    ? steps.filter((s) => s.key !== "F1" && s.key !== "F2")
+    : steps;
+  const currentIndex = visibleSteps.findIndex((s) => s.key === currentStep);
 
   const handleStepClick = (step: Step, idx: number) => {
     if (step.key === currentStep) return; // 현재 단계 클릭 무시
@@ -51,10 +59,10 @@ export default function StepNavigation({
     <div className="ds-step-nav px-6 py-4">
       {/* 스텝 바 */}
       <div className="flex items-center">
-        {steps.map((step, idx) => {
+        {visibleSteps.map((step, idx) => {
           const isActive = idx === currentIndex;
           const isCompleted = completedSteps.includes(step.key) || idx < currentIndex;
-          const isLast = idx === steps.length - 1;
+          const isLast = idx === visibleSteps.length - 1;
           const isClickable = step.key !== currentStep;
 
           return (

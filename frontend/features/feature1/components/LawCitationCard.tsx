@@ -18,13 +18,19 @@ interface Props {
 
 const PREVIEW_LEN = 300;
 
+/** 법령 원문의 <br> 태그를 줄바꿈으로 변환. */
+function cleanLawText(raw: string): string {
+  return raw.replace(/<br\s*\/?>/gi, "\n");
+}
+
 export default function LawCitationCard({ citation }: Props) {
   const [expanded, setExpanded] = useState(false);
-  const needsTruncate = citation.text.length > PREVIEW_LEN;
+  const cleaned = cleanLawText(citation.text);
+  const needsTruncate = cleaned.length > PREVIEW_LEN;
   const displayText =
     !needsTruncate || expanded
-      ? citation.text
-      : citation.text.slice(0, PREVIEW_LEN) + "…";
+      ? cleaned
+      : cleaned.slice(0, PREVIEW_LEN) + "…";
 
   const nsLabel = NAMESPACE_LABEL[citation.namespace] ?? citation.namespace;
 

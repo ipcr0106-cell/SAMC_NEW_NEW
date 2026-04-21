@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import re
 import uuid
 from datetime import datetime, timezone
@@ -221,7 +222,7 @@ async def export_parsed_pdf(
 
     fname = _export_filename(product_name, case_id, "pdf")
     return Response(
-        content=data,
+        content=bytes(data),
         media_type="application/pdf",
         headers={"Content-Disposition": _content_disposition(fname)},
     )
@@ -481,6 +482,62 @@ _KO_SYNONYMS: dict[str, str] = {
 }
 
 
+async def _llm_suggest_ingredient_names(raw_name: str) -> list[str]:
+    """LLM에게 원재료명의 한국 식약처 공식 성분명 후보를 추천받는다.
+
+    예: "이산화황 (Sulphur dioxide)" → ["무수아황산", "아황산나트륨", "이산화황"]
+    예: "Grape based Wine" → ["포도", "포도주", "포도과즙"]
+
+    Returns:
+        한글 성분명 후보 리스트 (최대 5개). 실패 시 빈 리스트.
+    """
+    api_key = os.getenv("F0_OPENAI_API_KEY", "")
+    if not api_key:
+        return []
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
+        resp = await client.chat.completions.create(
+            model=os.getenv("F0_OPENAI_MODEL", "gpt-4o-mini"),
+            temperature=0,
+            max_tokens=200,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 한국 식약처 식품원료 데이터베이스 전문가입니다. "
+                        "사용자가 식품 원재료명(한국어, 영어, 또는 혼합)을 제공하면, "
+                        "한국 식약처 성분코드 DB에 등록되어 있을 법한 "
+                        "공식 한국어 성분명 후보를 최대 5개 추천하세요.\n"
+                        "중요: 식약처 DB에는 일상 명칭이 아닌 공식 화학명/법정명으로 등록됩니다.\n"
+                        "DB의 명명 패턴: '에스터'→'에스테르', '수크로스'→'자당', "
+                        "'모노글리세리드'→'글리세린지방산에스테르' 등 식약처 고유 표기를 사용합니다.\n"
+                        "예시:\n"
+                        "- 이산화황/Sulphur dioxide → 무수아황산\n"
+                        "- 물/Water → 정제수\n"
+                        "- 설탕/Sugar → 백설탕, 설탕\n"
+                        "- Grape based Wine → 포도, 포도주\n"
+                        "- Citric acid → 구연산\n"
+                        "- 수크로스 지방산 에스터 → 자당지방산에스테르\n"
+                        "- 지방산의 모노글리세리드 → 글리세린지방산에스테르\n"
+                        "동의어, 유사명, 상위/하위 카테고리명, 식약처 고유 표기를 모두 포함하세요.\n"
+                        "반드시 한 줄에 하나씩, 한국어 성분명만 출력하세요."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"원재료명: {raw_name}",
+                },
+            ],
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        candidates = [line.strip() for line in text.splitlines() if line.strip()]
+        return candidates[:5]
+    except Exception as exc:
+        logger.warning(f"LLM 성분명 추천 실패: {raw_name} — {exc}")
+        return []
+
+
 async def _enrich_ingredient_codes(parsed_result) -> object:
     """파싱 완료 후 각 IngredientItem의 ingredient_code를 자동 조회하여 채워넣는다.
 
@@ -490,9 +547,11 @@ async def _enrich_ingredient_codes(parsed_result) -> object:
     """
     async def _fill_code(item) -> object:
         if item.ingredient_code:
+            logger.info(f"성분코드 이미 존재, 스킵: {item.name} → {item.ingredient_code}")
             return item  # 이미 있으면 스킵
         if not item.name or not item.name.strip():
             return item
+        logger.info(f"성분코드 조회 시작: {item.name}")
 
         try:
             # 1) CAS 번호가 있으면 CAS로 먼저 정확 검색 (가장 신뢰도 높음)
@@ -507,6 +566,14 @@ async def _enrich_ingredient_codes(parsed_result) -> object:
                     best = cas_result.results[0]
                     item.ingredient_code = best.code
                     item.ingredient_code_name = best.name_ko
+                    from schemas.upload import IngredientCodeCandidate
+                    item.ingredient_code_candidates = [
+                        IngredientCodeCandidate(
+                            code=best.code, name_ko=best.name_ko or "",
+                            name_en=best.name_en or "",
+                            score=best.score, match_type="exact",
+                        )
+                    ]
                     return item  # CAS 히트 → 바로 반환
 
             # 2) 이름으로 검색: "물 (Water)" → 한국어명 + 영문명 모두 추출
@@ -531,54 +598,84 @@ async def _enrich_ingredient_codes(parsed_result) -> object:
                 top_k=5,
                 search_mode="auto",
             )
-            if result.results:
-                # 결과 후보 중 "이름이 관련 있는" 항목만 남김
-                def _is_relevant(r) -> bool:
-                    rn = (r.name_ko or "").strip()
-                    sq = search_query.strip()
-                    if not rn:
-                        return False
-                    # 완전일치
-                    if rn == sq:
-                        return True
-                    # 결과명이 검색어로 시작 (에탄올 → 에탄올류 등)
-                    # 단, 검색어가 2자 이하인 경우 false positive 방지를 위해 스킵
-                    # (예: "물" 검색 시 "물냉이" 매칭 방지)
-                    if len(sq) >= 3 and rn.startswith(sq):
-                        return True
-                    # 검색어가 결과명으로 시작 (에탄올추출물 → 에탄올 검색 시)
-                    # 마찬가지로 결과명이 너무 짧으면 스킵
-                    if len(rn) >= 3 and sq.startswith(rn):
-                        return True
-                    # semantic 결과는 score로만 판단
-                    if r.match_type == "semantic":
-                        return r.score >= 0.80
+            # 결과 후보 중 "이름이 관련 있는" 항목만 남김
+            def _is_relevant(r) -> bool:
+                rn = (r.name_ko or "").strip()
+                sq = search_query.strip()
+                if not rn:
                     return False
+                if rn == sq:
+                    return True
+                if len(sq) >= 3 and rn.startswith(sq):
+                    return True
+                if len(rn) >= 3 and sq.startswith(rn):
+                    return True
+                if r.match_type == "semantic":
+                    return r.score >= 0.80
+                return False
 
-                relevant = [r for r in result.results if _is_relevant(r)]
-                if not relevant and en_name:
-                    # 한국어명으로 못 찾으면 영문명으로 재시도 (예: "물" 검색 실패 → "Water" 검색)
-                    en_result = await search_ingredient_codes(
-                        query=en_name,
-                        top_k=3,
+            relevant = [r for r in result.results if _is_relevant(r)] if result.results else []
+
+            # 2-b) 영문명 fallback
+            if not relevant and en_name:
+                en_result = await search_ingredient_codes(
+                    query=en_name,
+                    top_k=3,
+                    search_mode="auto",
+                )
+                relevant = [r for r in en_result.results if _is_relevant(r)]
+                if not relevant:
+                    relevant = [r for r in en_result.results if (r.name_en or "").lower() == en_name.lower()]
+
+            # 3) LLM fallback: 기존 검색 모두 실패 시 LLM에게 공식 성분명 추천받아 재검색
+            if not relevant:
+                llm_names = await _llm_suggest_ingredient_names(raw_name)
+                seen_codes: set[str] = set()
+                for llm_name in llm_names:
+                    # auto 모드: 완전일치 + ilike 부분매칭
+                    llm_result = await search_ingredient_codes(
+                        query=llm_name,
+                        top_k=5,
                         search_mode="auto",
                     )
-                    relevant = [r for r in en_result.results if _is_relevant(r)]
-                    if not relevant:
-                        # 영문명 완전일치도 시도
-                        relevant = [r for r in en_result.results if (r.name_en or "").lower() == en_name.lower()]
+                    for r in llm_result.results:
+                        if r.code not in seen_codes:
+                            relevant.append(r)
+                            seen_codes.add(r.code)
+                if relevant:
+                    logger.warning(f"LLM fallback 성공: {raw_name} → {[r.name_ko for r in relevant]}")
 
-                if not relevant:
-                    logger.debug(f"성분코드 관련 결과 없음: {search_query}")
-                else:
-                    # 완전일치 → startswith 순으로 우선
-                    relevant.sort(key=lambda r: (
-                        0 if r.name_ko == search_query else
-                        1 if (r.name_ko or "").startswith(search_query) else 2
-                    ))
-                    best = relevant[0]
-                    item.ingredient_code = best.code
-                    item.ingredient_code_name = best.name_ko
+            # 후보 목록 구성
+            all_candidates = list(relevant)
+            seen_codes = {r.code for r in all_candidates}
+            for r in (result.results or []):
+                if r.code not in seen_codes and r.score >= 0.60:
+                    all_candidates.append(r)
+                    seen_codes.add(r.code)
+
+            if all_candidates:
+                # 완전일치 → startswith → score 순으로 정렬
+                all_candidates.sort(key=lambda r: (
+                    0 if r.name_ko == search_query else
+                    1 if (r.name_ko or "").startswith(search_query) else 2,
+                    -r.score,
+                ))
+                # 후보 목록 저장 (최대 5건)
+                from schemas.upload import IngredientCodeCandidate
+                item.ingredient_code_candidates = [
+                    IngredientCodeCandidate(
+                        code=r.code,
+                        name_ko=r.name_ko or "",
+                        name_en=r.name_en or "",
+                        score=r.score,
+                        match_type=r.match_type or "exact",
+                    )
+                    for r in all_candidates[:5]
+                ]
+                # 1순위를 기본값으로 확정
+                best = all_candidates[0]
+                item.ingredient_code = best.code
+                item.ingredient_code_name = best.name_ko
         except Exception as e:
             logger.debug(f"성분코드 조회 스킵: {item.name} — {e}")
 
@@ -918,8 +1015,10 @@ async def parse_documents(case_id: str, background_tasks: BackgroundTasks):
         )
 
     # 4-1) 성분코드 자동 조회 — 각 ingredient에 ingredient_code 채워넣기
+    logger.warning(f"[F0] 성분코드 enrichment 시작: {len(parsed_result.ingredients)}개 성분")
     try:
         parsed_result = await _enrich_ingredient_codes(parsed_result)
+        logger.warning(f"[F0] 성분코드 enrichment 완료")
     except Exception as e:
         logger.warning(f"성분코드 자동 조회 실패 (무시하고 계속): {e}")
 
@@ -968,6 +1067,7 @@ async def parse_documents(case_id: str, background_tasks: BackgroundTasks):
             "step_name": "입력 및 OCR 파싱",
             "status": "completed",
             "ai_result": parsed_result.model_dump(),
+            "final_result": None,  # 재파싱 시 이전 수정본 초기화
         }, on_conflict="case_id,step_key").execute()
     except Exception as e:
         logger.warning(f"pipeline_steps 저장 실패: {e}")

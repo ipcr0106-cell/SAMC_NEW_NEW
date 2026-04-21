@@ -61,6 +61,10 @@ export function useImportCheck(caseId: string) {
       selectedLawRefs: new Set(
         source?._internal?.law_refs?.map((r) => r.law_source) ?? []
       ),
+      // HITL-2 법령 인용도 기본 전체 선택
+      hitl2SelectedCitations: new Set(
+        source?._internal?.law_citations?.map((c: any) => c.chunk_id || c.article_no || "") ?? []
+      ),
     }));
   }, []);
 
@@ -320,6 +324,7 @@ export function useImportCheck(caseId: string) {
 
   return {
     state,
+    applyResponse,
     toggleLawRef,
     setUserVerdict,
     setEditReason,
