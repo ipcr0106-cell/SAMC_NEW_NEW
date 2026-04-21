@@ -340,6 +340,8 @@ export const getFeature1 = async (caseId: string) => {
 // ── 기능 2: 식품유형 분류 ──────────────────────────
 /**
  * @deprecated F2 스텝이 F1 페이지로 통합됨 (f1f2 병합). FoodTypeSection에서 getFeature2 직접 사용.
+ * TODO(Wave 5): samcbc step0_food_type BE 이식 완료 후 삭제.
+ * 현재는 FoodTypeSection 의 임시 실행 버튼에서 호출 (Wave 4 P4 보완 계획 T1).
  */
 export const runFeature2 = async (caseId: string) => {
   const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2/run`, {
@@ -428,21 +430,21 @@ export const getFeature5 = async (caseId: string) => {
   return res.json();
 };
 
-// ── 더미 데이터 시드 (개발/테스트용) ──────────────────
+// ── 더미 데이터 (개발/테스트용) ──────────────────────
 export const seedDummyData = async (caseId: string) => {
-  const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/seed-dummy`, {
+  const res = await fetch(`${API_BASE}/cases/${caseId}/seed-dummy`, {
     method: "POST",
-    headers: getAuthHeaders(),
+    headers: { "Content-Type": "application/json", ...getAuthHeaders() },
   });
-  if (!res.ok) throw new Error(`Seed dummy failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Seed dummy data failed: ${res.status}`);
   return res.json();
 };
 
 export const clearDummyData = async (caseId: string) => {
-  const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/seed-dummy`, {
+  const res = await fetch(`${API_BASE}/cases/${caseId}/clear-dummy`, {
     method: "DELETE",
     headers: getAuthHeaders(),
   });
-  if (!res.ok) throw new Error(`Clear dummy failed: ${res.status}`);
+  if (!res.ok) throw new Error(`Clear dummy data failed: ${res.status}`);
   return res.json();
 };

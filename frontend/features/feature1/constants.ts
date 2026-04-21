@@ -25,15 +25,17 @@ export const API_PATHS = {
 } as const;
 
 // 판정 표시 라벨
-export const VERDICT_LABEL = {
+export const VERDICT_LABEL: Record<string, string> = {
   수입가능: "수입 가능",
   수입불가: "수입 불가",
-} as const;
+  검토필요: "검토 필요",
+};
 
-export const VERDICT_COLOR = {
+export const VERDICT_COLOR: Record<string, string> = {
   수입가능: "text-green-600",
   수입불가: "text-red-600",
-} as const;
+  검토필요: "text-amber-600",
+};
 
 // 원재료 상태 라벨
 export const INGREDIENT_STATUS_LABEL = {
@@ -45,22 +47,23 @@ export const INGREDIENT_STATUS_LABEL = {
 export const INGREDIENT_STATUS_COLOR = {
   allowed: "text-green-600 bg-green-50",
   not_found: "text-red-600 bg-red-50",
-  synthetic_flavor_warning: "text-yellow-700 bg-yellow-50",
+  synthetic_flavor_warning: "text-yellow-600 bg-yellow-50",
 } as const;
 
-// 기준규격 상태 라벨
+// 기준규격 검사 상태 라벨
 export const STANDARDS_STATUS_LABEL = {
   pass: "적합",
-  fail: "초과",
-  no_threshold: "기준 미등록",
+  fail: "부적합",
   review_needed: "검토 필요",
   no_data: "데이터 없음",
+  no_threshold: "기준치 없음",
 } as const;
 
+// 기준규격 검사 상태 색상
 export const STANDARDS_STATUS_COLOR = {
-  pass: "text-green-600",
-  fail: "text-red-600 font-semibold",
-  no_threshold: "text-gray-500",
-  review_needed: "text-yellow-600",
-  no_data: "text-gray-400",
+  pass: "text-green-600 bg-green-50",
+  fail: "text-red-600 bg-red-50",
+  review_needed: "text-yellow-600 bg-yellow-50",
+  no_data: "text-gray-500 bg-gray-50",
+  no_threshold: "text-gray-400 bg-gray-50",
 } as const;

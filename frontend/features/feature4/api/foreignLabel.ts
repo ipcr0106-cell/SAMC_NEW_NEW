@@ -24,7 +24,9 @@ export const analyzeForeignLabel = async (
     doc_ingredients?: string;
   }
 ): Promise<{ case_id: string; ai_result: Feature4Result }> => {
-  const res = await apiClient.post(API_PATHS.analyze(caseId), payload);
+  const res = await apiClient.post(API_PATHS.analyze(caseId), payload, {
+    timeout: 300000,  // F4 분석은 PDF추출+OCR+RAG+AI 포함 최대 5분
+  });
   return res.data;
 };
 

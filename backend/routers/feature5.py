@@ -208,7 +208,7 @@ def run_pipeline(case_id: str, body: RunRequest):
         )
     except Exception as e:
         get_supabase().table("pipeline_steps").upsert(
-            {"case_id": case_id, "step_key": STEP_KEY, "status": "error"},
+            {"case_id": case_id, "step_key": STEP_KEY, "step_name": "korean_label", "status": "error"},
             on_conflict="case_id,step_key",
         ).execute()
         raise HTTPException(status_code=502, detail=str(e))

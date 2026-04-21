@@ -83,4 +83,44 @@ describe("FoodTypeSection", () => {
     const { container } = render(<FoodTypeSection {...makeProps()} />);
     expect(container.querySelector("#food-type")).not.toBeNull();
   });
+
+  // ── Wave 4 P4 보완 T1: F2 임시 실행 트리거 ───────────────────────
+  it("hierarchy=null + onRun 제공 시 'AI 분류 실행' 버튼이 노출되고 클릭하면 onRun 이 호출된다", async () => {
+    const user = userEvent.setup();
+    const onRun = vi.fn();
+    render(
+      <FoodTypeSection {...makeProps({ hierarchy: null, onRun })} />,
+    );
+    const btn = screen.getByRole("button", { name: /AI 분류 실행/ });
+    expect(btn).toBeInTheDocument();
+    await user.click(btn);
+    expect(onRun).toHaveBeenCalledTimes(1);
+  });
+
+  it("isRunning=true 이면 실행 버튼이 비활성화되고 로딩 표시가 나타난다", () => {
+    render(
+      <FoodTypeSection
+        {...makeProps({ hierarchy: null, onRun: vi.fn(), isRunning: true })}
+      />,
+    );
+    expect(screen.getByTestId("f2-run-btn")).toBeDisabled();
+    expect(screen.getByTestId("f2-run-spinner")).toBeInTheDocument();
+    expect(screen.getByText(/분석 실행 중/)).toBeInTheDocument();
+  });
+
+  it("runError 가 있으면 에러 메시지가 렌더된다", () => {
+    render(
+      <FoodTypeSection
+        {...makeProps({
+          hierarchy: null,
+          onRun: vi.fn(),
+          runError: "F2 실행 실패 — 500 Internal Server Error",
+        })}
+      />,
+    );
+    expect(screen.getByTestId("f2-run-error")).toBeInTheDocument();
+    expect(
+      screen.getByText(/500 Internal Server Error/),
+    ).toBeInTheDocument();
+  });
 });

@@ -858,10 +858,31 @@ export default function StepAPage() {
     const loadPipelineData = async () => {
       setLoading(true);
       try {
-        // 기능 2(식품유형) + 기능 0(성분코드) 결과를 pipeline_steps 에서 로드 (서버사이드 프록시 경유)
-        const [f2Res, f0Res] = await Promise.all([
-          fetch(`/api/pipeline-input?case_id=${caseId}&step=2`),
-          fetch(`/api/pipeline-input?case_id=${caseId}&step=0`),
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+        const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+        const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+        // 1) 먼저 파이프라인에서 실행된 F3 결과가 DB에 있는지 확인
+        //    (백엔드 /feature/3/run이 F0 성분코드 + F2 식품유형으로 판정한 결과)
+        try {
+          const f3Res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/3`, { headers: authHeaders });
+          if (f3Res.ok) {
+            const f3Row = await f3Res.json();
+            const f3Data = f3Row.final_result ?? f3Row.ai_result ?? f3Row;
+            if (f3Data && (f3Data.submit_docs?.length > 0 || f3Data.keep_docs?.length > 0)) {
+              setResult(f3Data as DocsResult);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch { /* F3 결과 없으면 아래에서 직접 조회 */ }
+
+        // 2) F3 결과 없으면 F0/F1/F2에서 데이터 로드 후 직접 조회
+
+        const [f2Res, f1Res, f0Res] = await Promise.all([
+          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`, { headers: authHeaders }),
+          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/1`, { headers: authHeaders }),
+          fetch(`${API_BASE}/cases/${caseId}/parsed-result`, { headers: authHeaders }),
         ]);
 
         if (!f2Res.ok) {
@@ -967,14 +988,12 @@ export default function StepAPage() {
           await runQueryInner(fullInput);
         }
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.error("[F3 loadPipelineData error]", msg, err);
-        if (msg === "F2_NOT_FOUND") {
-          setError("식품유형 분류(기능 2) 결과가 없습니다. 이전 단계를 먼저 완료해주세요.");
-        } else if (msg === "Failed to fetch" || msg === "NetworkError when attempting to fetch resource") {
-          setError("서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해주세요.");
+        const msg = err instanceof Error ? err.message : "데이터 로드 실패";
+        // "Failed to fetch" = 백엔드 서버 미실행 (http://localhost:8000)
+        if (msg.toLowerCase().includes("failed to fetch")) {
+          setError("백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요. (uvicorn main:app --reload --port 8000)");
         } else {
-          setError(`이전 단계 데이터를 불러오지 못했습니다. (${msg})`);
+          setError(msg);
         }
       } finally {
         setLoading(false);
@@ -2150,20 +2169,16 @@ function ReportModal({
               보내주시기 바랍니다. 서류 요건이나 발급 절차에 관해 문의사항이 있으시면 발신자에게 직접 연락 바랍니다.
             </p>
             <div className="mt-6 grid grid-cols-2 gap-8 text-xs">
-              <div className="border border-gray-300 rounded p-3">
-                <p className="text-gray-500 font-semibold mb-1 text-[10px] uppercase">발신 담당 서명 (Signed by)</p>
-                <div className="border-b border-gray-400 pb-1 h-10 mt-3">&nbsp;</div>
-                <p className="text-[10px] text-gray-400 mt-2">{sender} · {dateStr}</p>
+              <div>
+                <p className="text-gray-500 font-semibold mb-1">보내는 사람</p>
+                <div className="border-b border-gray-400 pb-1 h-8 text-gray-800">{sender || ""}</div>
+                <p className="text-[10px] text-gray-400 mt-1">{senderContact || ""}</p>
               </div>
-              <div className="border border-gray-300 rounded p-3 bg-gray-50">
-                <p className="text-gray-500 font-semibold mb-1 text-[10px] uppercase">수신 확인 (Acknowledged by)</p>
-                <div className="border-b border-gray-400 pb-1 h-10 mt-3">&nbsp;</div>
-                <p className="text-[10px] text-gray-400 mt-2">회신 예정일: {deadline || "____________"}</p>
+              <div>
+                <p className="text-gray-500 font-semibold mb-1">회신 기한</p>
+                <div className="border-b border-gray-400 pb-1 h-8 text-gray-800">{deadline || ""}</div>
               </div>
             </div>
-            <p className="text-[10px] text-gray-500 mt-6 text-center">
-              — End of Document Request · 문서 끝 —
-            </p>
           </section>
         ) : null}
       </div>

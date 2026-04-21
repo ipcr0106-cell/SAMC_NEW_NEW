@@ -20,7 +20,8 @@ interface Step {
 
 const steps: Step[] = [
   { key: "upload", label: "서류 업로드", icon: <FileText size={15} />, route: "upload" },
-  { key: "F1", label: "수입·유형 판정", icon: <Search size={15} />, route: "f1" },
+  { key: "F1", label: "수입 판정", icon: <Search size={15} />, route: "f1" },
+  { key: "F2", label: "식품유형 분류", icon: <ClipboardCheck size={15} />, route: "f2" },
   { key: "F3", label: "필요서류", icon: <ClipboardCheck size={15} />, route: "f3" },
   { key: "F4", label: "라벨검토", icon: <Globe size={15} />, route: "f4" },
   { key: "F5", label: "한글시안", icon: <FileCheck size={15} />, route: "f5" },

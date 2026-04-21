@@ -5,15 +5,7 @@ OCR로 추출된 Raw 텍스트를 LLM에 넘겨
 구조화된 JSON(ParsedResult)으로 변환하는 핵심 로직.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  임시 전환 안내 (TEMPORARY — 개발/테스트용):
-    현재는 비용 테스트를 위해 OpenAI API(gpt-4o)를 사용합니다.
-    최종 통합 단계에서는 반드시 Anthropic Claude API로 롤백할 것.
-
-    롤백 방법:
-      1) .env 의 OPENAI_API_KEY 제거, ANTHROPIC_API_KEY 활성화 확인
-      2) 본 파일에서 `_call_openai(...)` 호출 라인을
-         `_call_claude(...)` 호출 라인으로 교체
-         (검색 키워드: "# >>> OPENAI TEMP")
+OpenAI API(gpt-4o)를 사용합니다.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
@@ -48,9 +40,8 @@ OPENAI_API_KEY = os.getenv("F0_OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("F0_OPENAI_MODEL", "gpt-4o")
 # <<< OPENAI TEMP
 
-# --- CLAUDE ORIGINAL (최종 통합 시 사용) ---
-ANTHROPIC_API_KEY = os.getenv("F0_ANTHROPIC_API_KEY", "")
-CLAUDE_MODEL_NAME = "claude-sonnet-4-20250514"
+# --- 대체 LLM 키 (폴백용) ---
+F0_OPENAI_API_KEY_ALT = os.getenv("F0_OPENAI_API_KEY", "")
 # -------------------------------------------
 
 MAX_TOKENS = 16000
@@ -260,9 +251,9 @@ async def parse_raw_texts_to_structured(
     user_message = "\n\n".join(user_sections)
     logger.info(f"LLM 파싱 시작: doc_types={list(raw_texts.keys())}, 텍스트 총 {len(user_message)}자")
 
-    # >>> OPENAI TEMP — 최종 통합 시 _call_claude 로 교체
+    # >>> OPENAI — 현재 사용 중
     response_text = await _call_openai(SYSTEM_PROMPT, user_message)
-    # response_text = await _call_claude(SYSTEM_PROMPT, user_message)
+    # response_text = await _call_openai_alt(SYSTEM_PROMPT, user_message)
     # <<< OPENAI TEMP
 
     logger.info(f"LLM 응답 수신: {len(response_text)}자")
@@ -317,31 +308,30 @@ async def _call_openai(system_prompt: str, user_message: str) -> str:
 
 
 # ─────────────────────────────────────────────
-# --- CLAUDE ORIGINAL (최종 통합 시 사용) ---
+# --- OpenAI 폴백 (기존 Claude 대체) ---
 # ─────────────────────────────────────────────
 
-async def _call_claude(system_prompt: str, user_message: str) -> str:
-    """Anthropic Claude 호출 — 최종 프로덕션용."""
-    if not ANTHROPIC_API_KEY:
-        raise ValueError("ANTHROPIC_API_KEY가 설정되지 않았습니다. backend/.env 파일을 확인하세요.")
+async def _call_openai_alt(system_prompt: str, user_message: str) -> str:
+    """OpenAI 호출 — 폴백용."""
+    if not F0_OPENAI_API_KEY_ALT:
+        raise ValueError("F0_OPENAI_API_KEY가 설정되지 않았습니다. backend/.env 파일을 확인하세요.")
 
-    import anthropic
+    from openai import AsyncOpenAI
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=ANTHROPIC_API_KEY)
-        message = await client.messages.create(
-            model=CLAUDE_MODEL_NAME,
+        client = AsyncOpenAI(api_key=F0_OPENAI_API_KEY_ALT)
+        response = await client.chat.completions.create(
+            model=OPENAI_MODEL,
             max_tokens=MAX_TOKENS,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_message}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
         )
-        return message.content[0].text.strip()
-    except anthropic.AuthenticationError as e:
-        logger.error(f"Claude API 인증 실패: {e}")
-        raise ValueError(f"Claude API 인증 실패: API 키가 유효하지 않습니다. ({e})")
-    except anthropic.APIError as e:
-        logger.error(f"Claude API 호출 실패: {e}")
-        raise ValueError(f"Claude API 호출 실패: {e}")
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        logger.error(f"OpenAI API 호출 실패: {e}")
+        raise ValueError(f"OpenAI API 호출 실패: {e}")
 
 
 # ─────────────────────────────────────────────
@@ -593,7 +583,7 @@ async def suggest_process_codes(text: str) -> ProcessCodeSuggestResponse:
 
     # >>> OPENAI TEMP
     response_text = await _call_openai(_PROCESS_SUGGEST_SYSTEM_PROMPT, text)
-    # response_text = await _call_claude(_PROCESS_SUGGEST_SYSTEM_PROMPT, text)
+    # response_text = await _call_openai_alt(_PROCESS_SUGGEST_SYSTEM_PROMPT, text)
     # <<< OPENAI TEMP
 
     # JSON 파싱

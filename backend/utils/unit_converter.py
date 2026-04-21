@@ -266,6 +266,12 @@ _HANGUL_UNIT_MAP: dict[str, str] = {
     # 축약 형태
     "퍼센": "%",
     "피피엠(ppm)": "ppm",
+    # 추가 한글 형태
+    "밀리그램퍼킬로": "mg/kg",
+    "마이크로그램": "μg/kg",
+    "피피비": "ppb",
+    "엠엘퍼지": "mL/g",
+    "밀리리터퍼그램": "mL/g",
 }
 
 # 복합 단위 접미 주석 제거 패턴 — "mg/kg (건조물 기준)" → "mg/kg"
@@ -279,34 +285,133 @@ _UNIT_TO_MGKG: dict[str, float] = {
     "g/kg": 1_000.0,
     "μg/kg": 0.001,
     "ug/kg": 0.001,      # μ 대신 u 표기 허용
+    "mcg/kg": 0.001,     # mcg (micrograms) 표기 허용
+    "ppb": 0.001,        # ppb ≡ μg/kg
     "%": 10_000.0,       # 1% = 10,000 mg/kg
+    "mg/g": 1_000.0,     # mg/g = g/kg 동일
+    "μg/g": 1.0,         # μg/g = mg/kg 동일
+    "ug/g": 1.0,         # μg/g 대체 표기
+    "mcg/g": 1.0,        # mcg/g 대체 표기
+    "g/g": 1_000_000.0,  # g/g = 10^6 mg/kg
 }
 
 # 변환 불가 단위 (UnitIncompatibleError)
 _INCOMPATIBLE_UNITS: frozenset[str] = frozenset({"IU/kg", "iu/kg"})
 
 # 비수치 SPEC_VAL 매핑
+# non_detect 계열: 불검출/음성/미검출/검출되지 않음 → 측정값 > 0 이면 fail 대상
+# qualitative 계열: 적합/적정량 → 담당자 판단 필요 (requires_hitl=True)
+_NON_DETECT_LABELS = (
+    "불검출",
+    "음성",
+    "미검출",
+    "검출되지 않음",
+    "검출안됨",
+    "n.d.",
+    "nd",
+    "not detected",
+    "undetected",
+)
+_QUALITATIVE_LABELS = (
+    "적합",
+    "적정량",
+    "기준적합",
+    "적합함",
+    "적정",
+    "이상없음",
+)
+
+# 부분 포함 검사용 qualitative 키워드 — 오탐 위험이 낮은 명확한 표현만 포함
+# ("이상없음" 은 "이상없음(특수표현)" 등 오탐 가능 → 정확 매핑(_NON_NUMERIC_MAP)에서만 처리)
+_QUALITATIVE_PARTIAL_KEYWORDS = (
+    "기준적합",
+    "적합함",
+    "적합여부",
+)
+
 _NON_NUMERIC_MAP: dict[str, SpecEvaluation] = {
-    "불검출": SpecEvaluation(kind="non_detect", label="불검출", requires_hitl=False),
-    "음성": SpecEvaluation(kind="non_detect", label="음성", requires_hitl=False),
-    "적합": SpecEvaluation(kind="qualitative", label="적합", requires_hitl=True),
-    "적정량": SpecEvaluation(kind="qualitative", label="적정량", requires_hitl=True),
+    **{
+        label: SpecEvaluation(kind="non_detect", label=label, requires_hitl=False)
+        for label in _NON_DETECT_LABELS
+    },
+    **{
+        label: SpecEvaluation(kind="qualitative", label=label, requires_hitl=True)
+        for label in _QUALITATIVE_LABELS
+    },
 }
 
-# parse_numeric_spec 정규식 패턴
-# 지원: "85.0이상", "0.1이하", "0.01~0.1", "5.0"
+# 한자 ↔ 한글 비교 표현 정규화
+# "以下" → "이하", "以上" → "이상", "未滿" → "미만"
+_HANJA_NORMALIZE: dict[str, str] = {
+    "以下": "이하",
+    "以上": "이상",
+    "未滿": "미만",
+    "超過": "초과",
+    "이하이상": "이상",  # 혼용 방어
+}
+
+_HANJA_RE = re.compile("|".join(re.escape(k) for k in _HANJA_NORMALIZE))
+
+
+def _normalize_spec_text(text: str) -> str:
+    """SPEC_VAL 원문 텍스트 전처리.
+
+    처리:
+        1. 한자 비교 표현 → 한글 정규화 ("以下" → "이하")
+        2. μ/u 혼용 허용 — 파서 호출 전 정규식 전처리 불필요 (파서가 양쪽 패턴 인식)
+        3. 앞뒤 공백 제거
+    """
+    s = text.strip()
+    s = _HANJA_RE.sub(lambda m: _HANJA_NORMALIZE[m.group(0)], s)
+    return s
+
+
+# parse_numeric_spec 정규식 패턴 (T2 보강)
+# 지원:
+#   "85.0이상"         → (85.0, None)
+#   "0.1이하"          → (None, 0.1)
+#   "0.01~0.1"         → (0.01, 0.1)      공백 없음
+#   "0.01 ~ 0.1"       → (0.01, 0.1)      공백 포함
+#   "0.01~ 0.1"        → (0.01, 0.1)      비대칭 공백
+#   "5.0"              → (5.0, 5.0)
+#   "3.0초과"          → (3.0, None)
+#   "1.0미만"          → (None, 1.0)
+#   "以下 0.5"         → 한자 정규화 후 처리 (_normalize_spec_text 선행)
+#   단위 포함 "0.1 mg/kg 이하" → 숫자+비교어 부분만 추출 (전처리 후)
 _NUMERIC_RANGE_RE = re.compile(
     r"^\s*"
-    r"(?P<lo>\d+(?:\.\d+)?)"          # 첫 번째 수
+    r"(?P<lo>\d+(?:\.\d+)?)"                        # 첫 번째 수
     r"\s*"
     r"(?:"
-    r"(?P<tilde>[~～])\s*(?P<hi>\d+(?:\.\d+)?)"  # ~hi (범위)
-    r"|(?P<gte>이상)"                              # 이상 (≥)
-    r"|(?P<lte>이하)"                              # 이하 (≤)
-    r"|(?P<gt>초과)"                               # 초과 (>)
-    r"|(?P<lt>미만)"                               # 미만 (<)
+    r"(?P<tilde>[~～])\s*(?P<hi>\d+(?:\.\d+)?)"     # ~hi (범위), 공백 허용
+    r"|(?P<gte>이상)"                                # 이상 (≥)
+    r"|(?P<lte>이하)"                                # 이하 (≤)
+    r"|(?P<gt>초과)"                                 # 초과 (>)
+    r"|(?P<lt>미만)"                                 # 미만 (<)
     r")?\s*$"
 )
+
+# 단위 포함 SPEC_VAL 파싱용 패턴: "0.1 mg/kg 이하", "10 μg/kg 이하" 등
+# 숫자 + 선택적 단위 + 비교어 구조
+_SPEC_WITH_UNIT_RE = re.compile(
+    r"^\s*"
+    r"(?P<lo>\d+(?:\.\d+)?)"                        # 숫자
+    r"\s*"
+    r"(?P<unit>[a-zA-Zμμ/·%]+(?:/[a-zA-Zμ]+)?)?"   # 단위 (옵션)
+    r"\s*"
+    r"(?:"
+    r"(?P<tilde>[~～])\s*(?P<hi>\d+(?:\.\d+)?)"
+    r"\s*(?P<unit2>[a-zA-Zμ/·%]+(?:/[a-zA-Zμ]+)?)?"
+    r"|(?P<gte>이상|以上)"
+    r"|(?P<lte>이하|以下)"
+    r"|(?P<gt>초과|超過)"
+    r"|(?P<lt>미만|未滿)"
+    r")?\s*$"
+)
+
+# 복합 기준 분리 패턴: "총 X는 0.1 이하, Y는 0.5 이하" → 첫 번째 기준만 채택
+# 구분자: ",", "및", "또한", "；" 등
+_COMPOUND_SPEC_SPLIT_RE = re.compile(r"[,，；]\s*|(?:및|또한|그리고)\s+")
 
 
 def _normalize_unit_str(unit: str) -> str:
@@ -315,7 +420,8 @@ def _normalize_unit_str(unit: str) -> str:
     처리 순서:
         1. 한글 단위 매핑 (퍼센트 → %)
         2. 복합 단위 접미 주석 제거 (mg/kg (건조물 기준) → mg/kg)
-        3. strip
+        3. μ/u/mcg 혼용 정규화 (ug/kg → μg/kg, mcg/kg → μg/kg 를 _UNIT_TO_MGKG에서 직접 처리)
+        4. strip
     """
     stripped = unit.strip()
     # 한글 매핑 먼저
@@ -384,13 +490,18 @@ def normalize_to_common_unit(
 def parse_numeric_spec(spec: str) -> tuple[Optional[float], Optional[float]]:
     """SPEC_VAL 수치 표현 파싱 (11_단위_정규화_모듈_설계.md §5).
 
-    지원 패턴:
-        "85.0이상"  → (85.0, None)   # min=85, max 없음
-        "0.1이하"   → (None, 0.1)    # min 없음, max=0.1
-        "0.01~0.1"  → (0.01, 0.1)   # 범위
-        "5.0"       → (5.0, 5.0)    # 단일 값 (등호)
-        "3.0초과"   → (3.0, None)   # 초과 (> 방향, min 근사)
-        "1.0미만"   → (None, 1.0)   # 미만 (< 방향, max 근사)
+    지원 패턴 (T2 보강):
+        "85.0이상"         → (85.0, None)   # min=85, max 없음
+        "0.1이하"          → (None, 0.1)    # min 없음, max=0.1
+        "0.01~0.1"         → (0.01, 0.1)   # 범위 (공백 없음)
+        "0.01 ~ 0.1"       → (0.01, 0.1)   # 범위 (공백 포함)
+        "0.01~ 0.1"        → (0.01, 0.1)   # 범위 (비대칭 공백)
+        "5.0"              → (5.0, 5.0)    # 단일 값 (등호)
+        "3.0초과"          → (3.0, None)   # 초과 (> 방향, min 근사)
+        "1.0미만"          → (None, 1.0)   # 미만 (< 방향, max 근사)
+        "以下"↔"이하" 등 한자 혼용 → _normalize_spec_text 선행 처리
+        "총 X는 0.1 이하, Y는 0.5 이하" → 첫 번째 기준만 채택 (복합 기준)
+        "0.1 mg/kg 이하" → 단위 포함 표현도 파싱 (_SPEC_WITH_UNIT_RE 시도)
 
     Returns:
         (min_val, max_val). 한쪽만 존재하면 나머지는 None.
@@ -399,19 +510,42 @@ def parse_numeric_spec(spec: str) -> tuple[Optional[float], Optional[float]]:
     Note:
         "이상"/"초과" 는 의미론적 차이(≥ vs >) 가 있으나 수치 비교 목적상
         동일 반환 구조를 사용한다. 호출자가 context 를 보고 판단.
+        복합 기준은 첫 번째 항목만 채택하고 나머지는 무시한다.
     """
     if not spec or not spec.strip():
         return None, None
 
-    m = _NUMERIC_RANGE_RE.match(spec.strip())
-    if not m:
+    # 한자 정규화 + 공백 제거
+    normalized = _normalize_spec_text(spec)
+    if not normalized:
         return None, None
 
+    # 복합 기준 처리: 구분자로 분리 후 첫 번째만 사용
+    parts = _COMPOUND_SPEC_SPLIT_RE.split(normalized, maxsplit=1)
+    candidate = parts[0].strip() if parts else normalized
+
+    # 1차 시도: 순수 수치 범위 정규식
+    m = _NUMERIC_RANGE_RE.match(candidate)
+    if m:
+        return _extract_min_max_from_match(m)
+
+    # 2차 시도: 단위 포함 표현 ("0.1 mg/kg 이하" 등)
+    m2 = _SPEC_WITH_UNIT_RE.match(candidate)
+    if m2:
+        return _extract_min_max_from_match(m2)
+
+    return None, None
+
+
+def _extract_min_max_from_match(m: re.Match) -> tuple[Optional[float], Optional[float]]:
+    """정규식 매치 결과에서 (min, max) 추출 (공통 헬퍼)."""
     lo = float(m.group("lo"))
 
     if m.group("tilde") is not None:
-        hi = float(m.group("hi"))
-        return lo, hi
+        hi_str = m.group("hi")
+        if hi_str is not None:
+            hi = float(hi_str)
+            return lo, hi
     if m.group("gte") is not None or m.group("gt") is not None:
         return lo, None
     if m.group("lte") is not None or m.group("lt") is not None:
@@ -424,7 +558,8 @@ def parse_non_numeric_spec(spec: str) -> SpecEvaluation:
     """비수치 SPEC_VAL 파싱 (11_단위_정규화_모듈_설계.md §4).
 
     Args:
-        spec: SPEC_VAL 원문 (예: "적합", "불검출", "음성", "적정량")
+        spec: SPEC_VAL 원문 (예: "적합", "불검출", "음성", "적정량", "미검출",
+              "검출되지 않음", "적합함" 등 T2 보강 패턴 포함)
 
     Returns:
         SpecEvaluation — kind/label/requires_hitl 설정됨.
@@ -433,15 +568,41 @@ def parse_non_numeric_spec(spec: str) -> SpecEvaluation:
     Note:
         수치 표현("85.0이상" 등)도 입력될 수 있으나 이 함수의 책임 범위 外.
         호출자는 parse_numeric_spec 를 먼저 시도하고 실패 시 이 함수를 호출한다.
+        소문자/대문자 혼용, 앞뒤 공백은 정규화 후 매핑 시도한다.
     """
     if not spec:
         return SpecEvaluation(kind="unknown", label=spec, requires_hitl=True)
 
     stripped = spec.strip()
+
+    # 1차: 정확 매핑
     if stripped in _NON_NUMERIC_MAP:
         return _NON_NUMERIC_MAP[stripped]
 
-    # 수치 패턴이면 numeric으로 분류 (방어적 처리)
+    # 2차: 소문자 정규화 후 매핑 (영문 표기 대소문자 허용)
+    lower = stripped.lower()
+    for label, evaluation in _NON_NUMERIC_MAP.items():
+        if label.lower() == lower:
+            return SpecEvaluation(
+                kind=evaluation.kind,
+                label=stripped,
+                requires_hitl=evaluation.requires_hitl,
+            )
+
+    # 3차: non_detect 부분 포함 검사 ("검출되지 않음 (LOD 0.01)" 등 접미사 허용)
+    # 짧은 라벨(≤2자, "nd" 등) 은 오탐 위험 — startswith만 허용, 부분포함은 3자 이상만
+    for label in _NON_DETECT_LABELS:
+        if stripped.startswith(label) or (len(label) >= 3 and label in stripped):
+            return SpecEvaluation(kind="non_detect", label=stripped, requires_hitl=False)
+
+    # 4차: qualitative 부분 포함 검사
+    # 오탐 방지: 다른 표현의 부분 문자열이 될 수 있는 짧은 키워드("이상없음" 등) 제외.
+    # "기준적합", "적합함" 은 "적합"보다 구체적이어서 오탐 위험 낮음.
+    for label in _QUALITATIVE_PARTIAL_KEYWORDS:
+        if label in stripped:
+            return SpecEvaluation(kind="qualitative", label=stripped, requires_hitl=True)
+
+    # 5차: 수치 패턴이면 numeric으로 분류 (방어적 처리)
     min_val, max_val = parse_numeric_spec(stripped)
     if min_val is not None or max_val is not None:
         return SpecEvaluation(
