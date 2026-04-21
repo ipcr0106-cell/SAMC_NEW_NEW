@@ -1,6 +1,6 @@
 """safetydata.go.kr 공전 스냅샷 조회 클라이언트.
 
-scripts/f1_sync_safetydata.py 가 적재한 Postgres 스냅샷 테이블에서
+scripts/f1_sync_safetydata.py 가 적재한 Supabase 스냅샷 테이블에서
 원재료명 기반 검색을 수행한다. data.go.kr 15116583 의 서버측 필터가 미작동하여
 클라이언트 필터링 방식으로 대체.
 
@@ -10,18 +10,19 @@ scripts/f1_sync_safetydata.py 가 적재한 Postgres 스냅샷 테이블에서
     - f1_safetydata_health_functional_food      (건강기능식품공전 DSSP-IF-20137)
 
 검색 전략:
-    1. `item_nm ILIKE '%{name}%'` — trgm gin 인덱스 활용
-    2. 결과가 너무 넓으면 정확일치 우선 필터
+    1. 정확일치 (eq) 우선
+    2. 부분일치 (ilike) 폴백
+    Supabase REST API 사용 (DATABASE_URL 불필요)
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
-import os
 from dataclasses import dataclass
 from typing import Optional
 
-import asyncpg
+from db.supabase_client import get_supabase
 
 logger = logging.getLogger(__name__)
 
@@ -63,15 +64,27 @@ class FoodAdditiveStandard:
     src: Optional[str]
 
 
-def _dsn() -> str:
-    dsn = os.environ.get("DATABASE_URL") or os.environ.get("F1_DATABASE_URL")
-    if not dsn:
-        raise RuntimeError("DATABASE_URL/F1_DATABASE_URL 환경변수가 필요합니다.")
-    return dsn
+_FOOD_CODE_COLS = (
+    "item_nm, test_artcl, spcs_artcl, item_artcl_atrb, "
+    "crtr_spcfct_vl, spcfct_vl_smry, jgmt_frm, max_vl, min_vl, "
+    "blw_belo, moth_excs, hzr_yn, unit_nm, vld_strt_ymd, vld_end_ymd"
+)
+
+_ADDITIVE_COLS = (
+    "item_korn_nm, test_artcl_korn_nm, spcs_artcl_nm, "
+    "crtr_spcfct_vl, crtr_spcfct_vl_smry, max_vl, min_vl, "
+    "unit_nm, hzr_yn, src"
+)
 
 
-async def _connect() -> asyncpg.Connection:
-    return await asyncpg.connect(_dsn(), statement_cache_size=0, command_timeout=30)
+def _query_sync(table: str, cols: str, column: str, name: str, exact: bool, limit: int) -> list[dict]:
+    """Supabase REST API로 동기 조회."""
+    sb = get_supabase()
+    if exact:
+        result = sb.table(table).select(cols).eq(column, name).limit(limit).execute()
+    else:
+        result = sb.table(table).select(cols).ilike(column, f"%{name}%").limit(limit).execute()
+    return result.data or []
 
 
 async def lookup_food_code(
@@ -80,43 +93,22 @@ async def lookup_food_code(
     exact_first: bool = True,
     limit: int = 200,
 ) -> list[FoodCodeStandard]:
-    """식품공전에서 원재료명 부분일치 조회.
-
-    Args:
-        name: 원재료명 (예: "밀가루").
-        exact_first: True 이면 정확일치만 우선, 없을 때 부분일치로 폴백.
-        limit: 최대 반환 건수.
-
-    Returns:
-        FoodCodeStandard 리스트. 같은 품목의 여러 시험항목이 각각 1 row.
-    """
+    """식품공전에서 원재료명 부분일치 조회."""
     name = (name or "").strip()
     if not name:
         return []
 
-    conn = await _connect()
-    try:
-        if exact_first:
-            rows = await conn.fetch(
-                "SELECT item_nm, test_artcl, spcs_artcl, item_artcl_atrb, "
-                "crtr_spcfct_vl, spcfct_vl_smry, jgmt_frm, max_vl, min_vl, "
-                "blw_belo, moth_excs, hzr_yn, unit_nm, vld_strt_ymd, vld_end_ymd "
-                "FROM f1_safetydata_food_code WHERE item_nm = $1 LIMIT $2",
-                name, limit,
-            )
-            if rows:
-                return [FoodCodeStandard(**dict(r)) for r in rows]
-
-        rows = await conn.fetch(
-            "SELECT item_nm, test_artcl, spcs_artcl, item_artcl_atrb, "
-            "crtr_spcfct_vl, spcfct_vl_smry, jgmt_frm, max_vl, min_vl, "
-            "blw_belo, moth_excs, hzr_yn, unit_nm, vld_strt_ymd, vld_end_ymd "
-            "FROM f1_safetydata_food_code WHERE item_nm ILIKE $1 LIMIT $2",
-            f"%{name}%", limit,
+    if exact_first:
+        rows = await asyncio.to_thread(
+            _query_sync, "f1_safetydata_food_code", _FOOD_CODE_COLS, "item_nm", name, True, limit
         )
-        return [FoodCodeStandard(**dict(r)) for r in rows]
-    finally:
-        await conn.close()
+        if rows:
+            return [FoodCodeStandard(**r) for r in rows]
+
+    rows = await asyncio.to_thread(
+        _query_sync, "f1_safetydata_food_code", _FOOD_CODE_COLS, "item_nm", name, False, limit
+    )
+    return [FoodCodeStandard(**r) for r in rows]
 
 
 async def lookup_food_additive(
@@ -125,37 +117,46 @@ async def lookup_food_additive(
     exact_first: bool = True,
     limit: int = 200,
 ) -> list[FoodAdditiveStandard]:
-    """식품첨가물공전에서 첨가물명 부분일치 조회.
-
-    첨가물로 구분되는 원재료(예: 벤조산, 소르빈산 등)를 조회할 때 사용.
-    """
+    """식품첨가물공전에서 첨가물명 부분일치 조회."""
     name = (name or "").strip()
     if not name:
         return []
 
-    conn = await _connect()
     try:
         if exact_first:
-            rows = await conn.fetch(
-                "SELECT item_korn_nm, test_artcl_korn_nm, spcs_artcl_nm, "
-                "crtr_spcfct_vl, crtr_spcfct_vl_smry, max_vl, min_vl, "
-                "unit_nm, hzr_yn, src "
-                "FROM f1_safetydata_food_additive WHERE item_korn_nm = $1 LIMIT $2",
-                name, limit,
+            rows = await asyncio.to_thread(
+                _query_sync, "f1_safetydata_food_additive", _ADDITIVE_COLS, "item_korn_nm", name, True, limit
             )
             if rows:
-                return [FoodAdditiveStandard(**dict(r)) for r in rows]
+                return [FoodAdditiveStandard(**r) for r in rows]
 
-        rows = await conn.fetch(
-            "SELECT item_korn_nm, test_artcl_korn_nm, spcs_artcl_nm, "
-            "crtr_spcfct_vl, crtr_spcfct_vl_smry, max_vl, min_vl, "
-            "unit_nm, hzr_yn, src "
-            "FROM f1_safetydata_food_additive WHERE item_korn_nm ILIKE $1 LIMIT $2",
-            f"%{name}%", limit,
+        rows = await asyncio.to_thread(
+            _query_sync, "f1_safetydata_food_additive", _ADDITIVE_COLS, "item_korn_nm", name, False, limit
         )
-        return [FoodAdditiveStandard(**dict(r)) for r in rows]
-    finally:
-        await conn.close()
+        return [FoodAdditiveStandard(**r) for r in rows]
+    except Exception:
+        # f1_safetydata_food_additive 테이블 미존재 시 f1_additive_limits fallback
+        logger.info("f1_safetydata_food_additive 미존재 — f1_additive_limits fallback")
+        rows = await asyncio.to_thread(
+            _query_sync, "f1_additive_limits",
+            "additive_name, regulation_ref, condition_text, max_ppm, food_type",
+            "additive_name", name, False, limit
+        )
+        return [
+            FoodAdditiveStandard(
+                item_korn_nm=r.get("additive_name", ""),
+                test_artcl_korn_nm="함량",
+                spcs_artcl_nm=None,
+                crtr_spcfct_vl=f"{r.get('max_ppm', '')} ppm" if r.get("max_ppm") else None,
+                crtr_spcfct_vl_smry=r.get("condition_text"),
+                max_vl=str(r["max_ppm"]) if r.get("max_ppm") else None,
+                min_vl=None,
+                unit_nm="ppm" if r.get("max_ppm") else None,
+                hzr_yn=None,
+                src=r.get("regulation_ref"),
+            )
+            for r in rows
+        ]
 
 
 async def lookup_combined(
@@ -163,11 +164,7 @@ async def lookup_combined(
     *,
     limit: int = 200,
 ) -> dict[str, list]:
-    """식품공전 + 식품첨가물공전을 병합 조회.
-
-    Returns:
-        {"food_code": [...], "food_additive": [...]} 형태.
-    """
+    """식품공전 + 식품첨가물공전을 병합 조회."""
     fc = await lookup_food_code(name, limit=limit)
     fa = await lookup_food_additive(name, limit=limit)
     return {"food_code": fc, "food_additive": fa}

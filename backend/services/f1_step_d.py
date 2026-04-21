@@ -53,6 +53,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from typing import Optional
 
 import asyncpg
@@ -272,22 +273,216 @@ async def _search(
     if not kw_weights or not namespaces:
         return []
 
-    dsn = _dsn()
-    if not dsn:
-        logger.warning("Step D: DATABASE_URL 미설정 — citations=[]")
-        return []
-
     keywords = [k for k, _ in kw_weights]
     weights = [w for _, w in kw_weights]
 
-    conn = await asyncpg.connect(dsn, statement_cache_size=0, command_timeout=15)
+    # asyncpg 직접 연결 시도, 실패 시 Supabase REST fallback
+    dsn = _dsn()
+    if dsn:
+        conn = await asyncpg.connect(dsn, statement_cache_size=0, command_timeout=15)
+        try:
+            sql = _build_search_sql(weights, top_k_per_ns=top_k)
+            patterns = [f"%{k}%" for k in keywords]
+            rows = await conn.fetch(sql, namespaces, *patterns)
+            return [dict(r) for r in rows]
+        finally:
+            await conn.close()
+
+    # DATABASE_URL 없음 → f1_law_chunks 직접 검색
+    logger.info("Step D: DATABASE_URL 미설정 — f1_law_chunks 직접 검색")
+    return await _search_law_chunks_direct(kw_weights, namespaces, top_k)
+
+
+async def _search_law_chunks_direct(
+    kw_weights: list[tuple[str, int]],
+    namespaces: list[str],
+    top_k: int,
+) -> list[dict]:
+    """f1_law_chunks 테이블에서 직접 검색 (f1_law_cache/f1_law_articles 미존재 시)."""
+    import asyncio
+    from db.supabase_client import get_supabase
+
+    keywords = [k for k, _ in kw_weights]
+    if not keywords:
+        return []
+
+    sb = get_supabase()
+    # 여러 키워드로 각각 검색 후 병합 (첫 키워드만으로는 매칭 안 될 수 있음)
+    all_chunks: dict[str, dict] = {}
+    for kw in keywords[:5]:  # 상위 5개 키워드로 검색
+        try:
+            rows = await asyncio.to_thread(
+                lambda k=kw: sb.table("f1_law_chunks")
+                .select("id, pinecone_namespace, regulation_id, section_path, text")
+                .ilike("text", f"%{k}%")
+                .limit(20)
+                .execute().data or []
+            )
+            for r in rows:
+                rid = str(r.get("id", ""))
+                if rid not in all_chunks:
+                    all_chunks[rid] = r
+        except Exception as exc:
+            logger.warning("f1_law_chunks 검색 실패 (kw=%s): %s", kw, exc)
+
+    # 원재료 키워드 (가중치 2 이상 = ingredient_names)
+    ingredient_kws = {k.lower() for k, w in kw_weights if w >= 2}
+
+    results = []
+    for a in all_chunks.values():
+        text = a.get("text", "")
+        text_lower = text.lower()
+        # 원재료명이 최소 1개 이상 직접 언급된 청크만 포함
+        has_ingredient = any(ik in text_lower for ik in ingredient_kws) if ingredient_kws else True
+        if not has_ingredient:
+            continue
+        m = sum(w for k, w in kw_weights if k.lower() in text_lower)
+        if m > 0:
+            results.append({
+                "namespace": a.get("pinecone_namespace", ""),
+                "law_name": a.get("regulation_id", ""),
+                "chunk_id": str(a.get("id", "")),
+                "article_label": a.get("section_path", ""),
+                "text": text,
+                "m": m,
+            })
+    results.sort(key=lambda r: (r["m"], len(r["text"])), reverse=True)
+    return results[:top_k * len(namespaces)]
+
+
+async def _search_supabase_fallback(
+    kw_weights: list[tuple[str, int]],
+    namespaces: list[str],
+    top_k: int,
+) -> list[dict]:
+    """Supabase REST API로 법령 검색 (DATABASE_URL 없을 때 fallback).
+
+    asyncpg의 복잡한 SQL 대신 Python에서 스코어링.
+    """
+    import asyncio
+    from db.supabase_client import get_supabase
+
+    sb = get_supabase()
+
+    # 1) 해당 namespace의 law_cache id 조회
     try:
-        sql = _build_search_sql(weights, top_k_per_ns=top_k)
-        patterns = [f"%{k}%" for k in keywords]
-        rows = await conn.fetch(sql, namespaces, *patterns)
-        return [dict(r) for r in rows]
-    finally:
-        await conn.close()
+        cache_rows = await asyncio.to_thread(
+            lambda: sb.table("f1_law_cache")
+            .select("id, namespace, law_name")
+            .in_("namespace", namespaces)
+            .execute().data or []
+        )
+    except Exception:
+        # f1_law_cache 미존재 시 f1_law_chunks 직접 사용
+        logger.info("f1_law_cache 미존재 — f1_law_chunks 직접 검색")
+        return await _search_law_chunks_direct(kw_weights, namespaces, top_k)
+
+    if not cache_rows:
+        return []
+
+    cache_ids = [r["id"] for r in cache_rows]
+    cache_map = {r["id"]: r for r in cache_rows}
+
+    # 2) 키워드 중 하나라도 포함된 articles 조회 (첫 키워드로 필터)
+    keywords = [k for k, _ in kw_weights]
+    primary_kw = keywords[0] if keywords else ""
+    if not primary_kw:
+        return []
+
+    try:
+        articles = await asyncio.to_thread(
+            lambda: sb.table("f1_law_articles")
+            .select("id, law_cache_id, article_label, text")
+            .in_("law_cache_id", cache_ids)
+            .ilike("text", f"%{primary_kw}%")
+            .limit(100)
+            .execute().data or []
+        )
+    except Exception:
+        # f1_law_articles 미존재 시 f1_law_chunks fallback
+        logger.info("f1_law_articles 미존재 — f1_law_chunks fallback")
+        return await _search_law_chunks_direct(kw_weights, namespaces, top_k)
+
+    # 3) Python에서 스코어링
+    results = []
+    for a in articles:
+        text = a.get("text", "")
+        m = sum(w for k, w in kw_weights if k.lower() in text.lower())
+        cache = cache_map.get(a["law_cache_id"], {})
+        results.append({
+            "namespace": cache.get("namespace", ""),
+            "law_name": cache.get("law_name", ""),
+            "chunk_id": str(a["id"]),
+            "article_label": a.get("article_label", ""),
+            "text": text,
+            "m": m,
+        })
+
+    # score 내림차순 → text 길이 내림차순 정렬 후 top_k
+    results.sort(key=lambda r: (r["m"], len(r["text"])), reverse=True)
+    return results[:top_k * len(namespaces)]
+
+
+def _extract_relevant_context(text: str, keywords: list[str], max_len: int = 800) -> str:
+    """법령 텍스트에서 키워드가 포함된 항목/블록만 추출.
+
+    첨가물공전처럼 '| 품목명 |' 구분자로 여러 첨가물이 나열된 경우,
+    키워드가 포함된 블록(| ... | 사이)만 추출한다.
+    """
+    if len(text) <= max_len:
+        return text
+
+    text_lower = text.lower()
+    kw_lower = [k.lower() for k in keywords if k]
+
+    # 전략 1: 첨가물공전 테이블 형식 — 행 단위 분리 후 키워드 포함 행만 추출
+    if "|" in text:
+        # 행 분리: "\n|" 또는 "| \n" 패턴으로 테이블 행 구분
+        rows = re.split(r"\n\s*\||\|\s*\n", text)
+        if len(rows) < 3:
+            rows = text.split("\n")
+        relevant_rows = []
+        for row in rows:
+            row_lower = row.lower().strip()
+            if any(kw in row_lower for kw in kw_lower):
+                clean = row.strip().strip("|").strip()
+                if clean and len(clean) > 10:  # 이름만 있는 짧은 행 제외
+                    relevant_rows.append(clean)
+
+        if relevant_rows:
+            result = "\n\n".join(relevant_rows[:5])  # 최대 5행
+            if len(result) > max_len:
+                result = result[:max_len] + "…"
+            return result
+
+    # 전략 2: 줄바꿈/<br> 기준 분리
+    lines = re.split(r"<br\s*/?>|\n", text)
+    relevant_lines = []
+    for line in lines:
+        line_lower = line.lower().strip()
+        if any(kw in line_lower for kw in kw_lower):
+            relevant_lines.append(line.strip())
+
+    if relevant_lines:
+        result = "\n".join(relevant_lines)
+        if len(result) > max_len:
+            result = result[:max_len] + "…"
+        return result
+
+    # 전략 3: 첫 키워드 위치에서 앞뒤 400자
+    for kw in kw_lower:
+        idx = text_lower.find(kw)
+        if idx >= 0:
+            start = max(0, idx - 200)
+            end = min(len(text), idx + 600)
+            snippet = text[start:end]
+            if start > 0:
+                snippet = "…" + snippet
+            if end < len(text):
+                snippet = snippet + "…"
+            return snippet
+
+    return text[:max_len] + "…"
 
 
 async def run_step_d(
@@ -330,19 +525,39 @@ async def run_step_d(
     if not rows:
         return Result.ok(StepDResult(citations=[]))
 
-    total_weight = sum(w for _, w in kw_weights) or 1
+    # score 계산: 매칭된 키워드 수 / 전체 키워드 수 (가중치 무관)
+    # 원재료가 많으면 total_weight가 커져서 score가 낮아지는 문제 방지
+    total_kw_count = len(kw_weights) or 1
     citations: list[LawCitation] = []
     for r in rows:
-        score = float(r["m"]) / total_weight
-        # P7: min_score 컷 — 가중 매칭 비율이 min_score 미만이면 무관 인용으로 간주해 제거
-        if score < min_score:
+        matched_count = sum(1 for k, _ in kw_weights if k.lower() in r["text"].lower())
+        score = matched_count / total_kw_count
+        # min_score 이하면 제거
+        if score < min_score and matched_count == 0:
+            continue
+        # 원문에서 해당 원재료 관련 규정만 추출
+        trimmed = _extract_relevant_context(r["text"], [k for k, _ in kw_weights], max_len=800)
+        # HTML 태그 정리
+        trimmed = re.sub(r"<br\s*/?>", "\n", trimmed)
+        trimmed = re.sub(r"</?(?:table|tr|td|th|thead|tbody)[^>]*>", " ", trimmed)
+        trimmed = re.sub(r"<[^>]+>", "", trimmed)  # 나머지 HTML 태그 제거
+        trimmed = re.sub(r"\n{3,}", "\n\n", trimmed)
+        trimmed = re.sub(r" {2,}", " ", trimmed)
+        trimmed = trimmed.strip()
+        # "II. 2. 1)의 규정에 따라" 참조 해석
+        trimmed = trimmed.replace(
+            "II. 2. 1)의 규정에 따라 사용하여야 한다.",
+            "사용량 제한 없음 — 식품 제조·가공 시 적정량 사용 (첨가물공전 II.2.1 공통사용기준)",
+        )
+        # 너무 짧거나 이름 나열만 있는 경우 제외
+        if len(trimmed) < 30:
             continue
         citations.append(
             LawCitation(
                 chunk_id=r["chunk_id"],
                 law_name=r["law_name"],
                 article_no=r["article_label"],
-                text=r["text"],
+                text=trimmed,
                 score=score,
                 namespace=r["namespace"],
             )

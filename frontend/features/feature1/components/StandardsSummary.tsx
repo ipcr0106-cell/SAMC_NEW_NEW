@@ -85,8 +85,8 @@ export default function StandardsSummary({ checks }: Props) {
                   {c.actual_value != null ? c.actual_value : "-"}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  {c.threshold_text
-                    ? c.threshold_text
+                  {c.spec_raw
+                    ? c.spec_raw
                     : c.threshold_value != null
                       ? c.threshold_value
                       : "-"}

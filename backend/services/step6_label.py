@@ -148,7 +148,7 @@ def generate_label(
 
     p1_response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=3000,
+        max_completion_tokens=3000,
         messages=[
             {"role": "system", "content": PHASE1_SYSTEM},
             {"role": "user", "content": p1_user},
@@ -167,7 +167,7 @@ def generate_label(
 
     p2_response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=4000,
+        max_completion_tokens=4000,
         messages=[
             {"role": "system", "content": PHASE2_SYSTEM},
             {"role": "user", "content": p2_user},
@@ -217,7 +217,7 @@ def generate_label_stream(
 
     try:
         p1_response = client.chat.completions.create(
-            model=MODEL, max_tokens=3000,
+            model=MODEL, max_completion_tokens=3000,
             messages=[
                 {"role": "system", "content": PHASE1_SYSTEM},
                 {"role": "user", "content": p1_user},
@@ -242,7 +242,7 @@ def generate_label_stream(
 
     full_text = ""
     stream = client.chat.completions.create(
-        model=MODEL, max_tokens=4000,
+        model=MODEL, max_completion_tokens=4000,
         messages=[
             {"role": "system", "content": PHASE2_SYSTEM},
             {"role": "user", "content": p2_user},

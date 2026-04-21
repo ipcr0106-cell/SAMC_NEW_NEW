@@ -51,6 +51,15 @@ class UploadResponse(BaseModel):
 # 파싱 결과 — 프론트엔드 OcrResultEditor 대응
 # ─────────────────────────────────────────────
 
+class IngredientCodeCandidate(BaseModel):
+    """성분 코드 후보 1건. AI 자동 매칭 결과."""
+    code: str = Field(description="성분 코드 (예: 'A01010')")
+    name_ko: str = Field(default="", description="한글 성분명")
+    name_en: str = Field(default="", description="영문 성분명")
+    score: float = Field(default=1.0, description="유사도 점수 (1.0=완전일치)")
+    match_type: str = Field(default="exact", description="'exact' 또는 'semantic'")
+
+
 class IngredientItem(BaseModel):
     """원재료 한 행. 프론트엔드 IngredientTable의 Ingredient 인터페이스와 매핑."""
     id: str = Field(description="고유 식별자 (프론트에서 key로 사용)")
@@ -71,6 +80,10 @@ class IngredientItem(BaseModel):
     ingredient_code_name: str = Field(
         default="",
         description="ingredient_code에 해당하는 공식 성분명 (한국어). 코드 조회 시 함께 채워짐.",
+    )
+    ingredient_code_candidates: list[IngredientCodeCandidate] = Field(
+        default_factory=list,
+        description="성분 코드 후보 목록 (유사도 내림차순). 사용자가 이 중 하나를 선택하여 ingredient_code를 확정.",
     )
     sub_ingredients: list[IngredientItem] = Field(
         default_factory=list,

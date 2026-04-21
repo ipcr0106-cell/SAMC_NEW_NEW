@@ -220,10 +220,11 @@ def _pick_exact_component_item(
 ) -> Tuple[Optional[dict], Optional[MatchMethod]]:
     """15094202 응답에서 정확 매칭 1건 선택.
 
-    우선순위 (P6-b):
+    우선순위 (P6-b + 영문명 보강):
         1. F0 성분코드(`ingredient_code_f0`) == `CPNT_CD` (정확 매칭) → "exact"
         2. `KOR_NM.strip()` == `normalized`                            → "normalized"
-        3. `ENG_NM.strip().lower()` == `normalized.lower()`            → "fuzzy"
+        3. `ENG_NM.strip().lower()` == 원본 영문명.lower()             → "fuzzy"
+        4. synonym 테이블 조회 후 재매칭                                → "synonym"
 
     Returns:
         (매칭된 아이템 또는 None, MatchMethod 또는 None).
@@ -241,6 +242,16 @@ def _pick_exact_component_item(
     for it in comp_items:
         if (it.get("KOR_NM") or "").strip() == normalized:
             return it, "normalized"
+
+    # 영문명 매칭: 원본 이름의 괄호 안 영문명으로 ENG_NM 비교
+    eng_from_input = _extract_english_name(ing.name).lower()
+    if eng_from_input:
+        for it in comp_items:
+            eng_nm = (it.get("ENG_NM") or "").strip().lower()
+            if eng_nm and eng_nm == eng_from_input:
+                return it, "fuzzy"
+
+    # 기존 fallback: normalized(한글명)으로 ENG_NM 비교 (동일 표기 원료용)
     for it in comp_items:
         if (it.get("ENG_NM") or "").strip().lower() == norm_lower and norm_lower:
             return it, "fuzzy"
@@ -600,17 +611,43 @@ def _query_db_allowed_fallback(
 _CLIENT_SINGLETON: Optional[DataGoKrClient] = None
 
 
-def _get_client() -> DataGoKrClient:
-    """DataGoKrClient 싱글톤. 테스트는 `_CLIENT_SINGLETON` 직접 주입."""
+def _get_client() -> Optional[DataGoKrClient]:
+    """DataGoKrClient 싱글톤. API 키 없으면 None 반환 (F0 성분코드 fallback 사용)."""
     global _CLIENT_SINGLETON
     if _CLIENT_SINGLETON is None:
         api_key = os.environ.get("F1_DATA_GO_KR_API_KEY", "")
         if not api_key:
-            raise RuntimeError(
-                "F1_DATA_GO_KR_API_KEY not configured — required for Step B"
-            )
+            logger.warning("F1_DATA_GO_KR_API_KEY 미설정 — F0 성분코드 기반 판정으로 전환")
+            return None
         _CLIENT_SINGLETON = DataGoKrClient(api_key=api_key)
     return _CLIENT_SINGLETON
+
+
+def _resolve_verdict_by_f0_code(ing: Ingredient) -> tuple[Verdict, Optional[str], Optional[str]]:
+    """F0에서 매칭된 ingredient_code_f0의 접두어로 verdict를 결정한다.
+
+    성분코드 체계:
+        A = 식품원료 → allowed
+        B = 식품첨가물 → allowed (사용량 제한 경고)
+        C = 건강기능식품 → restricted (개별 인정 확인 필요)
+        P = 식품유형 → allowed
+        그 외/없음 → unidentified
+    """
+    code = (ing.ingredient_code_f0 or "").strip()
+    if not code:
+        return "unidentified", None, None
+
+    prefix = code[0].upper() if code else ""
+    if prefix == "A":
+        return "allowed", "식품의 기준 및 규격 (별표 1 사용 가능 원료)", None
+    elif prefix == "B":
+        return "allowed", "식품첨가물의 기준 및 규격", "{name}: 식품첨가물 기준규격(사용량 제한) 준수 필수"
+    elif prefix == "C":
+        return "restricted", "건강기능식품의 기준 및 규격", "{name}: 개별 인정형 — 건강기능식품 기능성 원료 확인 필요"
+    elif prefix == "P":
+        return "allowed", "식품의 기준 및 규격 (식품유형)", None
+    else:
+        return "unidentified", None, None
 
 
 def set_client_for_test(client: Optional[DataGoKrClient]) -> None:
@@ -696,16 +733,42 @@ async def _fetch_all(
 # ---------------------------------------------------------------------------
 
 
-def _query_key(ing: Ingredient) -> str:
-    """API 쿼리 키 선택 — F0 표준명 우선, 없으면 원본 이름 정규화.
+def _extract_korean_name(raw: str) -> str:
+    """괄호 이전의 한글명만 추출. 'ㅇ산화황 (Sulphur dioxide)' → '이산화황'."""
+    if not raw:
+        return ""
+    paren_idx = raw.find("(")
+    if paren_idx > 0:
+        return raw[:paren_idx].strip()
+    return raw.strip()
 
-    P6-b: F0 가 `matched_name_ko="에탄올"` 을 이미 채웠다면 이 값으로 API 를
-    질의한다. 원본 `ing.name="에탄올 (Ethanol)"` 에는 괄호·영문병기가 섞여
-    15094202 `KOR_NM` 필터를 빗나가는 문제를 회피.
+
+def _extract_english_name(raw: str) -> str:
+    """괄호 안의 영문명 추출. '이산화황 (Sulphur dioxide)' → 'Sulphur dioxide'."""
+    if not raw:
+        return ""
+    start = raw.find("(")
+    end = raw.rfind(")")
+    if start >= 0 and end > start:
+        return raw[start + 1:end].strip()
+    return ""
+
+
+def _query_key(ing: Ingredient) -> str:
+    """API 쿼리 키 선택 — F0 표준명 우선, 없으면 괄호 이전 한글명 추출.
+
+    우선순위:
+        1. F0 매칭 표준명 (matched_name_ko) — 가장 정확
+        2. 원본 이름에서 괄호 이전 한글명 추출 — fallback
+        3. 원본 이름 그대로 — 최후 수단
     """
     standard = (ing.matched_name_ko or "").strip() if ing.matched_name_ko else ""
     if standard:
         return normalize_name(standard)
+    # 괄호+영문 포함된 원본에서 한글명만 추출
+    korean = _extract_korean_name(ing.name)
+    if korean:
+        return normalize_name(korean)
     return normalize_name(ing.name)
 
 
@@ -745,9 +808,11 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
             seen.add(n)
             unique_names.append(n)
 
-    # 2 API 병렬 호출 (15094202 / 15111913)
+    # 2 API 병렬 호출 (15094202 / 15111913) — API 키 없으면 F0 코드 fallback
     client = _get_client()
-    responses = await _fetch_all(client, unique_names)
+    responses: dict = {}
+    if client is not None:
+        responses = await _fetch_all(client, unique_names)
 
     # 집계
     enriched: List[Ingredient] = []
@@ -759,7 +824,6 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
     api_stats: dict[str, int] = dict(empty_stats)
     for (endpoint_id, _n), _payload in responses.items():
         if endpoint_id in api_stats:
-            # Exception 도 호출 1건으로 카운트 (감사 추적)
             api_stats[endpoint_id] += 1
 
     for ing in flat:
@@ -825,6 +889,19 @@ async def run_step_b(ingredients: list[Ingredient]) -> StepBResult:
                     normalized,
                     verdict,
                 )
+            else:
+                # DB도 miss → F0 성분코드 기반 판정 (2차 fallback)
+                f0_verdict, f0_law, f0_warn = _resolve_verdict_by_f0_code(ing)
+                if f0_verdict != "unidentified":
+                    verdict = f0_verdict
+                    law_source = f0_law
+                    warning_template = f0_warn
+                    ing.law_source = law_source
+                    setattr(ing, "match_method", "f0_code")
+                    logger.info(
+                        "Step B F0 code fallback: '%s' → %s (code: %s)",
+                        ing.name, verdict, ing.ingredient_code_f0,
+                    )
         elif verdict == "allowed":
             # API → allowed 이지만 DB에 restricted 등재 시 사용 제한 우선 적용.
             # 사례: 과라나·은행·하수오 등 15094202가 "사용가능"으로 반환하나

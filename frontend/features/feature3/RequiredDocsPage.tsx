@@ -571,9 +571,10 @@ function DocDescription({ doc, explanation, explainDone, foodType, originCountry
 
 // ── 서류 카드 ─────────────────────────────────
 
-function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCountry }: {
+function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCountry, checked, onToggle }: {
   doc: RequiredDoc; explanation?: string; explainDone: boolean; crossCheck?: CrossCheckResult;
   foodType?: string; originCountry?: string;
+  checked?: boolean; onToggle?: (docId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isConditional = doc.condition !== null || doc.target_country !== null;
@@ -582,11 +583,24 @@ function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCo
   const hasEffectiveFrom = !!doc.effective_from;
   const hasEffectiveUntil = !!doc.effective_until;
 
+  const showCheckbox = typeof checked === "boolean" && onToggle;
+
   return (
     <div className={`bg-white rounded-3xl card-shadow transition-all duration-300 p-6 mb-4 border ${
+      showCheckbox && !checked ? "opacity-50 border-gray-200" :
       isKeep ? "border-slate-200/80 bg-slate-50/30" : isConditional ? "border-amber-200/80" : "border-gray-100"
     }`}>
       <div className="flex items-start justify-between gap-3">
+        {showCheckbox && (
+          <label className="shrink-0 mt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle(doc.id)}
+              className="w-4.5 h-4.5 accent-blue-600 cursor-pointer"
+            />
+          </label>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             {/* 제출/보관 구분 뱃지 (최우선) */}
@@ -715,15 +729,20 @@ function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCo
 
 // ── 서류 섹션 ─────────────────────────────────
 
-function DocSection({ title, docs, badgeText, badgeStyle, explanations = {}, explainDone = true, crossCheckResults = [], foodType, originCountry }: {
+function DocSection({ title, docs, badgeText, badgeStyle, explanations = {}, explainDone = true, crossCheckResults = [], foodType, originCountry, selectedIds, onToggle, onSelectAll }: {
   title: string; docs: RequiredDoc[]; badgeText: string; badgeStyle: string;
   explanations?: Record<string, string>; explainDone?: boolean;
   crossCheckResults?: CrossCheckResult[];
   foodType?: string; originCountry?: string;
+  selectedIds?: Set<string>; onToggle?: (docId: string) => void;
+  onSelectAll?: (docIds: string[]) => void;
 }) {
   if (!docs.length) return null;
   const common = docs.filter(d => !d.condition && !d.target_country && !d.product_keywords);
   const conditional = docs.filter(d => d.condition || d.target_country || d.product_keywords);
+  const hasSelection = selectedIds !== undefined && onToggle !== undefined;
+  const allSelected = hasSelection && docs.every(d => selectedIds!.has(d.id));
+  const selectedCount = hasSelection ? docs.filter(d => selectedIds!.has(d.id)).length : 0;
 
   return (
     <section className="mb-12">
@@ -732,17 +751,38 @@ function DocSection({ title, docs, badgeText, badgeStyle, explanations = {}, exp
         <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full ${badgeStyle}`}>
           {badgeText} {docs.length}건
         </span>
+        {hasSelection && (
+          <>
+            <span className="text-[11px] text-gray-400">
+              {selectedCount}/{docs.length} 선택
+            </span>
+            <button
+              onClick={() => {
+                if (allSelected) {
+                  // 전체 해제
+                  docs.forEach(d => { if (selectedIds!.has(d.id)) onToggle!(d.id); });
+                } else {
+                  // 전체 선택
+                  onSelectAll?.(docs.map(d => d.id));
+                }
+              }}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              {allSelected ? "전체 해제" : "전체 선택"}
+            </button>
+          </>
+        )}
       </div>
       {common.length > 0 && (
         <div className="mb-6">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 ml-1">공통 필수</p>
-          {common.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} />)}
+          {common.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} checked={hasSelection ? selectedIds!.has(d.id) : undefined} onToggle={onToggle} />)}
         </div>
       )}
       {conditional.length > 0 && (
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-3 ml-1">조건부</p>
-          {conditional.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} />)}
+          {conditional.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} checked={hasSelection ? selectedIds!.has(d.id) : undefined} onToggle={onToggle} />)}
         </div>
       )}
     </section>
@@ -789,7 +829,9 @@ function PipelineProgress({ currentStep }: { currentStep: number }) {
 // 메인 페이지
 // ══════════════════════════════════════════════
 
-export default function StepAPage() {
+export type F3SaveHandle = { saveSelectedDocs: () => Promise<boolean> };
+
+export default function StepAPage({ onSaveRef }: { onSaveRef?: React.MutableRefObject<F3SaveHandle | null> } = {}) {
   const params = useParams();
   const router = useRouter();
   const caseId = params.id as string;
@@ -805,6 +847,9 @@ export default function StepAPage() {
   const [explainLoading, setExplainLoading] = useState(false);
   const [crossCheckResults, setCrossCheckResults] = useState<CrossCheckResult[]>([]);
   const [crossCheckDone, setCrossCheckDone] = useState(false);
+
+  // 서류 선택 상태 (체크박스)
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
 
   // 레포트 모달 상태
   const [reportOpen, setReportOpen] = useState(false);
@@ -825,6 +870,36 @@ export default function StepAPage() {
     japan_prefecture: "",
   });
   const [selectedIngredients, setSelectedIngredients] = useState<Array<{code: string; name_ko: string}>>([]);
+
+  // ── 서류 선택 헬퍼 ─────────────────────────
+
+  /** 결과가 바뀔 때 전체 선택 초기화 */
+  useEffect(() => {
+    if (result) {
+      const allIds = new Set([
+        ...result.submit_docs.map(d => d.id),
+        ...result.keep_docs.map(d => d.id),
+      ]);
+      setSelectedDocIds(allIds);
+    }
+  }, [result]);
+
+  const handleToggleDoc = useCallback((docId: string) => {
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllDocs = useCallback((docIds: string[]) => {
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      docIds.forEach(id => next.add(id));
+      return next;
+    });
+  }, []);
 
   // ── LLM 맞춤 설명 생성 ─────────────────────
 
@@ -858,10 +933,26 @@ export default function StepAPage() {
     const loadPipelineData = async () => {
       setLoading(true);
       try {
-        // 기능 2(식품유형) + 기능 1(원재료) 결과를 pipeline_steps 에서 로드
         const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
         const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
         const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+        // 1) 먼저 파이프라인에서 실행된 F3 결과가 DB에 있는지 확인
+        //    (백엔드 /feature/3/run이 F0 성분코드 + F2 식품유형으로 판정한 결과)
+        try {
+          const f3Res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/3`, { headers: authHeaders });
+          if (f3Res.ok) {
+            const f3Row = await f3Res.json();
+            const f3Data = f3Row.final_result ?? f3Row.ai_result ?? f3Row;
+            if (f3Data && (f3Data.submit_docs?.length > 0 || f3Data.keep_docs?.length > 0)) {
+              setResult(f3Data as DocsResult);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch { /* F3 결과 없으면 아래에서 직접 조회 */ }
+
+        // 2) F3 결과 없으면 F0/F1/F2에서 데이터 로드 후 직접 조회
 
         const [f2Res, f1Res, f0Res] = await Promise.all([
           fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`, { headers: authHeaders }),
@@ -1056,16 +1147,81 @@ export default function StepAPage() {
   };
 
 
+  // ── 선택된 서류를 final_result로 저장 ─────────────────
+
+  const saveSelectedDocs = async (): Promise<boolean> => {
+    if (!result) return false;
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    // 선택된 서류만 필터링
+    const selectedSubmit = result.submit_docs.filter(d => selectedDocIds.has(d.id));
+    const selectedKeep = result.keep_docs.filter(d => selectedDocIds.has(d.id));
+
+    const finalResult = {
+      food_type: result.food_type,
+      origin_country: result.origin_country,
+      is_first_import: result.is_first_import,
+      submit_docs: selectedSubmit,
+      keep_docs: selectedKeep,
+      total_submit: selectedSubmit.length,
+      total_keep: selectedKeep.length,
+      warnings: result.warnings,
+      match_confidence: result.match_confidence,
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/3`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          final_result: finalResult,
+          edit_reason: `사용자 확인: ${selectedSubmit.length + selectedKeep.length}건 선택 (전체 ${result.submit_docs.length + result.keep_docs.length}건 중)`,
+        }),
+      });
+      if (!res.ok) throw new Error("저장 실패");
+      return true;
+    } catch (err) {
+      console.error("[F3 Save]", err);
+      return false;
+    }
+  };
+
+  // onSaveRef를 통해 외부에서 saveSelectedDocs를 호출할 수 있게 노출
+  useEffect(() => {
+    if (onSaveRef) {
+      onSaveRef.current = { saveSelectedDocs };
+    }
+  });
+
   // ── 확인 완료 → 다음 단계 ─────────────────
 
   const handleConfirm = async () => {
     setConfirming(true);
     try {
-      // 실제: POST /api/v1/cases/{caseId}/pipeline/feature/3/confirm
-      // 테스트: mock
-      await new Promise(r => setTimeout(r, 500));
+      // 1) 선택된 서류를 final_result로 DB에 저장
+      const saved = await saveSelectedDocs();
+      if (!saved) {
+        alert("서류 저장에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
 
-      // pipeline_steps status='completed', cases.current_step='B'
+      // 2) confirm 호출 (status → completed)
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/3/confirm`, {
+        method: "POST",
+        headers,
+      });
+
       setConfirmed(true);
 
       // 2초 후 다음 단계로 이동
@@ -1251,12 +1407,14 @@ export default function StepAPage() {
               badgeText="제출" badgeStyle="bg-blue-50 text-blue-600 border border-blue-200"
               explanations={explanations} explainDone={!explainLoading}
               crossCheckResults={crossCheckResults}
-              foodType={result.food_type} originCountry={result.origin_country} />
+              foodType={result.food_type} originCountry={result.origin_country}
+              selectedIds={selectedDocIds} onToggle={handleToggleDoc} onSelectAll={handleSelectAllDocs} />
             <DocSection title="영업자 보관 서류" docs={result.keep_docs}
               badgeText="보관" badgeStyle="bg-gray-100 text-gray-500 border border-gray-200"
               explanations={explanations} explainDone={!explainLoading}
               crossCheckResults={crossCheckResults}
-              foodType={result.food_type} originCountry={result.origin_country} />
+              foodType={result.food_type} originCountry={result.origin_country}
+              selectedIds={selectedDocIds} onToggle={handleToggleDoc} onSelectAll={handleSelectAllDocs} />
 
             {/* AI만 감지한 서류 (DB에 없는 것) */}
             {crossCheckDone && crossCheckResults.filter(c => c.match_type === "ai_only").length > 0 && (
@@ -1462,27 +1620,58 @@ export default function StepAPage() {
           )}
         </section>
 
-        {/* 확인 완료 버튼 */}
-        <div className="flex justify-center">
-          <button onClick={handleConfirm} disabled={confirming || !result}
-            className="group flex items-center gap-3 px-10 py-4 rounded-full bg-blue-600 text-white text-sm font-semibold
-              hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed
-              transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]
-              shadow-lg shadow-blue-600/20">
-            {confirming ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                처리 중...
-              </>
-            ) : (
-              <>
-                확인 완료
-                <ArrowRightIcon />
-                <span className="text-blue-200 text-xs font-light">기능 4: 수출국표시사항</span>
-              </>
-            )}
-          </button>
-        </div>
+        {/* 선택 요약 + 확인 완료 버튼 */}
+        {result && (
+          <div className="rounded-3xl card-shadow border border-blue-100 bg-blue-50/50 p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-blue-500 mb-1">선택된 서류</p>
+                <p className="text-sm text-gray-600">
+                  전체 {result.submit_docs.length + result.keep_docs.length}건 중{" "}
+                  <strong className="text-blue-700">{selectedDocIds.size}건</strong> 선택됨
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const allIds = new Set([
+                      ...result.submit_docs.map(d => d.id),
+                      ...result.keep_docs.map(d => d.id),
+                    ]);
+                    setSelectedDocIds(allIds);
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-full border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors"
+                >
+                  전체 선택
+                </button>
+                <button
+                  onClick={() => setSelectedDocIds(new Set())}
+                  className="px-3 py-1.5 text-xs font-medium rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+                >
+                  전체 해제
+                </button>
+              </div>
+            </div>
+            <button onClick={handleConfirm} disabled={confirming || selectedDocIds.size === 0}
+              className="w-full group flex items-center justify-center gap-3 px-10 py-4 rounded-full bg-blue-600 text-white text-sm font-semibold
+                hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed
+                transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]
+                shadow-lg shadow-blue-600/20">
+              {confirming ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  저장 중...
+                </>
+              ) : (
+                <>
+                  {selectedDocIds.size}건 확인 완료
+                  <ArrowRightIcon />
+                  <span className="text-blue-200 text-xs font-light">기능 4: 수출국표시사항</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {error && (
           <div className="mt-6 rounded-2xl bg-red-50 border border-red-200 p-5 flex items-start gap-3">
