@@ -31,16 +31,23 @@ interface StepNavigationProps {
   currentStep: string;
   /** Steps that are completed (data available). Users can jump to any completed step or the next uncompleted step. */
   completedSteps?: string[];
+  /** 수동 식품분류 입력 건이면 F1/F2를 숨김 */
+  hideF1F2?: boolean;
 }
 
 export default function StepNavigation({
   currentStep,
   completedSteps = [],
+  hideF1F2 = false,
 }: StepNavigationProps) {
   const router = useRouter();
   const params = useParams();
   const caseId = params?.id as string;
-  const currentIndex = steps.findIndex((s) => s.key === currentStep);
+
+  const visibleSteps = hideF1F2
+    ? steps.filter((s) => s.key !== "F1" && s.key !== "F2")
+    : steps;
+  const currentIndex = visibleSteps.findIndex((s) => s.key === currentStep);
 
   const handleStepClick = (step: Step, idx: number) => {
     if (step.key === currentStep) return; // 현재 단계 클릭 무시
@@ -52,10 +59,10 @@ export default function StepNavigation({
     <div className="ds-step-nav px-6 py-4">
       {/* 스텝 바 */}
       <div className="flex items-center">
-        {steps.map((step, idx) => {
+        {visibleSteps.map((step, idx) => {
           const isActive = idx === currentIndex;
           const isCompleted = completedSteps.includes(step.key) || idx < currentIndex;
-          const isLast = idx === steps.length - 1;
+          const isLast = idx === visibleSteps.length - 1;
           const isClickable = step.key !== currentStep;
 
           return (

@@ -202,30 +202,6 @@ export default function FoodClassificationPage({ caseId }: FoodClassificationPag
             )}
           </section>
 
-          {/* 필요서류 */}
-          {result.required_docs.length > 0 && (
-            <section className="rounded-lg border border-gray-200 bg-white p-4">
-              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">수입 필요서류</h3>
-              <div className="space-y-2">
-                {result.required_docs.map((doc, i) => (
-                  <div key={i} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-center gap-2 flex-wrap mb-1.5">
-                      <Badge variant={doc.is_mandatory ? 'red' : 'blue'} size="sm">
-                        {doc.is_mandatory ? '필수' : '선택'}
-                      </Badge>
-                      <span className="text-sm font-semibold text-slate-800">{doc.doc_name}</span>
-                    </div>
-                    {doc.condition && (
-                      <p className="text-xs text-slate-600 leading-relaxed mb-1">{doc.condition}</p>
-                    )}
-                    {doc.law_source && (
-                      <p className="text-[11px] text-slate-500">근거: {doc.law_source}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
         </div>
       )}
 

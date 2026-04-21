@@ -16,6 +16,7 @@ import {
   Edit2,
   FileText,
   UploadCloud,
+  ClipboardCheck,
 } from "lucide-react";
 import DocumentUploadGrid from "@/components/upload/DocumentUploadGrid";
 import LabelImageCard from "@/components/upload/LabelImageCard";
@@ -42,6 +43,7 @@ import {
   runFeature3,
   runFeature4,
   runFeature5,
+  patchFeature2,
   type LabelImageData,
 } from "@/lib/api";
 import type { UploadedFile } from "@/components/upload/FileDropzone";
@@ -196,6 +198,12 @@ export default function UploadPage() {
   const [newUploadsSinceParse, setNewUploadsSinceParse] = useState(0);
 
 
+  // 식품 분류 직접 입력 (f1/f2 건너뛰기)
+  const [manualCategory, setManualCategory] = useState("");      // 대분류 (선택)
+  const [manualSubcategory, setManualSubcategory] = useState(""); // 중분류 (선택)
+  const [manualFoodType, setManualFoodType] = useState("");       // 소분류 (필수)
+  const [manualClassSaved, setManualClassSaved] = useState(false); // 수동 분류 저장 완료 여부
+
   // 파이프라인 결과 (미니바용)
   const [f1Data, setF1Data] = useState<Record<string, unknown> | null>(null);
   const [f2Data, setF2Data] = useState<Record<string, unknown> | null>(null);
@@ -245,18 +253,46 @@ export default function UploadPage() {
           if (imgs.length > 0) setLabelImages(imgs);
         } catch { /* 무시 */ }
 
+        // F2 수동 입력 여부 복원 (이전에 저장한 수동 분류가 있는지 확인)
+        let isManualClass = false;
+        try {
+          const f2 = await getFeature2(caseId).catch(() => null);
+          if (f2) {
+            setF2Data(f2);
+            const f2r = (f2 as Record<string, unknown>);
+            const f2Result = (f2r?.final_result ?? f2r?.ai_result) as Record<string, unknown> | null;
+            // ai_result 없이 final_result만 있으면 이전에 수동 입력한 건
+            if (f2r?.final_result && !f2r?.ai_result) {
+              isManualClass = true;
+              setManualClassSaved(true);
+              if (f2Result?.category_name) setManualCategory(f2Result.category_name as string);
+              if (f2Result?.subcategory_name) setManualSubcategory(f2Result.subcategory_name as string);
+              if (f2Result?.food_type) setManualFoodType(f2Result.food_type as string);
+            }
+          }
+        } catch { /* 무시 */ }
+
         // 이미 F1~F5 결과가 있으면 result 뷰로
         try {
           const f1 = await getFeature1(caseId);
           if (f1?.ai_result || f1?.final_result) {
             setF1Data(f1);
-            const f2 = await getFeature2(caseId).catch(() => null);
-            if (f2) setF2Data(f2);
+            const f2r = await getFeature2(caseId).catch(() => null);
+            if (f2r) setF2Data(f2r);
             const f3 = await getFeature3(caseId).catch(() => null);
             if (f3) setF3Data(f3);
             const f4 = await getFeature4(caseId).catch(() => null);
             if (f4) setF4Data(f4);
             setView("result");
+          } else if (isManualClass) {
+            // f1은 없지만 수동분류 건 → f3 결과가 있으면 result 뷰
+            const f3 = await getFeature3(caseId).catch(() => null);
+            if (f3) {
+              setF3Data(f3);
+              const f4 = await getFeature4(caseId).catch(() => null);
+              if (f4) setF4Data(f4);
+              setView("result");
+            }
           }
         } catch { /* 아직 결과 없음 */ }
 
@@ -401,9 +437,90 @@ export default function UploadPage() {
     setPipelineSteps(prev => prev.map(s => s.key === key ? { ...s, ...update } : s));
   }, []);
 
+  // ── 수동 식품분류 저장 + f3부터 실행하는 파이프라인 ──────
+  const handleStartPipelineSkipF1F2 = useCallback(async () => {
+    if (!parsedData) return;
+
+    // f2에 수동 분류 저장
+    const f2FinalResult = {
+      category_name: manualCategory || null,
+      category_no: null,
+      subcategory_name: manualSubcategory || null,
+      food_type: manualFoodType,
+      law_ref: null,
+      reason: "사용자 직접 입력",
+      is_alcohol: false,
+      required_docs: [],
+      source_doc: "manual_input",
+      law_excerpts: [],
+    };
+    await patchFeature2(caseId, {
+      final_result: f2FinalResult,
+      edit_reason: "사용자 직접 입력",
+    });
+    setManualClassSaved(true);
+    setF2Data({ final_result: f2FinalResult, status: "completed" });
+
+    // f3~f5 파이프라인만 실행
+    const skipSteps: PipelineStep[] = [
+      { key: "f1", label: "F1 수입가능 여부", description: "건너뜀 (수동 분류)", status: "done" },
+      { key: "f2", label: "F2 식품유형 분류", description: "수동 입력 완료", status: "done" },
+      { key: "f3", label: "F3 필요서류 판정", description: "수입 필요 서류 목록 산출", status: "pending" },
+      { key: "f4", label: "F4 라벨 검토", description: "수출국 라벨 표시사항 검토", status: "pending" },
+      { key: "f5", label: "F5 한글표시사항", description: "한글 라벨 초안 생성", status: "pending" },
+    ];
+    setPipelineSteps(skipSteps);
+    setView("running");
+
+    // F0 저장
+    try { await saveParsedResult(caseId, parsedData); } catch { /* 계속 */ }
+
+    // F3
+    updateStep("f3", { status: "running" });
+    try {
+      await runFeature3(caseId);
+      const r = await getFeature3(caseId);
+      setF3Data(r);
+      updateStep("f3", { status: "done" });
+    } catch (e) {
+      console.error("[F3]", e);
+      updateStep("f3", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
+
+    // F4
+    updateStep("f4", { status: "running" });
+    try {
+      await runFeature4(caseId);
+      const r = await getFeature4(caseId);
+      setF4Data(r);
+      updateStep("f4", { status: "done" });
+    } catch (e) {
+      console.error("[F4]", e);
+      updateStep("f4", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
+
+    // F5
+    updateStep("f5", { status: "running" });
+    try {
+      await runFeature5(caseId);
+      updateStep("f5", { status: "done" });
+    } catch (e) {
+      console.error("[F5]", e);
+      updateStep("f5", { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+    }
+
+    setView("result");
+  }, [caseId, parsedData, manualCategory, manualSubcategory, manualFoodType, updateStep]);
+
   // ── OCR 완료 → F1~F5 파이프라인 자동 실행 ──────────
   const handleStartPipeline = useCallback(async () => {
     if (!parsedData) return;
+
+    // 수동 식품분류가 입력되어 있으면 f1/f2 건너뛰기
+    if (manualFoodType.trim()) {
+      return handleStartPipelineSkipF1F2();
+    }
+
     setPipelineSteps(INITIAL_PIPELINE_STEPS);
     setView("running");
 
@@ -470,7 +587,7 @@ export default function UploadPage() {
 
     // 결과 뷰로
     setView("result");
-  }, [caseId, parsedData, updateStep]);
+  }, [caseId, parsedData, manualFoodType, handleStartPipelineSkipF1F2, updateStep]);
 
   // ── F5 다운로드 ──────────────────────────────────
   const handleDownload = async (format: "docx" | "pdf") => {
@@ -755,7 +872,8 @@ export default function UploadPage() {
             )}
           </MiniBarSection>
 
-          {/* F1 수입판정 */}
+          {/* F1 수입판정 — 수동 분류 건이면 숨김 */}
+          {!manualClassSaved && (
           <MiniBarSection
             title="F1 수입판정"
             defaultOpen={true}
@@ -812,8 +930,10 @@ export default function UploadPage() {
               <p className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>결과 없음</p>
             )}
           </MiniBarSection>
+          )}
 
-          {/* F2 식품유형 분류 */}
+          {/* F2 식품유형 분류 — 수동 분류 건이면 숨김 */}
+          {!manualClassSaved && (
           <MiniBarSection
             title="F2 식품유형"
             onEdit={() => router.push(`/cases/${caseId}/f2?from=view`)}
@@ -838,6 +958,7 @@ export default function UploadPage() {
               );
             })()}
           </MiniBarSection>
+          )}
 
           {/* F3 필요서류 */}
           <MiniBarSection
@@ -994,6 +1115,79 @@ export default function UploadPage() {
             <LabelImageCard caseId={caseId} images={labelImages} loading={labelImagesLoading} />
           )}
 
+          {/* 식품 분류 직접 입력 (F1/F2 건너뛰기) */}
+          <Card padding="lg">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <ClipboardCheck size={15} style={{ color: "var(--ds-color-primary)" }} />
+                <span className="text-[13px] font-semibold" style={{ color: "var(--ds-color-text-heading)" }}>
+                  식품 분류 직접 입력
+                </span>
+              </div>
+              <p className="text-[11px] leading-relaxed" style={{ color: "var(--ds-color-text-tertiary)" }}>
+                식품유형을 이미 알고 있다면 직접 입력하세요. 입력 시 F1(수입판정)·F2(식품분류)를 건너뛰고 바로 <strong>필요서류 검토</strong> 단계부터 시작합니다.
+              </p>
+              <div className="space-y-2 pt-1">
+                <div>
+                  <label className="text-[11px] mb-1 block" style={{ color: "var(--ds-color-text-tertiary)" }}>
+                    대분류 <span className="opacity-60">(선택)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualCategory}
+                    onChange={(e) => setManualCategory(e.target.value)}
+                    placeholder="예: 주류, 과자류"
+                    className="w-full px-3 py-2 text-[13px] rounded-lg border bg-transparent focus:outline-none focus:ring-1"
+                    style={{
+                      borderColor: "var(--ds-color-border)",
+                      color: "var(--ds-color-text-primary)",
+                      ["--tw-ring-color" as string]: "var(--ds-color-primary)",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] mb-1 block" style={{ color: "var(--ds-color-text-tertiary)" }}>
+                    중분류 <span className="opacity-60">(선택)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualSubcategory}
+                    onChange={(e) => setManualSubcategory(e.target.value)}
+                    placeholder="예: 증류주류, 비스킷"
+                    className="w-full px-3 py-2 text-[13px] rounded-lg border bg-transparent focus:outline-none focus:ring-1"
+                    style={{
+                      borderColor: "var(--ds-color-border)",
+                      color: "var(--ds-color-text-primary)",
+                      ["--tw-ring-color" as string]: "var(--ds-color-primary)",
+                    }}
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] mb-1 block" style={{ color: "var(--ds-color-text-heading)" }}>
+                    소분류 <span className="text-[10px] font-bold" style={{ color: "var(--ds-color-error)" }}>필수</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualFoodType}
+                    onChange={(e) => setManualFoodType(e.target.value)}
+                    placeholder="예: 위스키, 맥주, 비스킷"
+                    className="w-full px-3 py-2 text-[13px] rounded-lg border bg-transparent focus:outline-none focus:ring-1"
+                    style={{
+                      borderColor: manualFoodType.trim() ? "var(--ds-color-success)" : "var(--ds-color-border)",
+                      color: "var(--ds-color-text-primary)",
+                      ["--tw-ring-color" as string]: "var(--ds-color-primary)",
+                    }}
+                  />
+                </div>
+              </div>
+              {manualClassSaved && (
+                <div className="flex items-center gap-1.5 pt-1">
+                  <CheckCircle size={12} style={{ color: "var(--ds-color-success)" }} />
+                  <span className="text-[11px]" style={{ color: "var(--ds-color-success-text)" }}>저장됨</span>
+                </div>
+              )}
+            </div>
+          </Card>
 
           {parseStatus === "error" && parseError && (
             <div className="rounded-xl px-4 py-3" style={{ background: "var(--ds-color-error-soft)" }}>
