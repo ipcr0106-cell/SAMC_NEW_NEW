@@ -636,15 +636,42 @@ def run_feature2(case_id: str):
             except Exception as _e:
                 logger.warning(f"F2 식품유형 정의 조회 실패: {_e}")
 
+        # food_class 기반 구체적 판정 근거 생성
+        detailed_reason = classification.get("reason", "")
+        if fc_result and fc_result.get("items"):
+            fc_items = fc_result["items"]
+            fc_summary = fc_result.get("summary", {})
+            fv_pct = fc_result.get("fruit_veg_pct", 0)
+            # 원재료별 카테고리 설명
+            reason_parts = []
+            for it in fc_items:
+                if it["pct"] > 0 and it["food_class"] != "기타":
+                    reason_parts.append(f"{it['name']}({it['food_class']}, {it['pct']}%)")
+            if reason_parts:
+                detailed_reason = "원재료 분석: " + ", ".join(reason_parts) + ". "
+            # 카테고리별 합산
+            summary_parts = [f"{k} {v:.1f}%" for k, v in sorted(fc_summary.items(), key=lambda x: -x[1]) if v > 0]
+            if summary_parts:
+                detailed_reason += "카테고리별 합산: " + ", ".join(summary_parts) + ". "
+            # 분류 근거
+            food_type_str = classification.get("food_type", "")
+            if fv_pct >= 10 and "과" in food_type_str:
+                detailed_reason += f"과일류+채소류 비율 {fv_pct:.1f}%로 10% 이상이므로 과·채음료로 분류."
+            elif inferred_major:
+                detailed_reason += f"제품 형태 및 원재료 구성에 따라 {inferred_major} > {food_type_str}로 분류."
+
+        # law_ref 보정 (빈 문자열이면 기본값)
+        law_ref = classification.get("law_ref", "")
+        if not law_ref or law_ref == "—":
+            law_ref = "식품의 기준 및 규격"
+
         ai_result = {
-            # 대/중/소 3단계 분류
-            "category_name":    classification.get("category_name"),    # 대분류
+            "category_name":    classification.get("category_name"),
             "category_no":      classification.get("category_no"),
-            "subcategory_name": classification.get("subcategory_name"),  # 중분류 (없으면 null)
-            "food_type":        classification.get("food_type"),          # 소분류
-            # 부가 정보
-            "law_ref":          classification.get("law_ref"),
-            "reason":           classification.get("reason"),
+            "subcategory_name": classification.get("subcategory_name"),
+            "food_type":        classification.get("food_type"),
+            "law_ref":          law_ref,
+            "reason":           detailed_reason,
             "is_alcohol":       classification.get("is_alcohol"),
             "required_docs":    [],
             "source_doc":       selected_doc.get("file_name", ""),

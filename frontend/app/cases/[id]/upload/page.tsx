@@ -597,7 +597,7 @@ export default function UploadPage() {
       const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
       const headers: Record<string, string> = {};
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/5/export.${format}`, { headers });
+      const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/5/report?format=${format}`, { headers });
       if (!res.ok) throw new Error("다운로드 실패");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
