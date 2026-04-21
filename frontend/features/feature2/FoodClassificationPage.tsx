@@ -24,6 +24,14 @@ interface LawExcerpt {
   score: number;
 }
 
+interface F2Candidate {
+  food_type: string;
+  category_name: string;
+  definition: string;
+  reason: string;
+  selected: boolean;
+}
+
 interface F2Result {
   category_name: string | null;
   category_no?: string | null;
@@ -35,6 +43,7 @@ interface F2Result {
   required_docs: RequiredDoc[];
   source_doc?: string;
   law_excerpts?: LawExcerpt[];
+  candidates?: F2Candidate[];
 }
 
 interface PipelineStepRow {
@@ -53,6 +62,7 @@ interface FoodClassificationPageProps {
 
 export default function FoodClassificationPage({ caseId }: FoodClassificationPageProps) {
   const [phase, setPhase] = useState<Phase>('idle');
+  const [selectedFoodType, setSelectedFoodType] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [result, setResult] = useState<F2Result | null>(null);
   const [rerunning, setRerunning] = useState(false);
@@ -165,7 +175,7 @@ export default function FoodClassificationPage({ caseId }: FoodClassificationPag
               {[
                 { label: '대분류', value: result.category_name },
                 { label: '중분류', value: result.subcategory_name },
-                { label: '소분류', value: result.food_type },
+                { label: '소분류', value: selectedFoodType || result.food_type },
               ].map((c, i) => (
                 <div key={i} className="rounded-lg border border-slate-200 p-3 text-center">
                   <div className="text-[11px] text-slate-500 mb-1">{c.label}</div>
@@ -175,12 +185,59 @@ export default function FoodClassificationPage({ caseId }: FoodClassificationPag
             </div>
           </section>
 
+          {/* 후보 유형 선택 */}
+          {result.candidates && result.candidates.length > 1 && (
+            <section className="rounded-lg border border-gray-200 bg-white p-4">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">식품유형 후보 선택</h3>
+              <p className="text-xs text-slate-400 mb-3">AI가 추천한 유형이 선택되어 있습니다. 다른 유형이 적합하면 변경하세요.</p>
+              <div className="space-y-2">
+                {result.candidates.map((cand, i) => {
+                  const isSelected = (selectedFoodType || result.food_type) === cand.food_type;
+                  return (
+                    <label
+                      key={i}
+                      className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                        isSelected
+                          ? "border-blue-400 bg-blue-50"
+                          : "border-slate-200 bg-white hover:bg-slate-50"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="food_type_candidate"
+                        checked={isSelected}
+                        onChange={() => setSelectedFoodType(cand.food_type)}
+                        className="mt-0.5 h-4 w-4 accent-blue-600"
+                      />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-900">{cand.food_type}</span>
+                          {i === 0 && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-medium">
+                              AI 추천
+                            </span>
+                          )}
+                        </div>
+                        {cand.definition && (
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">{cand.definition}</p>
+                        )}
+                        {cand.reason && (
+                          <p className="text-xs text-blue-700 mt-1">{cand.reason}</p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* 판정 근거 */}
           <section className="rounded-lg border border-gray-200 bg-white p-4">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">판정 근거</h3>
             <div className="rounded-lg bg-blue-50 border border-blue-100 p-4">
               <div className="text-sm text-slate-700 mb-2">
-                근거 법령: <span className="font-semibold">{result.law_ref || '—'}</span>
+                근거 법령: <span className="font-semibold">{result.law_ref || '식품의 기준 및 규격'}</span>
               </div>
               {result.reason && (
                 <p className="text-sm text-slate-700 leading-relaxed">{result.reason}</p>

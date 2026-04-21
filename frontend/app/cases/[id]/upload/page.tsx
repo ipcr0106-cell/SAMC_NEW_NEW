@@ -313,19 +313,45 @@ export default function UploadPage() {
     const startIdx = features.indexOf(rerunFrom);
     if (startIdx < 0) return;
 
+    const toRun = features.slice(startIdx);
+
+    // 파이프라인 스텝 UI 설정: 이전 단계는 done, 재실행 대상은 pending
+    const steps: PipelineStep[] = INITIAL_PIPELINE_STEPS.map((s) => {
+      const idx = features.indexOf(s.key);
+      if (idx < startIdx) return { ...s, status: "done" as StepStatus };
+      return { ...s, status: "pending" as StepStatus };
+    });
+    setPipelineSteps(steps);
+
     (async () => {
       setView("running");
       try {
-        for (const f of features.slice(startIdx)) {
+        for (const f of toRun) {
+          updateStep(f, { status: "running" });
           try {
             if (f === "f1") { await runFeature1(caseId); const r = await getFeature1(caseId); setF1Data(r); }
             if (f === "f2") { await runFeature2(caseId); const r = await getFeature2(caseId).catch(() => null); if (r) setF2Data(r); }
             if (f === "f3") { await runFeature3(caseId); const r = await getFeature3(caseId).catch(() => null); if (r) setF3Data(r); }
             if (f === "f4") { await runFeature4(caseId); const r = await getFeature4(caseId).catch(() => null); if (r) setF4Data(r); }
             if (f === "f5") { await runFeature5(caseId); }
-          } catch (e) { console.error(`[Rerun ${f}]`, e); }
+            updateStep(f, { status: "done" });
+          } catch (e) {
+            console.error(`[Rerun ${f}]`, e);
+            updateStep(f, { status: "error", error: e instanceof Error ? e.message : "오류 발생" });
+          }
         }
       } finally {
+        // 완료 후 최신 데이터 다시 로드 (사이드바 반영)
+        try {
+          const f1 = await getFeature1(caseId).catch(() => null);
+          if (f1) setF1Data(f1);
+          const f2r = await getFeature2(caseId).catch(() => null);
+          if (f2r) setF2Data(f2r);
+          const f3 = await getFeature3(caseId).catch(() => null);
+          if (f3) setF3Data(f3);
+          const f4 = await getFeature4(caseId).catch(() => null);
+          if (f4) setF4Data(f4);
+        } catch { /* 무시 */ }
         router.replace(`/cases/${caseId}/upload`);
         setView("result");
       }
@@ -768,9 +794,9 @@ export default function UploadPage() {
 
     // F4 요약
     const f4Result = (f4Data?.ai_result || f4Data?.final_result) as Record<string, unknown> | null;
-    const f4Items = ((f4Data?.items || f4Result?.items || []) as Array<Record<string, unknown>>);
-    const f4Errors = f4Items.filter(i => i.severity === "error" || i.status === "fail").length;
-    const f4Warnings = f4Items.filter(i => i.severity === "warning" || i.status === "unclear").length;
+    const f4Issues = ((f4Result?.issues || f4Data?.issues || []) as Array<Record<string, unknown>>);
+    const f4Errors = f4Issues.filter(i => i.severity === "must_fix" || i.severity === "error" || i.status === "fail").length;
+    const f4Warnings = f4Issues.filter(i => i.severity === "review_needed" || i.severity === "warning" || i.status === "unclear").length;
 
     return (
       <div className="max-w-[1440px] mx-auto px-6 py-5 flex gap-5">
@@ -1009,13 +1035,13 @@ export default function UploadPage() {
           <MiniBarSection
             title="F4 라벨검토"
             onEdit={() => router.push(`/cases/${caseId}/f4?from=view`)}
-            statusIcon={f4Items.length > 0
+            statusIcon={f4Issues.length > 0
               ? (f4Errors > 0
                 ? <XCircle size={13} style={{ color: "var(--ds-color-error)" }} />
                 : <CheckCircle size={13} style={{ color: "var(--ds-color-success)" }} />)
               : undefined}
           >
-            {f4Result || f4Items.length > 0 ? (
+            {f4Result || f4Issues.length > 0 ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[12px]" style={{ color: "var(--ds-color-text-secondary)" }}>오류</span>

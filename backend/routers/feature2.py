@@ -595,7 +595,46 @@ def run_feature2(case_id: str):
         # 6. LLM 분류
         classification = _classify_with_llm(parsed_text, rag_chunks, candidate_types, clients)
 
-        # 6-a. P7 law_ref 환각 차단 — RAG/whitelist 에 없는 법령은 빈 문자열로 치환
+        # 6-a. food_class 기반 분류 보정 — LLM 할루시네이션 방지
+        if fc_result:
+            fv_pct = fc_result.get("fruit_veg_pct", 0)
+            fc_summary = fc_result.get("summary", {})
+
+            # 음료류 대분류 + 과일+채소 10% 이상 → 과·채음료 강제
+            if inferred_major and "음료" in inferred_major and fv_pct >= 10:
+                # DB에 "과·채음료" 또는 "과･채음료" 유형이 있는지 확인
+                fv_type = None
+                for ct in candidate_types:
+                    tn = ct.get("type_name", "")
+                    if "과" in tn and "음료" in tn:
+                        fv_type = ct
+                        break
+                if fv_type and classification.get("food_type") != fv_type["type_name"]:
+                    logger.info(
+                        f"F2 분류 보정: '{classification.get('food_type')}' → '{fv_type['type_name']}' "
+                        f"(과일+채소 {fv_pct:.1f}% ≥ 10%)"
+                    )
+                    classification["food_type"] = fv_type["type_name"]
+                    classification["category_name"] = fv_type.get("category_name", classification.get("category_name"))
+                    classification["subcategory_name"] = fv_type["type_name"]
+
+            # 식육 50% 이상인데 음료로 분류된 경우 보정
+            elif fc_summary.get("식육류", 0) >= 50:
+                for ct in candidate_types:
+                    if "식육" in ct.get("category_name", ""):
+                        classification["category_name"] = ct["category_name"]
+                        classification["food_type"] = ct["type_name"]
+                        break
+
+            # 유류 주원료인데 다른 유형으로 분류된 경우 보정
+            elif fc_summary.get("유류", 0) >= 30 and "유가공" not in (classification.get("category_name") or ""):
+                for ct in candidate_types:
+                    if "유가공" in ct.get("category_name", ""):
+                        classification["category_name"] = ct["category_name"]
+                        classification["food_type"] = ct["type_name"]
+                        break
+
+        # 6-b. P7 law_ref 환각 차단
         classification["law_ref"] = _validate_law_ref(
             classification.get("law_ref") or "",
             rag_chunks,
@@ -665,11 +704,35 @@ def run_feature2(case_id: str):
         if not law_ref or law_ref == "—":
             law_ref = "식품의 기준 및 규격"
 
+        # 후보 3개 생성: 1순위(확정) + 2~3순위(대안)
+        primary_type = classification.get("food_type", "")
+        candidates = []
+        # 1순위: 현재 분류 결과
+        candidates.append({
+            "food_type": primary_type,
+            "category_name": classification.get("category_name", ""),
+            "definition": "",
+            "reason": detailed_reason,
+            "selected": True,
+        })
+        # 2~3순위: 같은 대분류의 다른 유형 (정의 포함)
+        for ct in candidate_types:
+            tn = ct.get("type_name", "")
+            if tn != primary_type and len(candidates) < 3:
+                defn = ct.get("definition", "") or ""
+                candidates.append({
+                    "food_type": tn,
+                    "category_name": ct.get("category_name", ""),
+                    "definition": defn[:200],
+                    "reason": "",
+                    "selected": False,
+                })
+
         ai_result = {
             "category_name":    classification.get("category_name"),
             "category_no":      classification.get("category_no"),
             "subcategory_name": classification.get("subcategory_name"),
-            "food_type":        classification.get("food_type"),
+            "food_type":        primary_type,
             "law_ref":          law_ref,
             "reason":           detailed_reason,
             "is_alcohol":       classification.get("is_alcohol"),
@@ -678,6 +741,7 @@ def run_feature2(case_id: str):
             "law_excerpts":     law_excerpts,
             "food_class_analysis": fc_result if fc_result else None,
             "inferred_major":   inferred_major,
+            "candidates":       candidates,
         }
 
         # 8. pipeline_steps 저장 (waiting_review)
