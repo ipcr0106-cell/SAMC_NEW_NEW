@@ -670,7 +670,25 @@ async def run_step_c(
             review_reasons.append(f"api_error:{ing.name}:{err}")
             continue
         if not specs:
-            # API 0건 — 기준규격 자체가 없는 물질 (전체 no_data 로 처리)
+            # 기준규격 없음 — 첨가물이면 "공통규정 적용(사용량 제한 없음)" 표시
+            ing_name = (getattr(ing, "matched_name_ko", "") or "").strip() or ing.name
+            law_src = getattr(ing, "law_source", None) or ""
+            if "식품첨가물" in law_src:
+                all_checks.append(
+                    StandardCheck(
+                        ingredient_name=ing_name,
+                        test_category="함량",
+                        spec_raw="사용량 제한 없음 (첨가물공전 II.2.1 공통규정)",
+                        spec_summary="사용량 제한 없음",
+                        actual_value=None,
+                        unit_original=None,
+                        unit_normalized=None,
+                        threshold_value=None,
+                        is_dangerous=None,
+                        status="pass",
+                        law_ref="식품첨가물공전 II. 2. 1) 공통사용기준",
+                    )
+                )
             continue
 
         # 3) 유효기간 필터
@@ -700,7 +718,7 @@ async def run_step_c(
                 group_specs,
                 measured=measured,
                 density=density,
-                ingredient_name=ing.name,
+                ingredient_name=(getattr(ing, "matched_name_ko", "") or "").strip() or ing.name,
             )
             if check is None:
                 continue
@@ -721,7 +739,7 @@ async def run_step_c(
         if len(all_checks) == ing_checks_before:
             all_checks.append(
                 StandardCheck(
-                    ingredient_name=ing.name,
+                    ingredient_name=(getattr(ing, "matched_name_ko", "") or "").strip() or ing.name,
                     test_category=None,
                     spec_raw=None,
                     spec_summary=None,

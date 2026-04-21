@@ -197,6 +197,152 @@ def _dedup_law_refs(refs: list[LawReference]) -> list[LawReference]:
 # ============================================================
 
 
+async def _llm_judge_with_law(
+    step_d, enriched, food_type, content_volume: str = "",
+) -> tuple["StepDResult", str, float]:
+    """LLM이 법령 + 원재료 매칭 결과를 종합하여 수입 가능 여부를 판정.
+
+    Returns:
+        (StepDResult(요약된 법령 인용), verdict, confidence)
+    """
+    api_key = os.environ.get("F0_OPENAI_API_KEY", "")
+    if not api_key or not step_d.citations:
+        return step_d, "permitted", 0.7
+
+    # 원재료 정보 (매칭명 + 배합비율)
+    ingredient_info = []
+    for i in enriched:
+        name = (getattr(i, "matched_name_ko", "") or "").strip() or getattr(i, "name", "")
+        pct = getattr(i, "percentage", None)
+        law_src = getattr(i, "law_source", "") or ""
+        ingredient_info.append(f"- {name}: 배합비율 {pct}%" + (f" (분류: {law_src})" if law_src else ""))
+
+    # 법령 원문 합치기
+    raw_texts = "\n\n".join(
+        f"[{c.law_name} / {c.article_no}]\n{c.text}"
+        for c in step_d.citations
+    )
+
+    try:
+        from openai import AsyncOpenAI
+        client = AsyncOpenAI(api_key=api_key)
+        resp = await client.chat.completions.create(
+            model=os.environ.get("F0_OPENAI_MODEL", "gpt-4o-mini"),
+            temperature=0,
+            max_tokens=2000,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "당신은 한국 식품 수입 검역 전문가입니다.\n\n"
+                        "아래 정보를 바탕으로 수입 가능 여부를 판정하세요:\n"
+                        "1. 각 원재료의 법령 사용기준을 찾아 정리\n"
+                        "2. 배합비율 × 총 용량으로 실제 함량을 계산\n"
+                        "3. 실제 함량이 법령 기준을 초과하는지 판단\n"
+                        "4. 병용 제한이 있는 경우 합계도 확인\n\n"
+                        "규칙:\n"
+                        "- 'II. 2. 1)의 규정에 따라 사용하여야 한다' = 사용량 제한 없음\n"
+                        "- 식품원료(A코드)는 사용량 제한 없음\n"
+                        "- 기준 초과 원재료가 하나라도 있으면 '수입불가'\n"
+                        "- 모든 원재료가 기준 이내이면 '수입가능'\n\n"
+                        "아래 형식으로 작성하세요:\n"
+                        "===원재료별 판정===\n"
+                        "【원재료명】기준: X / 실제: Y → 적합 또는 부적합 (근거)\n"
+                        "...\n"
+                        "===최종 판정===\n"
+                        "수입가능 또는 수입불가 (사유)\n"
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": (
+                        f"식품유형: {food_type or '미정'}\n"
+                        f"총 용량: {content_volume or '미상'}\n\n"
+                        f"원재료 목록:\n" + "\n".join(ingredient_info) + "\n\n"
+                        f"관련 법령:\n{raw_texts[:4000]}"
+                    ),
+                },
+            ],
+        )
+        result_text = (resp.choices[0].message.content or "").strip()
+        if result_text:
+            # 최종 판정 추출
+            verdict = "permitted"
+            confidence = 0.85
+            if "수입불가" in result_text:
+                verdict = "prohibited"
+                confidence = 0.80
+            elif "수입가능" in result_text:
+                verdict = "permitted"
+                confidence = 0.85
+
+            from models.f1_types import LawCitation
+            new_step_d = StepDResult(citations=[
+                LawCitation(
+                    chunk_id="llm_judgment",
+                    law_name="AI 수입 판정 분석",
+                    article_no="법령 기반 판정",
+                    text=result_text,
+                    score=1.0,
+                    namespace="llm_summary",
+                )
+            ])
+            return new_step_d, verdict, confidence
+    except Exception as exc:
+        logger.warning("LLM 판정 실패: %s — 기본 판정 유지", exc)
+
+    return step_d, "permitted", 0.7
+
+
+def _enrich_step_c_from_law_citations(step_c, step_d, enriched) -> None:
+    """Step D 법령에서 찾은 기준값으로 Step C checks를 보강한다.
+
+    법령 텍스트에서 "원재료명: Xg/kg" 패턴을 추출하여,
+    Step C에서 "기준치 없음"인 원재료의 기준값을 채운다.
+    """
+    import re
+
+    # Step C에서 기준치 없는 원재료 목록
+    no_threshold_names = {
+        ch.ingredient_name for ch in step_c.checks
+        if ch.threshold_value is None and ch.status in ("no_data", "pass")
+    }
+    if not no_threshold_names:
+        return
+
+    # 법령 텍스트에서 기준값 추출
+    extracted: dict[str, tuple[str, str]] = {}  # name → (value, law_ref)
+    for citation in step_d.citations:
+        text = citation.text
+        # "원재료명 | ... | Xg/kg이하" 또는 "원재료명: Xg/kg" 패턴
+        for name in no_threshold_names:
+            if name.lower() not in text.lower():
+                continue
+            # "Xg/kg이하" 또는 "X mg/kg" 패턴 찾기
+            # 해당 원재료명 근처에서 수치 추출
+            name_idx = text.lower().find(name.lower())
+            if name_idx < 0:
+                continue
+            context = text[name_idx:name_idx + 300]
+            # 수치+단위 패턴 매칭
+            match = re.search(
+                r"(\d+(?:\.\d+)?)\s*(g/kg|mg/kg|ppm|g/L|mg/L|%)\s*(?:이하|이상)?",
+                context,
+            )
+            if match:
+                value_str = f"{match.group(1)} {match.group(2)}"
+                extracted[name] = (value_str, citation.law_name)
+
+    # Step C checks 업데이트
+    for check in step_c.checks:
+        if check.ingredient_name in extracted:
+            value_str, law_ref = extracted[check.ingredient_name]
+            check.spec_raw = value_str
+            check.spec_summary = value_str
+            check.law_ref = law_ref
+            check.status = "review_needed"  # 기준값은 있으나 실측값 비교 필요
+
+
 def _derive_exact_verdict(out: Feature1Output) -> str:
     """Feature1Output → 단일 verdict 도출 (RAG 비교용).
 
@@ -535,6 +681,20 @@ async def run_feature1_v2(
         step_d = _step_d_result.unwrap_or(StepDResult(citations=[]))
         if _step_d_result.is_err():
             logger.warning("Step D 실패 — citations=[]: %s", _step_d_result._reason)
+
+        # ── Step C 보강: Step D 법령에서 기준값 추출 → Step C checks 업데이트 ──
+        if step_d.citations and step_c.checks:
+            _enrich_step_c_from_law_citations(step_c, step_d, enriched)
+
+        # ── LLM 법령 기반 판정 ──────────────────────────────────
+        if step_d.citations:
+            step_d, llm_verdict, llm_confidence = await _llm_judge_with_law(
+                step_d, enriched, food_type, ""
+            )
+        else:
+            llm_verdict, llm_confidence = "permitted", 0.7
+
+        # LLM 판정 후 evidence_laws 설정
         evidence_laws = [c.model_dump() for c in step_d.citations]
 
         # ── pipeline_status 결정 ──────────────────────────────
@@ -543,23 +703,16 @@ async def run_feature1_v2(
         else:
             warnings.append("pipeline_status:ok")
 
-        # ── Verdict 결정 ──────────────────────────────────────
+        # ── Verdict 결정: LLM 판정 우선, Step B/C 결과로 보강 ──
         if step_c.overall_status == "fail":
             verdict, confidence = "prohibited", 0.90
-        elif restricted_names:
-            # Step B restricted 판정은 Step C 결과보다 우선:
-            # review_needed가 restricted 경로를 차단하는 Bug 2 회귀 방지.
-            verdict, confidence = "restricted", 0.75
-        elif step_c.overall_status == "review_needed":
-            verdict, confidence = "needs_review", 0.40
         elif step_b.unidentified:
-            verdict, confidence = "needs_review", 0.45
-        elif step_c.overall_status == "no_data":
-            # unidentified·restricted 없고 기준규격 데이터도 없음
-            # → 알려진 일반 원료로 판단해 permitted (e.g. 쌀, 사과 등 식품공전 별표1 원료)
-            verdict, confidence = "permitted", 0.85
+            verdict, confidence = "prohibited", 0.60
+        elif restricted_names:
+            verdict, confidence = "restricted", 0.75
         else:
-            verdict, confidence = "permitted", 0.90
+            # LLM 판정 사용
+            verdict, confidence = llm_verdict, llm_confidence
 
         return F1Output(
             verdict=verdict,

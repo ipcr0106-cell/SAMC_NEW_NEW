@@ -447,6 +447,17 @@ def run_feature2(case_id: str):
         # 7. 분류된 식품유형에 맞는 필요서류 조회
         required_docs  = _get_required_docs(classification.get("food_type", ""), clients)
 
+        # RAG 원문에서 법령 구절 추출 (상위 3개)
+        law_excerpts = [
+            {
+                "law_name": c.get("metadata", {}).get("law_name", c.get("law_name", "")),
+                "text": c.get("metadata", {}).get("text", c.get("text", "")),
+                "score": round(c.get("score", 0), 3),
+            }
+            for c in rag_chunks[:3]
+            if c.get("metadata", {}).get("text") or c.get("text")
+        ]
+
         ai_result = {
             # 대/중/소 3단계 분류
             "category_name":    classification.get("category_name"),    # 대분류
@@ -459,6 +470,7 @@ def run_feature2(case_id: str):
             "is_alcohol":       classification.get("is_alcohol"),
             "required_docs":    required_docs,
             "source_doc":       selected_doc.get("file_name", ""),
+            "law_excerpts":     law_excerpts,
         }
 
         # 8. pipeline_steps 저장 (waiting_review)

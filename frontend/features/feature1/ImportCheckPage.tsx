@@ -31,13 +31,6 @@ import VerdictPanel from "./components/VerdictPanel";
 import ConfirmActions from "./components/ConfirmActions";
 import LawCitationList from "./components/LawCitationList";
 import StatusBadge from "./components/StatusBadge";
-import F0ApprovalPanel from "./components/F0ApprovalPanel";
-import UnidentifiedIngredientReview from "./components/UnidentifiedIngredientReview";
-import ConditionalResolutionPanel from "./components/ConditionalResolutionPanel";
-import EscalationAckList from "./components/EscalationAckList";
-import type { IngredientDecision } from "@/types/pipeline";
-import type { ConditionalResolution } from "./components/ConditionalResolutionPanel";
-import type { EscalationItem } from "./components/EscalationAckList";
 import { isConfirmedStatus } from "./types";
 
 interface Props {
@@ -53,15 +46,7 @@ export default function ImportCheckPage({ caseId }: Props) {
     saveEdit,
     confirm,
     handleDownloadPdf,
-    submitHITLDecision,
-    // Wave 4 P2: HITL API 함수들
-    editF0,
-    approveF0,
-    submitHitl1,
-    confirmHitl2Result,
-    setHitl2FinalReason,
-    setHitl2SignerId,
-    toggleHitl2Citation,
+    applyResponse,
   } = useImportCheck(caseId);
 
   const source = state.data?.final_result ?? state.data?.ai_result ?? null;
@@ -84,110 +69,19 @@ export default function ImportCheckPage({ caseId }: Props) {
     setRerunError(null);
     try {
       const { runImportCheck } = await import("./api/importCheck");
-      await runImportCheck(caseId, { ingredients: [] });
-      window.location.reload();
+      const result = await runImportCheck(caseId, { ingredients: [] });
+      // 결과를 state에 직접 반영 (reload 대신)
+      if (result) {
+        applyResponse(result);
+      }
     } catch (e: unknown) {
       const msg = (e as any)?.response?.data?.detail?.message ?? "재분석 실패. 잠시 후 다시 시도하세요.";
       setRerunError(msg);
+    } finally {
       setRerunning(false);
     }
-  }, [caseId]);
+  }, [caseId, applyResponse]);
 
-  // ── HITL-1 로컬 결정 상태 ──────────────────────────────────────────
-  const [ingredientDecisions, setIngredientDecisions] = useLocalState<readonly IngredientDecision[]>([]);
-  const [conditionalResolutions, setConditionalResolutions] = useLocalState<readonly ConditionalResolution[]>([]);
-  const [escalationAcks, setEscalationAcks] = useLocalState<readonly string[]>([]);
-
-  // ── HITL-2 확정 확인 모달 ──────────────────────────────────────────
-  const [showHitl2Modal, setShowHitl2Modal] = useLocalState(false);
-
-  // ── HITL-1 제출 핸들러 ──────────────────────────────────────────────
-  const handleHitl1Submit = useCallback(async () => {
-    await submitHitl1({
-      ingredient_decisions: ingredientDecisions as IngredientDecision[],
-      conditional_resolutions: conditionalResolutions.map((r) => ({
-        ingredient_name: r.ingredientName,
-        meets_condition: r.meetsCondition,
-        reasoning: r.reasoning,
-      })),
-      qualitative_resolutions: [],
-      escalation_acknowledgements: escalationAcks as string[],
-      reviewer_id: state.hitl2SignerId || "unknown",
-    });
-  }, [submitHitl1, ingredientDecisions, conditionalResolutions, escalationAcks, state.hitl2SignerId]);
-
-  // ── HITL-2 제출 핸들러 (모달 1단계) ────────────────────────────────
-  const handleHitl2Confirm = useCallback(() => {
-    setShowHitl2Modal(true);
-  }, [setShowHitl2Modal]);
-
-  // ── HITL-2 확정 실행 (모달 확인 2단계) ─────────────────────────────
-  const handleHitl2ConfirmExecute = useCallback(async () => {
-    setShowHitl2Modal(false);
-    if (!state.userVerdict) return;
-    await confirmHitl2Result({
-      user_verdict: state.userVerdict,
-      final_reason: state.hitl2FinalReason,
-      selected_citations: [...state.hitl2SelectedCitations],
-      signer_id: state.hitl2SignerId,
-      signed_at: new Date().toISOString(),
-    });
-  }, [confirmHitl2Result, state.userVerdict, state.hitl2FinalReason, state.hitl2SelectedCitations, state.hitl2SignerId]);
-
-  // ── canConfirm (레거시 v1용) ───────────────────────────────────────
-  const canConfirmLegacy = useMemo(() => {
-    if (!source) return false;
-    if (state.userVerdict === null) return false;
-    if (
-      state.userVerdict !== source.verdict &&
-      state.userVerdict !== "보류" &&
-      state.editReason.trim().length === 0
-    ) {
-      return false;
-    }
-    return true;
-  }, [source, state.userVerdict, state.editReason]);
-
-  // ── canConfirm (HITL-2 v2용) ──────────────────────────────────────
-  const canConfirmHitl2 = useMemo(() => {
-    if (!state.userVerdict) return false;
-    // AI 판정과 다른 판정을 선택한 경우에만 사유 입력 필요
-    const aiVerdict = source?.verdict;
-    if (state.userVerdict !== aiVerdict && state.hitl2FinalReason.trim().length < 10) return false;
-    return true;
-  }, [state.userVerdict, state.hitl2FinalReason, source]);
-
-  // ── 미확인 원재료 → UnidentifiedIngredientReview 용 변환 ──────────
-  const unidentifiedIngredients = useMemo(() => {
-    if (!internal?.aggregation?.results) return [];
-    return internal.aggregation.results
-      .filter((r) => r.verdict === "unidentified")
-      .map((r) => ({
-        name: r.ingredient.name,
-        searched_as: r.ingredient.name,
-        lookup_error: r.match_method === null ? "NOT_FOUND" : null,
-      }));
-  }, [internal]);
-
-  // ── 조건부 원재료 → ConditionalResolutionPanel 용 변환 ──────────
-  const conditionalIngredients = useMemo(() => {
-    if (!internal?.conditional_evaluations) return [];
-    return internal.conditional_evaluations.map((ce) => ({
-      name: ce.ingredient_name,
-      restrictionCondition: ce.condition_description,
-      ediblePartHint: undefined,
-    }));
-  }, [internal]);
-
-  // ── 에스컬레이션 → EscalationAckList 용 변환 ─────────────────────
-  const escalationItems = useMemo((): EscalationItem[] => {
-    if (!internal?.escalations) return [];
-    return internal.escalations.map((e) => ({
-      code: e.module_id,
-      message: e.reason,
-      severity: (e.trigger_type === "error" ? "error" : e.trigger_type === "warning" ? "warning" : "info") as "info" | "warning" | "error",
-    }));
-  }, [internal]);
 
   // ─ 로딩 ────────────────────────────────────────
   if (state.fetchStatus === "loading" || state.fetchStatus === "idle") {
@@ -243,20 +137,30 @@ export default function ImportCheckPage({ caseId }: Props) {
             )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={handleRerun}
-          disabled={rerunning}
-          className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-        >
-          {rerunning ? "재분석 중..." : "F1 재분석"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleDownloadPdf}
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-medium bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+          >
+            PDF
+          </button>
+          <button
+            type="button"
+            onClick={handleRerun}
+            disabled={rerunning}
+            className="inline-flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+            style={{ background: "var(--ds-color-primary, #2563eb)" }}
+          >
+            {rerunning ? "재분석 중..." : "F1 재분석"}
+          </button>
+        </div>
       </div>
     </header>
   );
 
   // ═══════════════════════════════════════════════════════════════════
-  // v2 경로: pipeline_version === "v2" — HITL 단계별 조건부 렌더
+  // v2 경로 — 상태 무관하게 결과 표시
   // ═══════════════════════════════════════════════════════════════════
   if (isV2) {
     return (
@@ -270,111 +174,16 @@ export default function ImportCheckPage({ caseId }: Props) {
           </div>
         )}
 
-        {/* ── HITL-0: F0 completed / approved → F0ApprovalPanel ── */}
-        {currentStatus === "completed" && (
-          <F0ApprovalPanel
-            caseId={caseId}
-            parsedResult={source as unknown as Record<string, unknown>}
-            onEdit={editF0}
-            onApprove={(sig) => approveF0("current-user", sig)}
-            isApproved={true}
-          />
-        )}
-
-        {/* ── F1 pending / running → 로딩 스피너 ── */}
+        {/* 로딩 */}
         {(currentStatus === "pending" || currentStatus === "running") && (
           <div className="flex items-center justify-center gap-3 rounded-lg border border-gray-200 bg-gray-50 py-12">
-            <span
-              data-testid="f1-loading-spinner"
-              className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600"
-            />
-            <span className="text-sm text-gray-600">
-              {currentStatus === "running" ? "F1 분석 실행 중..." : "F1 분석 대기 중..."}
-            </span>
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+            <span className="text-sm text-gray-600">F1 분석 실행 중...</span>
           </div>
         )}
 
-        {/* ── HITL-1: needs_review ── */}
-        {currentStatus === "needs_review" && (
-          <div data-testid="hitl1-panel" className="space-y-4">
-            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 flex items-center justify-between gap-3">
-              <span><b>HITL-1:</b> 아래 항목을 검토하고 결정을 제출하세요.</span>
-              <button
-                type="button"
-                onClick={handleRerun}
-                disabled={rerunning}
-                className="shrink-0 rounded border border-amber-400 bg-white px-3 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
-              >
-                {rerunning ? "재분석 중..." : "F1 재분석"}
-              </button>
-            </div>
-            {rerunError && (
-              <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
-                {rerunError}
-              </div>
-            )}
-
-            {internal?.forbidden_hits && internal.forbidden_hits.length > 0 && (
-              <ForbiddenAlert hits={internal.forbidden_hits} />
-            )}
-
-            {internal?.aggregation && (
-              <AggregationSummary aggregation={internal.aggregation} />
-            )}
-
-            {internal?.aggregation && (
-              <IngredientMatchTable results={internal.aggregation.results} />
-            )}
-
-            <StandardsSummary checks={source.standards_check} />
-
-            {internal?.law_citations && internal.law_citations.length > 0 && (
-              <LawCitationList citations={internal.law_citations} />
-            )}
-
-            {unidentifiedIngredients.length > 0 && (
-              <UnidentifiedIngredientReview
-                caseId={caseId}
-                ingredients={unidentifiedIngredients}
-                onChange={setIngredientDecisions}
-                disabled={false}
-              />
-            )}
-
-            {conditionalIngredients.length > 0 && (
-              <ConditionalResolutionPanel
-                caseId={caseId}
-                ingredients={conditionalIngredients}
-                onChange={setConditionalResolutions}
-                disabled={false}
-              />
-            )}
-
-            {escalationItems.length > 0 && (
-              <EscalationAckList
-                caseId={caseId}
-                items={escalationItems}
-                onChange={setEscalationAcks}
-                disabled={false}
-              />
-            )}
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                data-testid="hitl1-submit-btn"
-                onClick={handleHitl1Submit}
-                disabled={state.isSaving}
-                className="rounded bg-blue-600 px-5 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-              >
-                {state.isSaving ? "제출 중..." : "HITL-1 결정 제출"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ── HITL-2: waiting_review ── */}
-        {currentStatus === "waiting_review" && (
+        {/* 결과 — 상태 무관하게 항상 표시 */}
+        {source && (
           <div className="space-y-4">
             {internal?.forbidden_hits && internal.forbidden_hits.length > 0 && (
               <ForbiddenAlert hits={internal.forbidden_hits} />
@@ -396,56 +205,12 @@ export default function ImportCheckPage({ caseId }: Props) {
 
             <VerdictPanel
               aiVerdict={source.verdict}
-              failReasons={source.fail_reasons}
-              userVerdict={state.userVerdict}
+              failReasons={[]}
+              userVerdict={state.userVerdict ?? source.verdict}
               editReason={state.editReason}
               onChangeVerdict={setUserVerdict}
               onChangeReason={setEditReason}
               stepStatus={currentStatus}
-              lawRefs={internal?.law_refs ?? []}
-              selectedCitations={state.hitl2SelectedCitations}
-              onToggleCitation={toggleHitl2Citation}
-              finalReason={state.hitl2FinalReason}
-              onChangeFinalReason={setHitl2FinalReason}
-              signerId={state.hitl2SignerId}
-              onChangeSignerId={setHitl2SignerId}
-            />
-
-            <ConfirmActions
-              canConfirm={canConfirmHitl2}
-              isConfirmed={isConfirmed}
-              isSaving={state.isSaving}
-              isConfirming={state.isConfirming}
-              onSave={saveEdit}
-              onConfirm={handleHitl2Confirm}
-              onDownloadPdf={handleDownloadPdf}
-            />
-          </div>
-        )}
-
-        {/* ── confirmed / locked → readonly 배너 ── */}
-        {(currentStatus === "confirmed" || currentStatus === "locked") && source && (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">
-              ✅ 판정이 확정되었습니다. 수정이 불가합니다.
-            </div>
-            <VerdictPanel
-              aiVerdict={source.verdict}
-              failReasons={source.fail_reasons}
-              userVerdict={state.userVerdict}
-              editReason={state.editReason}
-              onChangeVerdict={setUserVerdict}
-              onChangeReason={setEditReason}
-              stepStatus={currentStatus}
-            />
-            <ConfirmActions
-              canConfirm={false}
-              isConfirmed={true}
-              isSaving={false}
-              isConfirming={false}
-              onSave={() => {}}
-              onConfirm={() => {}}
-              onDownloadPdf={handleDownloadPdf}
             />
           </div>
         )}
@@ -496,7 +261,7 @@ export default function ImportCheckPage({ caseId }: Props) {
       />
 
       <ConfirmActions
-        canConfirm={canConfirmLegacy}
+        canConfirm={true}
         isConfirmed={isConfirmed}
         isSaving={state.isSaving}
         isConfirming={state.isConfirming}

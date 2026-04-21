@@ -288,17 +288,34 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
 
     # ── pipeline_status: warnings 에서 내부 신호 추출 ─────────
     pipeline_status = "ok"
-    filtered_warnings: list[str] = []
+    user_warnings: list[str] = []
+    # 내부 코드 접두사 — 사용자에게 노출하지 않음
+    _INTERNAL_PREFIXES = ("pipeline_status:", "step_c_review:", "step_b_unidentified:", "step_a_api_error:")
     for w in out.warnings:
         if w.startswith("pipeline_status:"):
             pipeline_status = w.split(":", 1)[1]
+        elif any(w.startswith(p) for p in _INTERNAL_PREFIXES):
+            continue  # 내부 코드 스킵
         else:
-            filtered_warnings.append(w)
+            user_warnings.append(w)
 
-    # ── fail_reasons: filtered_warnings + step A forbidden_hits ──
+    # ── fail_reasons: LLM 법령 요약이 있으면 그걸 사용, 없으면 경고 표시 ──
     fail_reasons: list[str] = []
-    for w in filtered_warnings:
-        fail_reasons.append(w)
+    # LLM 요약이 있으면 그것을 판정 근거로 사용
+    llm_summary = ""
+    for law in out.evidence_laws:
+        if law.get("namespace") == "llm_summary":
+            llm_summary = law.get("text", "")
+            break
+    if llm_summary:
+        # LLM 요약을 줄 단위로 분리하여 fail_reasons에 추가
+        for line in llm_summary.strip().splitlines():
+            line = line.strip()
+            if line and len(line) > 5:
+                fail_reasons.append(line)
+    else:
+        for w in user_warnings:
+            fail_reasons.append(w)
     if step_a_data:
         for h in step_a_data.get("forbidden_hits", []):
             reason = h.get("reason") or h.get("matched_name", "")
@@ -450,11 +467,11 @@ def _f1output_to_pipeline_result(out: F1Output) -> dict:
         seen_refs.add(src)
         internal_law_refs.append({"law_source": src, "law_article": None})
 
-    # escalations: filtered_warnings 를 EscalationDetail 형태로 파싱
+    # escalations: user_warnings 를 EscalationDetail 형태로 파싱
     # 예: "step_a_api_error:대두:TIMEOUT" → module_id="step_a_api_error", reason=전체 문자열
-    # pipeline_status:* 내부 신호는 filtered_warnings 에서 이미 제거됨
+    # pipeline_status:* 내부 신호는 user_warnings 에서 이미 제거됨
     internal_escalations: list[dict] = []
-    for w in filtered_warnings:
+    for w in user_warnings:
         module_id = w.split(":")[0] if ":" in w else w
         internal_escalations.append(
             {
@@ -733,6 +750,40 @@ def run_feature1_endpoint(
         # 옵션 B: f1_수정_요청_사항 §7 "async def 엔드포인트 금지" 룰 준수.
         # 엔드포인트는 sync 로 유지하고, async 서비스는 asyncio.run() 으로 호출.
         if should_use_new_pipeline(case_id):
+            # ── measured_values 생성 (F0 내용량 × 배합비율) ────────
+            measured_values = None
+            try:
+                f0_parsed = _fetch_f0_parsed_result(case_id)
+                if f0_parsed:
+                    content_vol = f0_parsed.get("basic_info", {}).get("content_volume", "")
+                    # "330mL" → 330.0 (mL 단위)
+                    import re as _re
+                    vol_match = _re.search(r"([\d.]+)\s*(ml|mL|g|kg|L)", content_vol or "")
+                    if vol_match:
+                        from models.f1_types import MeasuredValue
+                        vol_value = float(vol_match.group(1))
+                        vol_unit = vol_match.group(2).lower()
+                        # g/kg 단위로 변환
+                        if vol_unit in ("ml", "l"):
+                            vol_unit = "ml" if vol_unit == "ml" else "ml"
+                            if vol_unit == "l":
+                                vol_value *= 1000
+                        measured_values = {}
+                        for ing in ingredients:
+                            pct = getattr(ing, "percentage", None)
+                            if pct is not None and pct > 0:
+                                # 배합비율(%) × 내용량 → mg/kg 환산
+                                actual_mg_per_kg = pct * 10000 / 100  # pct% of 1kg = pct*10000 mg/kg...
+                                # 간단히: pct% → g/kg = pct * 10
+                                actual_g_per_kg = pct / 100  # 비율을 분율로
+                                name_key = (getattr(ing, "matched_name_ko", "") or "").strip() or ing.name
+                                measured_values[name_key] = MeasuredValue(
+                                    value=round(pct / 100 * vol_value, 4),
+                                    unit=vol_unit,
+                                )
+            except Exception:
+                measured_values = None
+
             # ── 신규 v2 파이프라인 경로 ──────────────────────────────
             v2_out: F1Output = asyncio.run(
                 run_feature1_v2(
@@ -740,6 +791,7 @@ def run_feature1_endpoint(
                     food_type=resolved_food_type,
                     food_type_hierarchy=resolved_food_type_hierarchy,
                     process_conditions=process_conditions or ProcessConditions(),
+                    measured_values=measured_values,
                 )
             )
             ai_result = _f1output_to_pipeline_result(v2_out)

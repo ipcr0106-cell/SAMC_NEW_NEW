@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState, useEffect } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   Loader2,
   Play,
@@ -166,7 +166,9 @@ function MiniBarSection({
 export default function UploadPage() {
   const router = useRouter();
   const params = useParams();
+  const searchParams = useSearchParams();
   const caseId = params?.id as string;
+  const rerunFrom = searchParams?.get("rerun_from");
 
   const [view, setView] = useState<PageView>("upload");
   const [caseName, setCaseName] = useState<string>("");
@@ -266,6 +268,33 @@ export default function UploadPage() {
     };
     load();
   }, [caseId]);
+
+  // rerun_from 파라미터로 후속 기능 재실행
+  useEffect(() => {
+    if (!rerunFrom || initialLoading) return;
+
+    const features = ["f1", "f2", "f3", "f4", "f5"];
+    const startIdx = features.indexOf(rerunFrom);
+    if (startIdx < 0) return;
+
+    (async () => {
+      setView("running");
+      try {
+        for (const f of features.slice(startIdx)) {
+          try {
+            if (f === "f1") { await runFeature1(caseId); const r = await getFeature1(caseId); setF1Data(r); }
+            if (f === "f2") { await runFeature2(caseId); const r = await getFeature2(caseId).catch(() => null); if (r) setF2Data(r); }
+            if (f === "f3") { await runFeature3(caseId); const r = await getFeature3(caseId).catch(() => null); if (r) setF3Data(r); }
+            if (f === "f4") { await runFeature4(caseId); const r = await getFeature4(caseId).catch(() => null); if (r) setF4Data(r); }
+            if (f === "f5") { await runFeature5(caseId); }
+          } catch (e) { console.error(`[Rerun ${f}]`, e); }
+        }
+      } finally {
+        router.replace(`/cases/${caseId}/upload`);
+        setView("result");
+      }
+    })();
+  }, [rerunFrom, initialLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── 파일 업로드 ─────────────────────────────────────
   const handleFileSelect = useCallback(async (docType: string, file: File) => {

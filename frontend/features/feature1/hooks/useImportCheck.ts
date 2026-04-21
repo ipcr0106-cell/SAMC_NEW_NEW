@@ -324,6 +324,7 @@ export function useImportCheck(caseId: string) {
 
   return {
     state,
+    applyResponse,
     toggleLawRef,
     setUserVerdict,
     setEditReason,
