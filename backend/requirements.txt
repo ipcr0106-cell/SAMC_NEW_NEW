@@ -29,3 +29,5 @@ pdfplumber==0.11.4
 tqdm>=4.66.0
 # F5: Voyage-3 임베딩
 voyageai>=0.3.0
+# F1: Step D PostgreSQL 직접 연결 (f1_law_articles 키워드 검색)
+asyncpg>=0.29.0

@@ -1116,7 +1116,7 @@ export default function UploadPage() {
       {/* 본문 */}
       <div className="mt-4 flex gap-6 items-start" style={{ minHeight: "calc(100vh - 280px)" }}>
         {/* 좌측: 서류 업로드 */}
-        <div className="w-[37%] shrink-0 flex flex-col gap-4">
+        <div className="w-[37%] shrink-0 flex flex-col gap-4 sticky top-4 max-h-[calc(100vh-100px)] overflow-y-auto">
           <Card padding="lg">
             <DocumentUploadGrid
               onFileSelect={handleFileSelect}
