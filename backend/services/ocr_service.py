@@ -110,10 +110,16 @@ async def _extract_from_pdf(file_bytes: bytes, doc_type: str = "") -> str:
 
     for page_num in range(len(doc)):
         page = doc[page_num]
-        text = page.get_text("text").strip()
 
-        # 제조공정도: 텍스트가 있어도 흐름도 구조가 누락될 수 있음
-        # → 텍스트가 300자 미만이면 Vision OCR로 재처리
+        # 제조공정도: 텍스트 레이어 대신 항상 Vision OCR 사용
+        # PyMuPDF 좌표 정렬은 PDF 내부 생성 순서에 따라 시각적 위치와 불일치할 수 있음
+        # Vision OCR은 이미지를 직접 보고 위→아래 순서로 공정 단계를 추출하여 신뢰성이 높음
+        if doc_type == "process":
+            image_pages.append(page_num)
+            continue
+        else:
+            text = page.get_text("text").strip()
+
         # 라벨: 이미지 위주이므로 텍스트 레이어가 있어도 Vision OCR 우선 사용
         if doc_type == "process" and text and len(text) < 300:
             logger.info(f"공정도 페이지 {page_num+1}: 텍스트 레이어({len(text)}자) 너무 짧음 → Vision OCR 재처리")

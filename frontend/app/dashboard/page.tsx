@@ -4,42 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import {
-  LogOut, User as UserIcon, Database, ArrowRight, FileSearch, Clock,
+  LogOut, User as UserIcon, ArrowRight, Database,
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { createCase } from "@/lib/api";
-
-// ── CountUp ───────────────────────────────────────────────
-function CountUp({
-  target, prefix = "", suffix = "", duration = 1400, delay = 0, active,
-}: {
-  target: number; prefix?: string; suffix?: string;
-  duration?: number; delay?: number; active: boolean;
-}) {
-  const [display, setDisplay] = useState(0);
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    if (!active) return;
-    const timer = setTimeout(() => {
-      const start = performance.now();
-      const animate = (now: number) => {
-        const elapsed = now - start;
-        const p = Math.min(elapsed / duration, 1);
-        const ease = p === 1 ? 1 : 1 - Math.pow(2, -10 * p);
-        setDisplay(Math.round(ease * target));
-        if (p < 1) rafRef.current = requestAnimationFrame(animate);
-      };
-      rafRef.current = requestAnimationFrame(animate);
-    }, delay);
-    return () => {
-      clearTimeout(timer);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [active, target, duration, delay]);
-
-  return <>{prefix}{display}{suffix}</>;
-}
 
 // ── 메인 ─────────────────────────────────────────────────
 export default function DashboardPage() {
@@ -48,8 +16,6 @@ export default function DashboardPage() {
   const [loading, setLoading]         = useState(true);
   const [creatingCase, setCreatingCase] = useState(false);
   const creatingCaseRef               = useRef(false);
-  const [lawCount, setLawCount]       = useState<number | null>(null);
-  const [statsActive, setStatsActive] = useState(false);
   const [heroVisible, setHeroVisible] = useState(false);
 
   useEffect(() => {
@@ -59,18 +25,10 @@ export default function DashboardPage() {
       setUser(session.user);
       setLoading(false);
       setTimeout(() => setHeroVisible(true), 80);
-      setTimeout(() => setStatsActive(true), 500);
     };
     init();
   }, [router]);
 
-  useEffect(() => {
-    const BASE = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1").replace("/api/v1", "");
-    fetch(`${BASE}/admin/law-update/laws`)
-      .then(r => r.ok ? r.json() : null)
-      .then(d => { if (d?.laws) setLawCount(d.laws.length); })
-      .catch(() => {});
-  }, []);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -105,11 +63,6 @@ export default function DashboardPage() {
     );
   }
 
-  const stats = [
-    { label: "분석 단계",       target: 4,            suffix: "단계", desc: "F0 → F5 자동 파이프라인",   icon: FileSearch, iconBg: "rgba(0,106,245,0.08)",  iconColor: "var(--ds-color-primary)" },
-    { label: "평균 처리",       target: 60, prefix:"~", suffix: "초", desc: "서류 1건 기준",             icon: Clock,       iconBg: "rgba(34,197,94,0.1)",    iconColor: "var(--ds-color-success)" },
-    { label: "법령 데이터베이스", target: lawCount ?? 0, suffix: "개", desc: "식품·표시·첨가물 법령",    icon: Database,    iconBg: "rgba(245,158,11,0.10)",  iconColor: "#F59E0B", pending: lawCount === null },
-  ];
 
   return (
     <>
@@ -137,7 +90,6 @@ export default function DashboardPage() {
         .hero-title { animation: _fadeUp  0.75s cubic-bezier(.16,1,.3,1) both; }
         .hero-sub   { animation: _fadeUp  0.75s cubic-bezier(.16,1,.3,1) both; }
         .hero-btn   { animation: _scaleUp 0.6s  cubic-bezier(.16,1,.3,1) both; }
-        .stat-item  { animation: _fadeUp  0.65s cubic-bezier(.16,1,.3,1) both; }
         .cases-in   { animation: _fadeUp  0.55s cubic-bezier(.16,1,.3,1) both; }
         .btn-start {
           transition: box-shadow .22s, transform .18s, opacity .18s;
@@ -209,7 +161,7 @@ export default function DashboardPage() {
         </nav>
 
         {/* ── 히어로 ── */}
-        <section className="relative z-10 max-w-[1280px] mx-auto px-8 pt-[136px] pb-16 text-center">
+        <section className="relative z-10 max-w-[1280px] mx-auto px-8 pt-[136px] pb-[300px] text-center">
 
           {/* 배지 */}
           <div className="hero-badge inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[12px] font-semibold mb-9"
@@ -253,39 +205,6 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* 통계 카드 */}
-          <div className="grid grid-cols-3 gap-4 w-full max-w-[860px] mx-auto">
-            {stats.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <div key={s.label} className="stat-item rounded-2xl p-6 text-left"
-                  style={{
-                    animationDelay: heroVisible ? `${480 + i*90}ms` : "9999s",
-                    background: "var(--ds-color-surface)",
-                    border: "1px solid var(--ds-color-border-subtle)",
-                    boxShadow: "0 2px 14px rgba(0,0,0,0.05)",
-                  }}>
-                  {/* 아이콘 + 라벨 */}
-                  <div className="flex items-center gap-2.5 mb-5">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: s.iconBg }}>
-                      <Icon size={16} style={{ color: s.iconColor }} />
-                    </div>
-                    <span className="text-[13px] font-medium" style={{ color: "var(--ds-color-text-secondary)" }}>{s.label}</span>
-                  </div>
-                  {/* 숫자 */}
-                  <div className="text-[34px] font-extrabold tabular-nums leading-none mb-2"
-                    style={{ color: "var(--ds-color-text-heading)" }}>
-                    {s.pending
-                      ? <span style={{ color: "var(--ds-color-text-tertiary)", fontSize: "22px" }}>—</span>
-                      : <CountUp target={s.target} prefix={s.prefix} suffix={s.suffix} active={statsActive} delay={i*110} />}
-                  </div>
-                  {/* 설명 */}
-                  <div className="text-[12px]" style={{ color: "var(--ds-color-text-tertiary)" }}>{s.desc}</div>
-                </div>
-              );
-            })}
-          </div>
         </section>
 
         {/* ── 푸터 ── */}

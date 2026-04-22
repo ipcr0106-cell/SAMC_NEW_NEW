@@ -75,8 +75,9 @@ def _fetch_pipeline(case_id: str, step_key: str) -> dict | None:
         rows = r.json()
         if rows:
             return rows[0].get("final_result") or rows[0].get("ai_result")
-    except Exception:
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[F3] _fetch_pipeline(step_key={step_key}) 실패: {e}")
     return None
 
 

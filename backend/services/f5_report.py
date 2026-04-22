@@ -81,6 +81,16 @@ SEVERITY_LABELS: Dict[str, str] = {
     "info":    "정보",
 }
 
+# 빨간색으로 강조할 판정 키워드
+RED_WORDS: frozenset = frozenset({"부적합", "확인필요", "불일치"})
+
+
+def _pdf_red_word(text: str) -> str:
+    """판정 키워드면 reportlab 빨간색 태그로 감쌈."""
+    if text in RED_WORDS:
+        return f'<font color="#CC0000"><b>{text}</b></font>'
+    return text
+
 
 def to_safe_string(value: Any) -> str:
     if value is None:
@@ -243,12 +253,19 @@ def generate_docx(step_record: Dict[str, Any]) -> Tuple[bytes, str]:
 
     _docx_add_heading(doc, "항목별 교차검증 결과")
     if data["items"]:
-        tbl = doc.add_table(rows=1, cols=5)
+        # 법령 근거 열 제거 → 4열 구성
+        tbl = doc.add_table(rows=1, cols=4)
         tbl.style = "Table Grid"
+        tbl.autofit = False
+
+        # 열 너비: 항목(3cm), 1차 판정(2.5cm), AI 교차(2.5cm), 검토 의견(8.5cm)
+        COL_WIDTHS = [Cm(3), Cm(2.5), Cm(2.5), Cm(8.5)]
+
         hdr_cells = tbl.rows[0].cells
-        headers = ["항목", "1차 판정", "AI 교차", "검토 의견", "법령 근거"]
+        headers = ["항목", "1차 판정", "AI 교차", "검토 의견"]
         for idx, h in enumerate(headers):
             hdr_cells[idx].text = ""
+            hdr_cells[idx].width = COL_WIDTHS[idx]
             _docx_set_font(hdr_cells[idx].paragraphs[0].add_run(h), size=10, bold=True)
 
         for item in data["items"]:
@@ -262,12 +279,15 @@ def generate_docx(step_record: Dict[str, Any]) -> Tuple[bytes, str]:
             cross_kr = CROSS_LABELS.get(cross, cross or "-")
 
             note = to_safe_string(item.get("note"))
-            law_ref = to_safe_string(item.get("law_ref"))
 
-            values = [field, status_kr, cross_kr, note, law_ref]
+            # 법령 근거 제거, 검토 의견 열 확장
+            values = [field, status_kr, cross_kr, note]
             for idx, v in enumerate(values):
                 row[idx].text = ""
-                _docx_set_font(row[idx].paragraphs[0].add_run(v), size=9)
+                row[idx].width = COL_WIDTHS[idx]
+                # 1차 판정(1), AI 교차(2) 열의 경고 키워드는 빨간색으로 표시
+                red = (204, 0, 0) if (idx in (1, 2) and v in RED_WORDS) else None
+                _docx_set_font(row[idx].paragraphs[0].add_run(v), size=9, bold=(red is not None), color=red)
     else:
         _docx_add_text(doc, "(검토 항목 없음)", size=10)
 
@@ -307,6 +327,9 @@ def generate_docx(step_record: Dict[str, Any]) -> Tuple[bytes, str]:
 # ════════════════════════════════════════════════════════════
 
 _KOREAN_FONT_CANDIDATES: List[Path] = [
+    # 백엔드 동봉 폰트 (backend/fonts/ 디렉토리)
+    Path(__file__).parent.parent / "fonts" / "NanumGothic.ttf",
+    Path(__file__).parent.parent / "fonts" / "malgun.ttf",
     # Windows
     Path("C:/Windows/Fonts/malgun.ttf"),
     Path("C:/Windows/Fonts/malgunbd.ttf"),
@@ -316,7 +339,9 @@ _KOREAN_FONT_CANDIDATES: List[Path] = [
     Path("/System/Library/Fonts/AppleSDGothicNeo.ttc"),
     # Linux
     Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
+    Path("/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf"),
     Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+    Path("/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc"),
 ]
 
 
@@ -504,6 +529,17 @@ def generate_pdf(step_record: Dict[str, Any]) -> Tuple[bytes, str]:
     # ── 3. 항목별 교차검증 결과 ──
     story.append(Paragraph("■ 항목별 교차검증 결과", styles["KRHeading"]))
     if data["items"]:
+        # 법령 근거 열 없이 4열 테이블로 구성
+        # 열 너비: A4 usable = 174mm → 항목 28 / 1차판정 22 / AI교차 22 / 검토의견 102
+        col_widths_pdf = [28 * mm, 22 * mm, 22 * mm, 102 * mm]
+
+        tbl_data = [[
+            Paragraph("<b>항목</b>", styles["KRSmall"]),
+            Paragraph("<b>1차 판정</b>", styles["KRSmall"]),
+            Paragraph("<b>AI 교차</b>", styles["KRSmall"]),
+            Paragraph("<b>검토 의견</b>", styles["KRSmall"]),
+        ]]
+
         for item in data["items"]:
             field = to_safe_string(item.get("field")) or "-"
             status_kr = STATUS_LABELS.get(item.get("status", ""), item.get("status", "")) or "-"
@@ -512,42 +548,35 @@ def generate_pdf(step_record: Dict[str, Any]) -> Tuple[bytes, str]:
                 v2.get("cross_result", ""), v2.get("cross_result", "") or "-"
             )
             note = to_safe_string(item.get("note"))
-            law_ref = to_safe_string(item.get("law_ref"))
             ai_note = to_safe_string(v2.get("ai_note"))
 
-            # 항목 헤더
-            header_text = (
-                f"<b>■ {_escape_for_paragraph(field)}</b>   "
-                f"[1차: {_escape_for_paragraph(status_kr)}]   "
-                f"[AI: {_escape_for_paragraph(cross_kr)}]"
-            )
-            item_block = [Paragraph(header_text, styles["KRItemTitle"])]
-
+            # 검토 의견 셀: note + ai_note 합산 (넓어진 공간 활용)
+            note_parts = []
             if note:
-                item_block.append(
-                    Paragraph(
-                        f"· <b>검토 의견</b>: {_escape_for_paragraph(note)}",
-                        styles["KRSmall"],
-                    )
-                )
+                note_parts.append(_escape_for_paragraph(note))
             if ai_note:
-                item_block.append(
-                    Paragraph(
-                        f"· <b>AI 교차검증</b>: {_escape_for_paragraph(ai_note)}",
-                        styles["KRSmall"],
-                    )
-                )
-            if law_ref:
-                item_block.append(
-                    Paragraph(
-                        f"· <b>법령 근거</b>: {_escape_for_paragraph(law_ref)}",
-                        styles["KRSmall"],
-                    )
-                )
+                note_parts.append(f"<i>[AI] {_escape_for_paragraph(ai_note)}</i>")
+            note_combined = "<br/>".join(note_parts) or "-"
 
-            # 각 항목을 하나의 덩어리로 - 페이지가 쪼개지면 같이 넘김
-            story.append(KeepTogether(item_block))
-            story.append(Spacer(1, 3 * mm))
+            tbl_data.append([
+                Paragraph(_escape_for_paragraph(field), styles["KRSmall"]),
+                Paragraph(_pdf_red_word(_escape_for_paragraph(status_kr)), styles["KRSmall"]),
+                Paragraph(_pdf_red_word(_escape_for_paragraph(cross_kr)), styles["KRSmall"]),
+                Paragraph(note_combined, styles["KRSmall"]),
+            ])
+
+        items_tbl = Table(tbl_data, colWidths=col_widths_pdf, repeatRows=1)
+        items_tbl.setStyle(TableStyle([
+            ("BOX",        (0, 0), (-1, -1), 0.5, HexColor("#C8C8C8")),
+            ("INNERGRID",  (0, 0), (-1, -1), 0.3, HexColor("#DCDCDC")),
+            ("BACKGROUND", (0, 0), (-1,  0), HexColor("#F0F0F0")),  # 헤더 배경
+            ("VALIGN",     (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING",  (0, 0), (-1, -1), 5),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 5),
+            ("TOPPADDING",   (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
+        ]))
+        story.append(items_tbl)
     else:
         story.append(Paragraph("(검토 항목 없음)", styles["KRBody"]))
 

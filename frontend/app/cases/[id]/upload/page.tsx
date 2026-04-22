@@ -215,6 +215,7 @@ export default function UploadPage() {
 
   // F5 다운로드
   const [downloading, setDownloading] = useState(false);
+  const [currentDraft, setCurrentDraft] = useState<Record<string, string>>({});
 
   // 초기 로딩
   const [initialLoading, setInitialLoading] = useState(true);
@@ -621,18 +622,39 @@ export default function UploadPage() {
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
       const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
-      const headers: Record<string, string> = {};
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/5/report?format=${format}`, { headers });
-      if (!res.ok) throw new Error("다운로드 실패");
+      // 현재 편집 중인 draft를 함께 전송 → 실시간 반영
+      const body = JSON.stringify({
+        format,
+        draft: Object.keys(currentDraft).length > 0 ? currentDraft : undefined,
+      });
+      const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/5/report`, {
+        method: "POST",
+        headers,
+        body,
+      });
+      if (!res.ok) {
+        let detail = "다운로드 실패";
+        try { const err = await res.json(); if (err?.detail) detail = err.detail; } catch { /* */ }
+        throw new Error(detail);
+      }
       const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition");
+      let filename = `한글표시사항_${caseName || caseId}.${format}`;
+      if (disposition) {
+        const m = disposition.match(/filename\*=UTF-8''([^;]+)/i) || disposition.match(/filename="([^"]+)"/i);
+        if (m) filename = decodeURIComponent(m[1]);
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `한글표시사항_${caseName || caseId}.${format}`;
+      a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch { alert("다운로드 실패. F5 분석이 완료되었는지 확인하세요."); }
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "다운로드 실패. F5 분석이 완료되었는지 확인하세요.");
+    }
     finally { setDownloading(false); }
   };
 
@@ -837,7 +859,7 @@ export default function UploadPage() {
           </div>
 
           {/* F5 본문 */}
-          <LabelDraftPage />
+          <LabelDraftPage onDraftChange={setCurrentDraft} />
         </div>
 
         {/* ── 우측 미니바 ── */}

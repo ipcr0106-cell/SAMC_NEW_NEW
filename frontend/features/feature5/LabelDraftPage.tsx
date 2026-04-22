@@ -284,7 +284,11 @@ function prettifyLawContent(raw: string): string {
 
 // ── 메인 컴포넌트 ─────────────────────────────────────────────────────────────
 
-export default function LabelPage() {
+interface LabelPageProps {
+  onDraftChange?: (draft: Record<string, string>) => void;
+}
+
+export default function LabelPage({ onDraftChange }: LabelPageProps = {}) {
   const params = useParams();
   const caseId = params.id as string;
 
@@ -338,6 +342,13 @@ export default function LabelPage() {
       setEditedDraft({ ...normalized });
     }
   }, [result]);
+
+  // editedDraft가 바뀔 때마다 부모에게 알려서 다운로드에 실시간 반영
+  useEffect(() => {
+    if (Object.keys(editedDraft).length > 0) {
+      onDraftChange?.(editedDraft);
+    }
+  }, [editedDraft, onDraftChange]);
 
   useEffect(() => {
     if (!lawModal.isOpen) return;

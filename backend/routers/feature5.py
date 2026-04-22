@@ -37,6 +37,11 @@ class ConfirmRequest(BaseModel):
     draft: Optional[Dict[str, Any]] = None
 
 
+class ReportRequest(BaseModel):
+    format: str = "docx"
+    draft: Optional[Dict[str, Any]] = None  # 현재 편집 중인 draft (없으면 DB 값 사용)
+
+
 class LawSearchRequest(BaseModel):
     query: str
     match_count: int = 3
@@ -321,6 +326,73 @@ def download_report(
         )
     if not record.get("final_result"):
         record["final_result"] = record["ai_result"]
+
+    try:
+        if format == "docx":
+            content, filename = generate_docx(record)
+            media_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        else:
+            content, filename = generate_pdf(record)
+            media_type = "application/pdf"
+    except RuntimeError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"리포트 생성 실패: {e}")
+
+    quoted_name = quote(filename, safe="")
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"report.{format}\"; "
+            f"filename*=UTF-8''{quoted_name}"
+        )
+    }
+    return Response(content=content, media_type=media_type, headers=headers)
+
+
+@router.post("/report")
+def download_report_with_draft(case_id: str, body: ReportRequest):
+    """
+    현재 편집 중인 draft를 반영하여 리포트를 즉시 생성·다운로드.
+    body.draft 가 있으면 DB의 draft 대신 사용 (실시간 반영).
+    """
+    import re as _re
+    format = body.format
+    if not _re.match(r"^(docx|pdf)$", format):
+        raise HTTPException(status_code=400, detail="format은 docx 또는 pdf 여야 합니다.")
+
+    try:
+        res = (
+            get_supabase()
+            .table("pipeline_steps")
+            .select("*")
+            .eq("case_id", case_id)
+            .eq("step_key", STEP_KEY)
+            .single()
+            .execute()
+        )
+        record = res.data
+    except Exception:
+        raise HTTPException(status_code=404, detail="시안 데이터를 찾을 수 없습니다.")
+
+    if not record:
+        raise HTTPException(status_code=404, detail="시안 데이터를 찾을 수 없습니다.")
+
+    if not record.get("final_result") and not record.get("ai_result"):
+        raise HTTPException(
+            status_code=400,
+            detail="다운로드할 시안 데이터가 없습니다. F5 분석을 먼저 실행하세요.",
+        )
+    if not record.get("final_result"):
+        record["final_result"] = record["ai_result"]
+
+    # 프론트에서 편집 중인 draft를 덮어씌우기
+    if body.draft is not None:
+        final = dict(record.get("final_result") or {})
+        phase2 = dict(final.get("phase2") or {})
+        phase2["draft"] = body.draft
+        final["phase2"] = phase2
+        record = dict(record)
+        record["final_result"] = final
 
     try:
         if format == "docx":
