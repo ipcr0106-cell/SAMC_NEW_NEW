@@ -5,12 +5,24 @@
  * UI 내부 상태 타입을 정의.
  */
 
-import type { Feature1Result } from "@/types/pipeline";
+import type { Feature1Result, PipelineStepStatus, HITL1DecisionsRequest } from "@/types/pipeline";
+
+// API 조회 결과 상태 (Wave A Phase 1 — Phase 2에서 백엔드 실제 연동 예정)
+// "ok": 정상 조회, "partial": 일부 조회 실패, "error": 전체 조회 실패
+export type ApiQueryStatus = "ok" | "partial" | "error";
 
 // 백엔드 응답 래퍼 (ai_result + final_result + status)
+//
+// Wave 3 HITL:
+//   - "needs_review" 는 HITL-1 에스컬레이션 발생 시 부여.
+//   - "waiting_review" 는 HITL-1 처리 후 HITL-2 대기 시 부여.
+//   - 담당자가 HITL-2 confirm 후 "confirmed" / "locked" 로 전이.
 export interface Feature1Response {
   case_id: string;
-  status: "pending" | "running" | "waiting_review" | "completed" | "error";
+  /** code-review MEDIUM-6: PipelineStepStatus 로 교체 (Wave 4 P2) */
+  status: PipelineStepStatus;
+  /** API 조회 결과 상태 — Phase 2에서 백엔드가 실제로 내려줄 예정 (Wave A Phase 1) */
+  feature_status?: ApiQueryStatus;
   ai_result: (Feature1Result & { _internal?: Feature1Internal }) | null;
   final_result: (Feature1Result & { _internal?: Feature1Internal }) | null;
   edit_reason?: string | null;
@@ -31,6 +43,37 @@ export interface Feature1Internal {
   forbidden_hits: ForbiddenHitDetail[];
   escalations: EscalationDetail[];
   law_refs: { law_source: string; law_article?: string | null }[];
+  // ── Phase 4-B: RAG + HITL (backend/routers/feature1.py:_to_pipeline_result) ──
+  rag_verdict: RagVerdict | null;
+  rag_reasoning: string | null;
+  law_citations: LawCitation[];
+  conflict_status: ConflictStatus;
+  // ── Wave 4 P2-BE: 파이프라인 버전 분기 (optional) ──
+  pipeline_version?: "v1" | "v2" | null;
+}
+
+// ── RAG 판정 결과 (backend/models/f1_law_citation.py 1:1 미러링) ──
+export type RagVerdict =
+  | "permitted"
+  | "restricted"
+  | "prohibited"
+  | "unidentified"
+  | "error";
+
+export type ConflictStatus =
+  | "agreed"
+  | "conflict"
+  | "rag_supplemented"
+  | "rag_unavailable"
+  | "rag_skipped";
+
+export interface LawCitation {
+  chunk_id: string;
+  namespace: string;
+  regulation_id: string | null;
+  section_path: string | null;
+  text: string;
+  score: number;
 }
 
 export interface IngredientMatchDetail {
@@ -44,6 +87,7 @@ export interface IngredientMatchDetail {
   verdict: "permitted" | "restricted" | "prohibited" | "unidentified";
   match_method:
     | "exact_name"
+    | "code_normalize"
     | "ins_number"
     | "cas_number"
     | "scientific_name"
@@ -98,7 +142,17 @@ export interface Feature1UiState {
   isSaving: boolean;
   isConfirming: boolean;
   errorMessage: string | null;
+  // ── Wave 4 P2: HITL-2 확장 필드 ──
+  hitl2FinalReason: string;
+  hitl2SignerId: string;
+  hitl2SelectedCitations: Set<string>;
+  // ── Wave 4 P2: HITL-1 decisions 임시 상태 ──
+  hitl1Decisions: HITL1DecisionsRequest | null;
 }
+
+// HITL-1/2 완료 상태 판별 헬퍼
+export const isConfirmedStatus = (status: PipelineStepStatus | undefined): boolean =>
+  status === "completed" || status === "confirmed" || status === "locked";
 
 // 금지 카테고리 라벨
 export const FORBIDDEN_CATEGORY_LABEL: Record<ForbiddenHitDetail["category"], string> = {
@@ -120,4 +174,24 @@ export const CONDITION_TYPE_LABEL: Record<
   natural_synthetic: "천연/합성 구분",
   irradiation: "방사선 조사",
   ambiguous: "불명확 (담당자 확인 필요)",
+};
+
+// RAG conflict 상태 라벨 (UI 배지/패널용)
+export const CONFLICT_STATUS_LABEL: Record<ConflictStatus, string> = {
+  agreed: "DB·RAG 일치",
+  conflict: "DB·RAG 충돌",
+  rag_supplemented: "RAG 보완 판정",
+
+  rag_unavailable: "RAG 사용 불가",
+  rag_skipped: "RAG 생략",
+};
+
+// 법령 네임스페이스 라벨 (LawCitationList에서 사용)
+export const NAMESPACE_LABEL: Record<string, string> = {
+  식품공전: "식품공전",
+  주세법: "주세법",
+  건강기능식품: "건강기능식품법",
+  축산물: "축산물 위생관리법",
+  수입식품: "수입식품안전관리법",
+  default: "기타 법령",
 };

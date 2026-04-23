@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { getLawText } from "@/features/feature3/lib/law-texts";
 import { crossCheck, type CrossCheckResult } from "@/features/feature3/lib/cross-check";
 import { getIssuerInfo, buildDetailedReason } from "@/features/feature3/lib/ui-helpers";
+import { LawBaseDateBanner } from "@/features/feature3/admin/LawBaseDateBanner";
 
 // ── 타입 ─────────────────────────────────────
 
@@ -26,6 +27,17 @@ interface RequiredDoc {
   decision_axis?: "공통" | "식품유형" | "원재료" | "국가" | "조건"
     | "식품유형+국가" | "원재료+국가" | "원재료+조건"
     | "식품유형+조건" | "출처+원재료";
+  // LLM 광의↔협의 포섭 판정 결과 — 직접 키워드 매칭은 실패했으나
+  // LLM이 협의 재료를 광의 법령용어에 포함시킨 경우에만 존재
+  subsumption?: {
+    subsumed: boolean;
+    matched_ingredient: string | null;
+    matched_code: string | null;
+    reasoning: string;
+    confidence: "high" | "medium" | "low";
+    law_citation: string | null;
+    source: "llm" | "llm_unavailable" | "no_law" | "empty_input";
+  } | null;
 }
 
 interface DocsResult {
@@ -55,6 +67,7 @@ interface ProductInfo {
   is_first_import: boolean;
   has_organic_cert: boolean;
   product_keywords: string[];
+  product_ingredients?: Array<{code: string; name_ko: string; ocr_name: string}>;
   reasoning?: string;
 }
 
@@ -70,6 +83,8 @@ interface PipelineInput {
   is_first_import: boolean;
   has_organic_cert: boolean;
   product_keywords: string[];
+  // F0 성분코드 구조화 데이터 — LLM 광의↔협의 포섭 판정용
+  product_ingredients?: Array<{ code: string; name_ko: string; ocr_name: string }>;
 }
 
 // ── 아이콘 ───────────────────────────────────
@@ -259,6 +274,79 @@ function JapanPrefectureInput({ value, onChange }: { value: string; onChange: (v
             : "기타 도·부·현 지역입니다. 방사성 물질에 오염되지 않은 지역 생산·제조 증명서가 필요합니다."
           }
         </p>
+      )}
+    </div>
+  );
+}
+
+// ── 원재료 검색 자동완성 ──────────────────────────
+
+function IngredientSearchInput({
+  selected,
+  onChange,
+}: {
+  selected: Array<{code: string; name_ko: string}>;
+  onChange: (val: Array<{code: string; name_ko: string}>) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<Array<{code: string; name_ko: string}>>([]);
+  const [open, setOpen] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const search = (q: string) => {
+    if (!q.trim()) { setResults([]); setOpen(false); return; }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/ingredient-search?q=${encodeURIComponent(q)}&limit=10`);
+        const data = await res.json();
+        setResults(data);
+        setOpen(data.length > 0);
+      } catch { setResults([]); }
+    }, 250);
+  };
+
+  const add = (item: {code: string; name_ko: string}) => {
+    if (!selected.some(s => s.code === item.code)) {
+      onChange([...selected, item]);
+    }
+    setQuery(""); setResults([]); setOpen(false);
+  };
+
+  const remove = (code: string) => onChange(selected.filter(s => s.code !== code));
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <input
+          value={query}
+          onChange={e => { setQuery(e.target.value); search(e.target.value); }}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          placeholder="예: 닭지방, 젤라틴, 대두단백..."
+          className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:bg-white focus:border-blue-200"
+        />
+        {open && (
+          <div className="absolute z-10 w-full mt-1 bg-white border border-gray-100 rounded-2xl shadow-lg overflow-hidden">
+            {results.map(r => (
+              <button key={r.code} onMouseDown={() => add(r)}
+                className="w-full text-left px-4 py-2.5 text-sm hover:bg-blue-50 flex items-center justify-between gap-3">
+                <span className="font-medium text-gray-800">{r.name_ko}</span>
+                <span className="text-[10px] text-gray-400 font-mono shrink-0">{r.code}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {selected.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {selected.map(s => (
+            <span key={s.code} className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs text-blue-700">
+              <span className="font-medium">{s.name_ko}</span>
+              <span className="text-blue-400 font-mono">{s.code}</span>
+              <button onClick={() => remove(s.code)} className="text-blue-400 hover:text-blue-700 ml-0.5">✕</button>
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );
@@ -483,9 +571,10 @@ function DocDescription({ doc, explanation, explainDone, foodType, originCountry
 
 // ── 서류 카드 ─────────────────────────────────
 
-function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCountry }: {
+function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCountry, checked, onToggle }: {
   doc: RequiredDoc; explanation?: string; explainDone: boolean; crossCheck?: CrossCheckResult;
   foodType?: string; originCountry?: string;
+  checked?: boolean; onToggle?: (docId: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const isConditional = doc.condition !== null || doc.target_country !== null;
@@ -494,11 +583,24 @@ function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCo
   const hasEffectiveFrom = !!doc.effective_from;
   const hasEffectiveUntil = !!doc.effective_until;
 
+  const showCheckbox = typeof checked === "boolean" && onToggle;
+
   return (
     <div className={`bg-white rounded-3xl card-shadow transition-all duration-300 p-6 mb-4 border ${
+      showCheckbox && !checked ? "opacity-50 border-gray-200" :
       isKeep ? "border-slate-200/80 bg-slate-50/30" : isConditional ? "border-amber-200/80" : "border-gray-100"
     }`}>
       <div className="flex items-start justify-between gap-3">
+        {showCheckbox && (
+          <label className="shrink-0 mt-1 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={() => onToggle(doc.id)}
+              className="w-4.5 h-4.5 accent-blue-600 cursor-pointer"
+            />
+          </label>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-2">
             {/* 제출/보관 구분 뱃지 (최우선) */}
@@ -567,6 +669,49 @@ function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCo
               </p>
             </div>
           )}
+          {/* LLM 광의↔협의 포섭 판정 (AI 추천 매칭) */}
+          {doc.subsumption?.subsumed && (
+            <div className={`mt-2 rounded-xl border px-3 py-2.5 ${
+              doc.subsumption.confidence === "high"
+                ? "bg-violet-50/70 border-violet-200"
+                : doc.subsumption.confidence === "medium"
+                  ? "bg-yellow-50/70 border-yellow-200"
+                  : "bg-rose-50/70 border-rose-200"
+            }`}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded-full ${
+                  doc.subsumption.confidence === "high"
+                    ? "bg-violet-100 text-violet-700"
+                    : doc.subsumption.confidence === "medium"
+                      ? "bg-yellow-100 text-yellow-700"
+                      : "bg-rose-100 text-rose-700"
+                }`}>
+                  🤖 AI 포섭 판정 · {doc.subsumption.confidence === "high" ? "높음" : doc.subsumption.confidence === "medium" ? "중간" : "낮음"}
+                </span>
+                {doc.subsumption.matched_ingredient && (
+                  <span className="text-[11px] font-medium text-gray-700">
+                    {doc.subsumption.matched_ingredient}
+                    {doc.subsumption.matched_code && (
+                      <span className="ml-1 text-gray-400 font-mono">({doc.subsumption.matched_code})</span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-light text-gray-700 leading-relaxed">
+                {doc.subsumption.reasoning}
+              </p>
+              {doc.subsumption.law_citation && (
+                <p className="text-[10px] text-gray-500 mt-1.5 pt-1.5 border-t border-gray-200/60">
+                  근거: {doc.subsumption.law_citation}
+                </p>
+              )}
+              {doc.subsumption.confidence !== "high" && (
+                <p className="text-[10px] text-rose-600 mt-1 font-medium">
+                  ⚠ 검역관 최종 확인 필요 (AI 추천 매칭, 확신도 {doc.subsumption.confidence === "medium" ? "중간" : "낮음"})
+                </p>
+              )}
+            </div>
+          )}
         </div>
         <button onClick={() => setExpanded(p => !p)}
           className="shrink-0 p-2 rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
@@ -584,15 +729,20 @@ function DocCard({ doc, explanation, explainDone, crossCheck, foodType, originCo
 
 // ── 서류 섹션 ─────────────────────────────────
 
-function DocSection({ title, docs, badgeText, badgeStyle, explanations = {}, explainDone = true, crossCheckResults = [], foodType, originCountry }: {
+function DocSection({ title, docs, badgeText, badgeStyle, explanations = {}, explainDone = true, crossCheckResults = [], foodType, originCountry, selectedIds, onToggle, onSelectAll }: {
   title: string; docs: RequiredDoc[]; badgeText: string; badgeStyle: string;
   explanations?: Record<string, string>; explainDone?: boolean;
   crossCheckResults?: CrossCheckResult[];
   foodType?: string; originCountry?: string;
+  selectedIds?: Set<string>; onToggle?: (docId: string) => void;
+  onSelectAll?: (docIds: string[]) => void;
 }) {
   if (!docs.length) return null;
   const common = docs.filter(d => !d.condition && !d.target_country && !d.product_keywords);
   const conditional = docs.filter(d => d.condition || d.target_country || d.product_keywords);
+  const hasSelection = selectedIds !== undefined && onToggle !== undefined;
+  const allSelected = hasSelection && docs.every(d => selectedIds!.has(d.id));
+  const selectedCount = hasSelection ? docs.filter(d => selectedIds!.has(d.id)).length : 0;
 
   return (
     <section className="mb-12">
@@ -601,17 +751,38 @@ function DocSection({ title, docs, badgeText, badgeStyle, explanations = {}, exp
         <span className={`px-3 py-1 text-[10px] font-bold uppercase tracking-widest rounded-full ${badgeStyle}`}>
           {badgeText} {docs.length}건
         </span>
+        {hasSelection && (
+          <>
+            <span className="text-[11px] text-gray-400">
+              {selectedCount}/{docs.length} 선택
+            </span>
+            <button
+              onClick={() => {
+                if (allSelected) {
+                  // 전체 해제
+                  docs.forEach(d => { if (selectedIds!.has(d.id)) onToggle!(d.id); });
+                } else {
+                  // 전체 선택
+                  onSelectAll?.(docs.map(d => d.id));
+                }
+              }}
+              className="text-xs text-blue-600 hover:underline"
+            >
+              {allSelected ? "전체 해제" : "전체 선택"}
+            </button>
+          </>
+        )}
       </div>
       {common.length > 0 && (
         <div className="mb-6">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-400 mb-3 ml-1">공통 필수</p>
-          {common.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} />)}
+          {common.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} checked={hasSelection ? selectedIds!.has(d.id) : undefined} onToggle={onToggle} />)}
         </div>
       )}
       {conditional.length > 0 && (
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-3 ml-1">조건부</p>
-          {conditional.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} />)}
+          {conditional.map(d => <DocCard key={d.id} doc={d} explanation={explanations[d.id]} explainDone={explainDone} crossCheck={crossCheckResults.find(c => c.doc_name === d.doc_name)} foodType={foodType} originCountry={originCountry} checked={hasSelection ? selectedIds!.has(d.id) : undefined} onToggle={onToggle} />)}
         </div>
       )}
     </section>
@@ -658,7 +829,9 @@ function PipelineProgress({ currentStep }: { currentStep: number }) {
 // 메인 페이지
 // ══════════════════════════════════════════════
 
-export default function StepAPage() {
+export type F3SaveHandle = { saveSelectedDocs: () => Promise<boolean> };
+
+export default function StepAPage({ onSaveRef }: { onSaveRef?: React.MutableRefObject<F3SaveHandle | null> } = {}) {
   const params = useParams();
   const router = useRouter();
   const caseId = params.id as string;
@@ -675,20 +848,14 @@ export default function StepAPage() {
   const [crossCheckResults, setCrossCheckResults] = useState<CrossCheckResult[]>([]);
   const [crossCheckDone, setCrossCheckDone] = useState(false);
 
+  // 서류 선택 상태 (체크박스)
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set());
+
   // 레포트 모달 상태
   const [reportOpen, setReportOpen] = useState(false);
   const [reportInspector, setReportInspector] = useState("");
   const [productNameForReport, setProductNameForReport] = useState("");
 
-  // 기능 3 필수 입력 (파이프라인에서 안 넘어오는 정보)
-  const [stepInput, setStepInput] = useState({
-    origin_country: "",
-    japan_prefecture: "" as string,
-    is_oem: false,
-    is_first_import: true,
-    has_organic_cert: false,
-  });
-  const [stepInputSubmitted, setStepInputSubmitted] = useState(false);
 
   // 직접 조회 모드
   const [manualOpen, setManualOpen] = useState(false);
@@ -699,8 +866,40 @@ export default function StepAPage() {
   const [parsedInfo, setParsedInfo] = useState<ProductInfo | null>(null);
   const [manualForm, setManualForm] = useState({
     food_type: "", origin_country: "", is_oem: false,
-    is_first_import: true, has_organic_cert: false, product_keywords: "",
+    is_first_import: true, has_organic_cert: false,
+    japan_prefecture: "",
   });
+  const [selectedIngredients, setSelectedIngredients] = useState<Array<{code: string; name_ko: string}>>([]);
+
+  // ── 서류 선택 헬퍼 ─────────────────────────
+
+  /** 결과가 바뀔 때 전체 선택 초기화 */
+  useEffect(() => {
+    if (result) {
+      const allIds = new Set([
+        ...result.submit_docs.map(d => d.id),
+        ...result.keep_docs.map(d => d.id),
+      ]);
+      setSelectedDocIds(allIds);
+    }
+  }, [result]);
+
+  const handleToggleDoc = useCallback((docId: string) => {
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      if (next.has(docId)) next.delete(docId);
+      else next.add(docId);
+      return next;
+    });
+  }, []);
+
+  const handleSelectAllDocs = useCallback((docIds: string[]) => {
+    setSelectedDocIds(prev => {
+      const next = new Set(prev);
+      docIds.forEach(id => next.add(id));
+      return next;
+    });
+  }, []);
 
   // ── LLM 맞춤 설명 생성 ─────────────────────
 
@@ -734,14 +933,84 @@ export default function StepAPage() {
     const loadPipelineData = async () => {
       setLoading(true);
       try {
-        // === MOCK: 기능 2에서 넘어오는 정보 (food_type + keywords만) ===
-        await new Promise(r => setTimeout(r, 600));
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+        const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+        const authHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+        // 1) 먼저 파이프라인에서 실행된 F3 결과가 DB에 있는지 확인
+        //    (백엔드 /feature/3/run이 F0 성분코드 + F2 식품유형으로 판정한 결과)
+        try {
+          const f3Res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/3`, { headers: authHeaders });
+          if (f3Res.ok) {
+            const f3Row = await f3Res.json();
+            const f3Data = f3Row.final_result ?? f3Row.ai_result ?? f3Row;
+            if (f3Data && (f3Data.submit_docs?.length > 0 || f3Data.keep_docs?.length > 0)) {
+              setResult(f3Data as DocsResult);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch { /* F3 결과 없으면 아래에서 직접 조회 */ }
+
+        // 2) F3 결과 없으면 F0/F1/F2에서 데이터 로드 후 직접 조회
+
+        const [f2Res, f1Res, f0Res] = await Promise.all([
+          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/2`, { headers: authHeaders }),
+          fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/1`, { headers: authHeaders }),
+          fetch(`${API_BASE}/cases/${caseId}/parsed-result`, { headers: authHeaders }),
+        ]);
+
+        if (!f2Res.ok) {
+          throw new Error("F2_NOT_FOUND");
+        }
+
+        const f2Row = await f2Res.json();
+        const f2Data = f2Row.final_result ?? f2Row.ai_result ?? {};
+        if (!f2Data.food_type) {
+          throw new Error("기능2 결과에 식품유형(food_type)이 없습니다.");
+        }
+
+        // F0 원재료 → product_keywords(직접 매칭) + product_ingredients(LLM 포섭용)
+        // F0 basic_info → 국가, OEM, 최초수입, 유기인증
+        const ingredientKeywords: string[] = [];
+        const productIngredients: Array<{ code: string; name_ko: string; ocr_name: string }> = [];
+        let originCountry = "";
+        let isOem = false;
+        let isFirstImport = true;
+        let hasOrganicCert = false;
+
+        if (f0Res.ok) {
+          const f0Row = await f0Res.json();
+          const f0Data = f0Row.final_result ?? f0Row.ai_result ?? {};
+          const seen = new Set<string>();
+          for (const ing of (f0Data.ingredients ?? [])) {
+            const code = String(ing.ingredient_code ?? "").trim();
+            const ocr = String(ing.name ?? "").trim();
+            if (code || ocr) {
+              productIngredients.push({ code, name_ko: "", ocr_name: ocr });
+            }
+            for (const kw of [code, ocr]) {
+              if (kw && !seen.has(kw)) {
+                ingredientKeywords.push(kw);
+                seen.add(kw);
+              }
+            }
+          }
+          const basicInfo = f0Data.basic_info ?? {};
+          originCountry = String(basicInfo.export_country ?? "").trim();
+          isOem = !!basicInfo.is_oem;
+          isFirstImport = basicInfo.is_first_import !== false;
+          hasOrganicCert = !!basicInfo.is_organic;
+        }
+
         const fromPipeline = {
           case_id: caseId,
-          food_type: "리큐르",
-          product_keywords: ["정제수", "설탕", "증류알코올", "살구씨증류액", "바닐라추출물", "천연향료", "구연산(E330)", "캐러멜색소(E150a)"],
+          food_type: f2Data.food_type as string,
+          food_large_category: f2Data.category_name as string | undefined,
+          food_mid_category: f2Data.subcategory_name as string | undefined,
+          product_keywords: ingredientKeywords,
+          product_ingredients: productIngredients,
         };
-        // ==============================================
 
         // AI 성분 분석: 원재료를 DB 키워드로 자동 매핑
         let enrichedKeywords = [...fromPipeline.product_keywords];
@@ -775,53 +1044,55 @@ export default function StepAPage() {
           // AI 분석 실패해도 원래 키워드로 진행
         }
 
-        // 파이프라인에서 온 정보 + AI 보강 키워드 + 빈 사용자 입력
-        setPipelineInput({
+        const normalizedCountry = originCountry.toLowerCase() === "japan" || originCountry === "JP"
+          ? "일본" : originCountry;
+
+        const fullInput: PipelineInput = {
           ...fromPipeline,
           product_keywords: enrichedKeywords,
-          origin_country: "",
-          is_oem: false,
-          is_first_import: true,
-          has_organic_cert: false,
-        });
-        // 결과는 아직 없음 — 사용자가 추가 정보 입력 후 조회
+          origin_country: normalizedCountry,
+          is_oem: isOem,
+          is_first_import: isFirstImport,
+          has_organic_cert: hasOrganicCert,
+        };
+
+        setPipelineInput(fullInput);
+
+        // 수출국이 있으면 즉시 자동 조회 (일본 도·현은 F0에서 처리)
+        if (normalizedCountry) {
+          await runQueryInner(fullInput);
+        }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : "데이터 로드 실패");
+        const msg = err instanceof Error ? err.message : "데이터 로드 실패";
+        // "Failed to fetch" = 백엔드 서버 미실행 (http://localhost:8000)
+        if (msg.toLowerCase().includes("failed to fetch")) {
+          setError("백엔드 서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요. (uvicorn main:app --reload --port 8000)");
+        } else {
+          setError(msg);
+        }
       } finally {
         setLoading(false);
       }
     };
 
     loadPipelineData();
-  }, [caseId]);
+  }, [caseId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── 사용자 입력 완료 → 서류 조회 ─────────────
+  // ── 서류 조회 공통 로직 ──────────────────────
 
-  const handleStepInputSubmit = async () => {
-    if (!pipelineInput || !stepInput.origin_country) return;
-    setStepInputSubmitted(true);
+  const runQueryInner = async (input: PipelineInput) => {
     setError(null);
 
-    const country = stepInput.origin_country.trim();
-    const isJapan = ["일본", "japan", "Japan", "JAPAN", "JP"].includes(country);
-    const normalizedCountry = isJapan ? "일본" : country;
-
-    let keywords = [...pipelineInput.product_keywords];
-
-    // 일본 도현 선택값 추가
-    if (isJapan && stepInput.japan_prefecture) {
-      keywords = [...keywords, stepInput.japan_prefecture];
-    }
-
-    // 수출국 정보가 추가됐으므로 AI 성분 재분석 (국가별 규칙 반영)
+    // 수출국 포함 성분 재분석 (국가별 규칙 반영)
+    let keywords = [...input.product_keywords];
     try {
       const analyzeRes = await fetch("/api/analyze-ingredients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ingredients: keywords,
-          origin_country: normalizedCountry,
-          food_type: pipelineInput.food_type,
+          origin_country: input.origin_country,
+          food_type: input.food_type,
         }),
       });
       if (analyzeRes.ok) {
@@ -838,31 +1109,24 @@ export default function StepAPage() {
       // AI 분석 실패해도 기존 키워드로 진행
     }
 
-    const fullInput: PipelineInput = {
-      ...pipelineInput,
-      origin_country: normalizedCountry,
-      product_keywords: keywords,
-      is_oem: stepInput.is_oem,
-      is_first_import: stepInput.is_first_import,
-      has_organic_cert: stepInput.has_organic_cert,
-    };
-    setPipelineInput(fullInput);
+    const enrichedInput = { ...input, product_keywords: keywords };
+    setPipelineInput(enrichedInput);
 
     try {
       const res = await fetch("/api/query-docs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fullInput),
+        body: JSON.stringify(enrichedInput),
       });
       const data: DocsResult = await res.json();
       setResult(data);
 
-      // AI 크로스체크 비동기 (DB 결과와 AI 독립 판정 비교)
+      // AI 크로스체크 비동기
       setCrossCheckDone(false);
       fetch("/api/ai-cross-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(fullInput),
+        body: JSON.stringify(enrichedInput),
       }).then(async (aiRes) => {
         if (aiRes.ok) {
           const aiData = await aiRes.json();
@@ -873,25 +1137,96 @@ export default function StepAPage() {
         }
       }).catch(() => {}).finally(() => setCrossCheckDone(true));
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "서류 조회 실패");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("fetch") || msg.includes("network") || msg.includes("NetworkError")) {
+        setError("서버에 연결할 수 없습니다. 잠시 후 다시 시도해주세요.");
+      } else {
+        setError("서류 조회 중 오류가 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.");
+      }
     }
   };
+
+
+  // ── 선택된 서류를 final_result로 저장 ─────────────────
+
+  const saveSelectedDocs = async (): Promise<boolean> => {
+    if (!result) return false;
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    // 선택된 서류만 필터링
+    const selectedSubmit = result.submit_docs.filter(d => selectedDocIds.has(d.id));
+    const selectedKeep = result.keep_docs.filter(d => selectedDocIds.has(d.id));
+
+    const finalResult = {
+      food_type: result.food_type,
+      origin_country: result.origin_country,
+      is_first_import: result.is_first_import,
+      submit_docs: selectedSubmit,
+      keep_docs: selectedKeep,
+      total_submit: selectedSubmit.length,
+      total_keep: selectedKeep.length,
+      warnings: result.warnings,
+      match_confidence: result.match_confidence,
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/3`, {
+        method: "PATCH",
+        headers,
+        body: JSON.stringify({
+          final_result: finalResult,
+          edit_reason: `사용자 확인: ${selectedSubmit.length + selectedKeep.length}건 선택 (전체 ${result.submit_docs.length + result.keep_docs.length}건 중)`,
+        }),
+      });
+      if (!res.ok) throw new Error("저장 실패");
+      return true;
+    } catch (err) {
+      console.error("[F3 Save]", err);
+      return false;
+    }
+  };
+
+  // onSaveRef를 통해 외부에서 saveSelectedDocs를 호출할 수 있게 노출
+  useEffect(() => {
+    if (onSaveRef) {
+      onSaveRef.current = { saveSelectedDocs };
+    }
+  });
 
   // ── 확인 완료 → 다음 단계 ─────────────────
 
   const handleConfirm = async () => {
     setConfirming(true);
     try {
-      // 실제: POST /api/v1/cases/{caseId}/pipeline/feature/3/confirm
-      // 테스트: mock
-      await new Promise(r => setTimeout(r, 500));
+      // 1) 선택된 서류를 final_result로 DB에 저장
+      const saved = await saveSelectedDocs();
+      if (!saved) {
+        alert("서류 저장에 실패했습니다. 다시 시도해주세요.");
+        return;
+      }
 
-      // pipeline_steps status='completed', cases.current_step='B'
+      // 2) confirm 호출 (status → completed)
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const token = typeof window !== "undefined" ? localStorage.getItem("supabase_token") : null;
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+      await fetch(`${API_BASE}/cases/${caseId}/pipeline/feature/3/confirm`, {
+        method: "POST",
+        headers,
+      });
+
       setConfirmed(true);
 
       // 2초 후 다음 단계로 이동
       setTimeout(() => {
-        router.push(`/cases/${caseId}/step_b`);
+        router.push(`/cases/${caseId}/f4`);
       }, 2000);
     } catch (err: any) {
       alert("확인 처리 실패: " + err.message);
@@ -976,8 +1311,10 @@ export default function StepAPage() {
     <div className="min-h-screen pb-20">
       <main className="max-w-3xl mx-auto w-full px-6 pt-8">
 
-        {/* 파이프라인 진행 상태 */}
-        <PipelineProgress currentStep={3} />
+        {/* 법령 기준일 배너 (조용히 실패하므로 에러 시 숨김) */}
+        <div className="mb-2 flex justify-end">
+          <LawBaseDateBanner compact />
+        </div>
 
         {/* 타이틀 */}
         <section className="text-center mb-10 space-y-3">
@@ -985,120 +1322,39 @@ export default function StepAPage() {
           <p className="text-base text-gray-500 font-light">이전 단계에서 확인된 제품 정보를 기반으로 필요 서류를 안내합니다.</p>
         </section>
 
-        {/* 이전 단계에서 받은 제품 정보 (food_type + keywords만) */}
-        {pipelineInput && (
-          <section className="bg-white rounded-[32px] p-8 card-shadow border border-gray-100 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">기능 1·2에서 넘어온 정보</p>
+        {/* F0·F2 자동 연결 제품 정보 요약 (결과 있을 때) */}
+        {pipelineInput && result && (
+          <section className="ds-surface-card p-6 mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">F0·F2 자동 연결</p>
               <span className="px-2.5 py-0.5 bg-green-50 text-[10px] font-bold uppercase tracking-wider text-green-600 rounded-full border border-green-200">
-                자동 연결
+                자동 조회 완료
               </span>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <span className="px-4 py-2 bg-gray-50 rounded-2xl text-sm font-light text-gray-700 border border-gray-100">
-                식품유형 <strong className="font-semibold">{pipelineInput.food_type}</strong>
+            <div className="flex flex-wrap gap-2">
+              <span className="px-3 py-1.5 bg-gray-50 rounded-xl text-xs font-light text-gray-700 border border-gray-100">
+                식품유형 <strong className="font-medium">{pipelineInput.food_type}</strong>
               </span>
-            </div>
-            {pipelineInput.product_keywords.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {pipelineInput.product_keywords.map((kw, i) => (
-                  <span key={i} className="px-2.5 py-1 bg-blue-50 text-[11px] text-blue-600 rounded-full border border-blue-100">
-                    {kw}
-                  </span>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* 기능 3 필수 입력: 수출국, OEM, 최초수입, 유기인증 */}
-        {pipelineInput && !stepInputSubmitted && (
-          <section className="bg-white rounded-[32px] p-8 card-shadow border-2 border-blue-200 mb-10">
-            <p className="text-xs font-bold uppercase tracking-widest text-blue-500 mb-2">기능 3 추가 정보 입력</p>
-            <p className="text-sm font-light text-gray-500 mb-6">
-              수입 가능한 제품입니다. 필요 서류를 확인하기 위해 아래 정보를 입력하세요.
-            </p>
-
-            <div className="mb-4">
-              <label className="text-xs text-gray-500 mb-1 block">제조국 (제품을 최종 제조·가공한 국가)</label>
-              <input
-                value={stepInput.origin_country}
-                onChange={e => setStepInput(p => ({ ...p, origin_country: e.target.value }))}
-                placeholder="예: 네덜란드, 일본, 미국"
-                className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:bg-white focus:border-blue-200 transition-all outline-none"
-              />
-            </div>
-
-            {/* 일본 선택 시 도현 자동완성 입력 */}
-            {["일본", "japan", "Japan", "JAPAN", "JP"].includes(stepInput.origin_country.trim()) && (
-              <JapanPrefectureInput
-                value={stepInput.japan_prefecture}
-                onChange={val => setStepInput(p => ({ ...p, japan_prefecture: val }))}
-              />
-            )}
-
-            <div className="flex flex-wrap gap-6 mb-6">
-              {([
-                { key: "is_oem" as const, label: "주문자상표부착(OEM) 제품", desc: "국내 업체 상표를 부착하여 해외에서 제조한 제품" },
-                { key: "is_first_import" as const, label: "최초 수입", desc: "이 수입자가 이 제조업소의 이 제품을 처음 수입" },
-                { key: "has_organic_cert" as const, label: "유기인증 (95% 이상)", desc: "수출국에서 유기인증을 받은 가공식품" },
-              ]).map(({ key, label, desc }) => (
-                <label key={key} className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={stepInput[key]}
-                    onChange={e => setStepInput(p => ({ ...p, [key]: e.target.checked }))}
-                    className="w-4 h-4 mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <span className="text-sm text-gray-700 font-medium">{label}</span>
-                    <p className="text-xs text-gray-400 font-light mt-0.5">{desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-
-            <button
-              onClick={handleStepInputSubmit}
-              disabled={!stepInput.origin_country.trim()}
-              className="w-full py-3 rounded-full bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-30 transition-all shadow-lg shadow-blue-600/20"
-            >
-              서류 조회하기
-            </button>
-          </section>
-        )}
-
-        {/* 입력 완료 후 요약 표시 */}
-        {stepInputSubmitted && pipelineInput && (
-          <section className="bg-white rounded-[32px] p-8 card-shadow border border-gray-100 mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-xs font-bold uppercase tracking-widest text-gray-400 ml-1">제품 정보 (기능 1·2 자동 + 기능 3 입력)</p>
-              <button onClick={() => { setStepInputSubmitted(false); setResult(null); }}
-                className="text-xs text-blue-500 hover:text-blue-700 font-medium">수정</button>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <span className="px-4 py-2 bg-gray-50 rounded-2xl text-sm font-light text-gray-700 border border-gray-100">
-                식품유형 <strong className="font-semibold">{pipelineInput.food_type}</strong>
+              <span className="px-3 py-1.5 bg-gray-50 rounded-xl text-xs font-light text-gray-700 border border-gray-100">
+                수출국 <strong className="font-medium">{pipelineInput.origin_country}</strong>
               </span>
-              <span className="px-4 py-2 bg-gray-50 rounded-2xl text-sm font-light text-gray-700 border border-gray-100">
-                수출국 <strong className="font-semibold">{pipelineInput.origin_country}</strong>
-              </span>
-              <span className="px-4 py-2 bg-gray-50 rounded-2xl text-sm font-light text-gray-700 border border-gray-100">
-                최초 수입 <strong className="font-semibold">{pipelineInput.is_first_import ? "예" : "아니오"}</strong>
+              <span className="px-3 py-1.5 bg-gray-50 rounded-xl text-xs font-light text-gray-700 border border-gray-100">
+                최초수입 <strong className="font-medium">{pipelineInput.is_first_import ? "예" : "아니오"}</strong>
               </span>
               {pipelineInput.is_oem && (
-                <span className="px-4 py-2 bg-amber-50 rounded-2xl text-sm font-light text-amber-700 border border-amber-100">
-                  OEM <strong className="font-semibold">해당</strong>
+                <span className="px-3 py-1.5 bg-amber-50 rounded-xl text-xs font-light text-amber-700 border border-amber-100">
+                  OEM 해당
                 </span>
               )}
               {pipelineInput.has_organic_cert && (
-                <span className="px-4 py-2 bg-green-50 rounded-2xl text-sm font-light text-green-700 border border-green-100">
-                  유기인증 <strong className="font-semibold">해당</strong>
+                <span className="px-3 py-1.5 bg-green-50 rounded-xl text-xs font-light text-green-700 border border-green-100">
+                  유기인증 해당
                 </span>
               )}
             </div>
           </section>
         )}
+
 
         {/* 결과 카운트 */}
         {result && (
@@ -1114,10 +1370,10 @@ export default function StepAPage() {
               </div>
               <button
                 onClick={() => setReportOpen(true)}
-                className="flex-1 bg-gray-900 hover:bg-gray-800 transition-all rounded-3xl card-shadow p-6 text-center group no-print"
+                className="flex-1 bg-blue-600 hover:bg-blue-500 transition-all rounded-3xl card-shadow p-6 text-center group no-print"
               >
                 <p className="text-xl font-bold tracking-tight text-white">📄</p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-300 mt-1 group-hover:text-white">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-blue-100 mt-1 group-hover:text-white">
                   레포트 · PDF
                 </p>
               </button>
@@ -1151,12 +1407,14 @@ export default function StepAPage() {
               badgeText="제출" badgeStyle="bg-blue-50 text-blue-600 border border-blue-200"
               explanations={explanations} explainDone={!explainLoading}
               crossCheckResults={crossCheckResults}
-              foodType={result.food_type} originCountry={result.origin_country} />
+              foodType={result.food_type} originCountry={result.origin_country}
+              selectedIds={selectedDocIds} onToggle={handleToggleDoc} onSelectAll={handleSelectAllDocs} />
             <DocSection title="영업자 보관 서류" docs={result.keep_docs}
               badgeText="보관" badgeStyle="bg-gray-100 text-gray-500 border border-gray-200"
               explanations={explanations} explainDone={!explainLoading}
               crossCheckResults={crossCheckResults}
-              foodType={result.food_type} originCountry={result.origin_country} />
+              foodType={result.food_type} originCountry={result.origin_country}
+              selectedIds={selectedDocIds} onToggle={handleToggleDoc} onSelectAll={handleSelectAllDocs} />
 
             {/* AI만 감지한 서류 (DB에 없는 것) */}
             {crossCheckDone && crossCheckResults.filter(c => c.match_type === "ai_only").length > 0 && (
@@ -1200,7 +1458,7 @@ export default function StepAPage() {
         )}
 
         {/* 주의사항 */}
-        <section className="bg-white rounded-[32px] p-8 card-shadow border border-amber-100 mb-8">
+        <section className="ds-surface-card p-8 mb-8 border border-amber-100">
           <p className="text-xs font-bold uppercase tracking-widest text-amber-500 mb-4">확인 전 주의사항</p>
           <ul className="space-y-2 text-sm font-light text-gray-600 leading-relaxed">
             <li>서류 목록은 2026.2.5. 기준입니다. 법령 개정 시 변경될 수 있습니다.</li>
@@ -1251,17 +1509,26 @@ export default function StepAPage() {
                     <div>
                       <label className="text-xs text-gray-500 mb-1 block">수출국</label>
                       <input value={manualForm.origin_country}
-                        onChange={e => setManualForm(p => ({ ...p, origin_country: e.target.value }))}
+                        onChange={e => setManualForm(p => ({ ...p, origin_country: e.target.value, japan_prefecture: "" }))}
                         placeholder="예: 태국"
                         className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:bg-white focus:border-blue-200" />
                     </div>
                   </div>
+                  {manualForm.origin_country === "일본" && (
+                    <div className="mb-4">
+                      <label className="text-xs text-gray-500 mb-1 block">도·현 선택 (일본산 특이사항 확인용)</label>
+                      <JapanPrefectureInput
+                        value={manualForm.japan_prefecture}
+                        onChange={v => setManualForm(p => ({ ...p, japan_prefecture: v }))}
+                      />
+                    </div>
+                  )}
                   <div className="mb-4">
-                    <label className="text-xs text-gray-500 mb-1 block">원재료 키워드 (쉼표 구분)</label>
-                    <input value={manualForm.product_keywords}
-                      onChange={e => setManualForm(p => ({ ...p, product_keywords: e.target.value }))}
-                      placeholder="예: 아가베, 에탄올, 젤라틴"
-                      className="w-full px-4 py-2.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm outline-none focus:bg-white focus:border-blue-200" />
+                    <label className="text-xs text-gray-500 mb-1 block">원재료 검색 (성분코드 자동 매핑)</label>
+                    <IngredientSearchInput
+                      selected={selectedIngredients}
+                      onChange={setSelectedIngredients}
+                    />
                   </div>
                   <div className="flex flex-wrap gap-6 mb-6">
                     {([
@@ -1277,10 +1544,12 @@ export default function StepAPage() {
                       </label>
                     ))}
                   </div>
-                  <button onClick={() => handleManualQuery({
-                      ...manualForm,
-                      product_keywords: manualForm.product_keywords.split(",").map(s=>s.trim()).filter(Boolean),
-                    })}
+                  <button onClick={() => {
+                      const kw = selectedIngredients.map(i => i.code || i.name_ko).filter(Boolean);
+                      if (manualForm.japan_prefecture) kw.push(manualForm.japan_prefecture);
+                      const ings = selectedIngredients.map(i => ({ code: i.code, name_ko: i.name_ko, ocr_name: i.name_ko }));
+                      handleManualQuery({ ...manualForm, product_keywords: kw, product_ingredients: ings });
+                    }}
                     disabled={!manualForm.food_type || !manualForm.origin_country}
                     className="w-full py-3 rounded-full bg-gray-900 text-white text-sm font-semibold hover:bg-gray-800 disabled:opacity-30 transition-all">
                     서류 조회하기
@@ -1351,30 +1620,74 @@ export default function StepAPage() {
           )}
         </section>
 
-        {/* 확인 완료 버튼 */}
-        <div className="flex justify-center">
-          <button onClick={handleConfirm} disabled={confirming || !result}
-            className="group flex items-center gap-3 px-10 py-4 rounded-full bg-blue-600 text-white text-sm font-semibold
-              hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed
-              transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]
-              shadow-lg shadow-blue-600/20">
-            {confirming ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                처리 중...
-              </>
-            ) : (
-              <>
-                확인 완료
-                <ArrowRightIcon />
-                <span className="text-blue-200 text-xs font-light">기능 4: 수출국표시사항</span>
-              </>
-            )}
-          </button>
-        </div>
+        {/* 선택 요약 + 확인 완료 버튼 */}
+        {result && (
+          <div className="rounded-3xl card-shadow border border-blue-100 bg-blue-50/50 p-6 mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-blue-500 mb-1">선택된 서류</p>
+                <p className="text-sm text-gray-600">
+                  전체 {result.submit_docs.length + result.keep_docs.length}건 중{" "}
+                  <strong className="text-blue-700">{selectedDocIds.size}건</strong> 선택됨
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    const allIds = new Set([
+                      ...result.submit_docs.map(d => d.id),
+                      ...result.keep_docs.map(d => d.id),
+                    ]);
+                    setSelectedDocIds(allIds);
+                  }}
+                  className="px-3 py-1.5 text-xs font-medium rounded-full border border-blue-200 text-blue-600 hover:bg-blue-100 transition-colors"
+                >
+                  전체 선택
+                </button>
+                <button
+                  onClick={() => setSelectedDocIds(new Set())}
+                  className="px-3 py-1.5 text-xs font-medium rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 transition-colors"
+                >
+                  전체 해제
+                </button>
+              </div>
+            </div>
+            <button onClick={handleConfirm} disabled={confirming || selectedDocIds.size === 0}
+              className="w-full group flex items-center justify-center gap-3 px-10 py-4 rounded-full bg-blue-600 text-white text-sm font-semibold
+                hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed
+                transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]
+                shadow-lg shadow-blue-600/20">
+              {confirming ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  저장 중...
+                </>
+              ) : (
+                <>
+                  {selectedDocIds.size}건 확인 완료
+                  <ArrowRightIcon />
+                  <span className="text-blue-200 text-xs font-light">기능 4: 수출국표시사항</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
 
         {error && (
-          <div className="mt-6 rounded-3xl bg-red-50 border border-red-200 p-4 text-sm text-red-600 text-center">{error}</div>
+          <div className="mt-6 rounded-2xl bg-red-50 border border-red-200 p-5 flex items-start gap-3">
+            <span className="shrink-0 text-red-400 mt-0.5">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </span>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-red-700">{error}</p>
+              <button onClick={() => window.location.reload()}
+                className="mt-2 text-xs text-red-500 underline hover:text-red-700">
+                페이지 새로고침
+              </button>
+            </div>
+          </div>
         )}
       </main>
 
@@ -1389,7 +1702,6 @@ export default function StepAPage() {
           onInspectorChange={setReportInspector}
           onClose={() => setReportOpen(false)}
           pipelineInput={pipelineInput}
-          stepInput={stepInput}
         />
       )}
     </div>
@@ -1431,7 +1743,7 @@ function getReportCategory(foodType: string): string {
 
 function ReportModal({
   result, caseId, productName, inspector, onProductNameChange, onInspectorChange, onClose,
-  pipelineInput, stepInput
+  pipelineInput
 }: {
   result: DocsResult;
   caseId: string;
@@ -1441,7 +1753,6 @@ function ReportModal({
   onInspectorChange: (v: string) => void;
   onClose: () => void;
   pipelineInput: PipelineInput | null;
-  stepInput: { origin_country: string; japan_prefecture: string; is_oem: boolean; is_first_import: boolean; has_organic_cert: boolean };
 }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -1773,7 +2084,7 @@ function ReportModal({
               </tr>
               <tr className="border-b border-gray-200">
                 <td className="py-2 px-3 bg-gray-50 text-gray-600 font-semibold border-r border-gray-200">생산국 (제조국)</td>
-                <td className="py-2 px-3 border-r border-gray-200">{result.origin_country}{stepInput.japan_prefecture ? ` (${stepInput.japan_prefecture})` : ""}</td>
+                <td className="py-2 px-3 border-r border-gray-200">{result.origin_country}</td>
                 <td className="py-2 px-3 bg-gray-50 text-gray-600 font-semibold border-r border-gray-200">수출국</td>
                 <td className="py-2 px-3">
                   <input
@@ -1788,11 +2099,11 @@ function ReportModal({
                 <td className="py-2 px-3 bg-gray-50 text-gray-600 font-semibold border-r border-gray-200">최초 수입 여부</td>
                 <td className="py-2 px-3 border-r border-gray-200">{result.is_first_import ? "예 (최초 수입)" : "아니오 (재수입)"}</td>
                 <td className="py-2 px-3 bg-gray-50 text-gray-600 font-semibold border-r border-gray-200">주문자상표부착 (OEM)</td>
-                <td className="py-2 px-3">{stepInput.is_oem ? "예" : "아니오"}</td>
+                <td className="py-2 px-3">{pipelineInput?.is_oem ? "예" : "아니오"}</td>
               </tr>
               <tr>
                 <td className="py-2 px-3 bg-gray-50 text-gray-600 font-semibold border-r border-gray-200">유기인증 (95% 이상)</td>
-                <td className="py-2 px-3 border-r border-gray-200" colSpan={3}>{stepInput.has_organic_cert ? "예 (유기인증 있음)" : "아니오"}</td>
+                <td className="py-2 px-3 border-r border-gray-200" colSpan={3}>{pipelineInput?.has_organic_cert ? "예 (유기인증 있음)" : "아니오"}</td>
               </tr>
             </tbody>
           </table>
@@ -1865,9 +2176,9 @@ function ReportModal({
                 const detailedReason = buildDetailedReason(doc as any, {
                   food_type: result.food_type,
                   origin_country: result.origin_country,
-                  is_oem: stepInput.is_oem,
+                  is_oem: pipelineInput?.is_oem ?? false,
                   is_first_import: result.is_first_import,
-                  has_organic_cert: stepInput.has_organic_cert,
+                  has_organic_cert: pipelineInput?.has_organic_cert ?? false,
                   product_keywords: pipelineInput?.product_keywords || [],
                 });
                 return (
@@ -2031,20 +2342,16 @@ function ReportModal({
               보내주시기 바랍니다. 서류 요건이나 발급 절차에 관해 문의사항이 있으시면 발신자에게 직접 연락 바랍니다.
             </p>
             <div className="mt-6 grid grid-cols-2 gap-8 text-xs">
-              <div className="border border-gray-300 rounded p-3">
-                <p className="text-gray-500 font-semibold mb-1 text-[10px] uppercase">발신 담당 서명 (Signed by)</p>
-                <div className="border-b border-gray-400 pb-1 h-10 mt-3">&nbsp;</div>
-                <p className="text-[10px] text-gray-400 mt-2">{sender} · {dateStr}</p>
+              <div>
+                <p className="text-gray-500 font-semibold mb-1">보내는 사람</p>
+                <div className="border-b border-gray-400 pb-1 h-8 text-gray-800">{sender || ""}</div>
+                <p className="text-[10px] text-gray-400 mt-1">{senderContact || ""}</p>
               </div>
-              <div className="border border-gray-300 rounded p-3 bg-gray-50">
-                <p className="text-gray-500 font-semibold mb-1 text-[10px] uppercase">수신 확인 (Acknowledged by)</p>
-                <div className="border-b border-gray-400 pb-1 h-10 mt-3">&nbsp;</div>
-                <p className="text-[10px] text-gray-400 mt-2">회신 예정일: {deadline || "____________"}</p>
+              <div>
+                <p className="text-gray-500 font-semibold mb-1">회신 기한</p>
+                <div className="border-b border-gray-400 pb-1 h-8 text-gray-800">{deadline || ""}</div>
               </div>
             </div>
-            <p className="text-[10px] text-gray-500 mt-6 text-center">
-              — End of Document Request · 문서 끝 —
-            </p>
           </section>
         ) : null}
       </div>

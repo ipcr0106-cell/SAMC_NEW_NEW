@@ -1,10 +1,9 @@
 "use client";
 
-import { useRouter, useParams, usePathname } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 import {
   FileText,
   Search,
-  ListChecks,
   ClipboardCheck,
   Globe,
   FileCheck,
@@ -21,8 +20,8 @@ interface Step {
 
 const steps: Step[] = [
   { key: "upload", label: "서류 업로드", icon: <FileText size={15} />, route: "upload" },
-  { key: "F1", label: "수입판정", icon: <Search size={15} />, route: "f1" },
-  { key: "F2", label: "유형분류", icon: <ListChecks size={15} />, route: "f2" },
+  { key: "F1", label: "수입 판정", icon: <Search size={15} />, route: "f1" },
+  { key: "F2", label: "식품유형 분류", icon: <ClipboardCheck size={15} />, route: "f2" },
   { key: "F3", label: "필요서류", icon: <ClipboardCheck size={15} />, route: "f3" },
   { key: "F4", label: "라벨검토", icon: <Globe size={15} />, route: "f4" },
   { key: "F5", label: "한글시안", icon: <FileCheck size={15} />, route: "f5" },
@@ -32,16 +31,23 @@ interface StepNavigationProps {
   currentStep: string;
   /** Steps that are completed (data available). Users can jump to any completed step or the next uncompleted step. */
   completedSteps?: string[];
+  /** 수동 식품분류 입력 건이면 F1/F2를 숨김 */
+  hideF1F2?: boolean;
 }
 
 export default function StepNavigation({
   currentStep,
   completedSteps = [],
+  hideF1F2 = false,
 }: StepNavigationProps) {
   const router = useRouter();
   const params = useParams();
   const caseId = params?.id as string;
-  const currentIndex = steps.findIndex((s) => s.key === currentStep);
+
+  const visibleSteps = hideF1F2
+    ? steps.filter((s) => s.key !== "F1" && s.key !== "F2")
+    : steps;
+  const currentIndex = visibleSteps.findIndex((s) => s.key === currentStep);
 
   const handleStepClick = (step: Step, idx: number) => {
     if (step.key === currentStep) return; // 현재 단계 클릭 무시
@@ -50,13 +56,13 @@ export default function StepNavigation({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/60 px-6 py-4 shadow-sm">
+    <div className="ds-step-nav px-6 py-4">
       {/* 스텝 바 */}
       <div className="flex items-center">
-        {steps.map((step, idx) => {
+        {visibleSteps.map((step, idx) => {
           const isActive = idx === currentIndex;
           const isCompleted = completedSteps.includes(step.key) || idx < currentIndex;
-          const isLast = idx === steps.length - 1;
+          const isLast = idx === visibleSteps.length - 1;
           const isClickable = step.key !== currentStep;
 
           return (
@@ -70,15 +76,15 @@ export default function StepNavigation({
                 }`}
               >
                 <div
-                  className={`flex items-center justify-center w-9 h-9 rounded-full transition-all duration-200 ${
+                  className={`flex items-center justify-center ds-step-node ${
                     isActive
-                      ? "bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-4 ring-blue-100"
+                      ? "ds-step-node-active"
                       : isCompleted
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-400"
+                      ? "ds-step-node-completed"
+                      : ""
                   } ${
                     isClickable && !isActive
-                      ? "group-hover:ring-4 group-hover:ring-blue-50 group-hover:scale-105"
+                      ? "group-hover:scale-105"
                       : ""
                   }`}
                 >
@@ -89,13 +95,13 @@ export default function StepNavigation({
                   )}
                 </div>
                 <span
-                  className={`text-[11px] font-semibold whitespace-nowrap transition-colors ${
+                  className={`ds-step-label whitespace-nowrap transition-colors ${
                     isActive
-                      ? "text-blue-600"
+                      ? "ds-step-label-active"
                       : isCompleted
-                      ? "text-blue-500"
-                      : "text-slate-400"
-                  } ${isClickable ? "group-hover:text-blue-600" : ""}`}
+                      ? "ds-step-label-completed"
+                      : ""
+                  } ${isClickable ? "group-hover:opacity-90" : ""}`}
                 >
                   {step.label}
                 </span>
@@ -105,8 +111,8 @@ export default function StepNavigation({
               {!isLast && (
                 <div className="flex-1 mx-3 mt-[-18px]">
                   <div
-                    className={`h-[2px] rounded-full transition-colors duration-300 ${
-                      isCompleted ? "bg-blue-400" : "bg-slate-100"
+                    className={`ds-step-line transition-colors duration-300 ${
+                      isCompleted ? "ds-step-line-completed" : ""
                     }`}
                   />
                 </div>

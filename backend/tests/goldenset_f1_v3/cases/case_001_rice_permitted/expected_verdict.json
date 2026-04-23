@@ -1,0 +1,11 @@
+{
+  "_comment": "담당자 최종 판정 정답 라벨. v2 라벨 기반 v3 F1Output.verdict 형식으로 변환.",
+  "verdict": "permitted",
+  "v2_exact_verdict": "permitted",
+  "v2_conflict_status": "agreed",
+  "is_forbidden_ingredient": false,
+  "hitl1_required": false,
+  "gmo_ingredients": [],
+  "category": "permitted_db",
+  "notes": "f1_allowed 시드 01 곡류. Step 1 exact_name 매칭."
+}

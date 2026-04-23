@@ -1,0 +1,21 @@
+{
+  "_comment": "F0 파싱 결과 고정 픽스처. HITL-0 승인 후 run_feature1_v2 에 전달되는 형태.",
+  "v3_case_id": "v3_case_038_sorbic_acid_heated_F",
+  "v2_source_id": "g018",
+  "food_type": "잼류",
+  "process_conditions": {
+    "is_heated": false
+  },
+  "ingredients": [
+    {
+      "name": "소브산",
+      "percentage": 0.1,
+      "ins": "200"
+    }
+  ],
+  "doc_types": [
+    "원재료_명세서",
+    "성분_분석표"
+  ],
+  "hitl0_approved": true
+}

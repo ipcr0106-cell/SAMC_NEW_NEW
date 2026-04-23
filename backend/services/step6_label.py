@@ -1,21 +1,21 @@
 """
 한글표시사항 시안 생성 — 2단계 교차검증
 Phase 1: 법령/고시 기반 필수항목 대조 (Pinecone RAG)
-Phase 2: AI(Claude) 종합 검증 + 최종 시안 생성
+Phase 2: AI(OpenAI) 종합 검증 + 최종 시안 생성
 """
 
 import json
 import os
 from typing import Optional
 
-import anthropic
+from openai import OpenAI
 from dotenv import load_dotenv
 
-from services.f5_rag import search_and_format
+from services.f5_rag import search_and_format_with_status
 
 load_dotenv()
 
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "gpt-5.4"
 
 # ── 프롬프트 ──────────────────────────────────────────────────────────────────
 
@@ -93,6 +93,10 @@ cross_result 값:
 severity 값: error(수정필수) | warning(검토필요) | info(참고)"""
 
 
+# 시안 생성에 사용하는 공통 법령 검색 쿼리
+LAW_QUERY = "한글표시사항 원재료명 알레르기 GMO 소비기한 영양성분 표시기준 수입자 원산지"
+
+
 # ── 유틸 ──────────────────────────────────────────────────────────────────────
 
 def _docs_text(documents: list[dict]) -> str:
@@ -122,15 +126,14 @@ def generate_label(
 ) -> dict:
     """
     2단계 교차검증 시안 생성
-    반환값: {"phase1": {...}, "phase2": {...}}
+    반환값: {"phase1": {...}, "phase2": {...}, "rag_failed": bool}
     """
-    client = anthropic.Anthropic(api_key=os.getenv("F5_ANTHROPIC_API_KEY"))
+    client = OpenAI(api_key=os.getenv("F5_OPENAI_API_KEY"))
     docs = _docs_text(documents)
 
-    # 법령 컨텍스트 (Pinecone RAG)
-    law_context = search_and_format(
-        query="한글표시사항 원재료명 알레르기 GMO 소비기한 영양성분 표시기준 수입자 원산지"
-    )
+    # 법령 컨텍스트 (Pinecone RAG) - 실패 여부 체크
+    law_context, rag_success = search_and_format_with_status(query=LAW_QUERY)
+    rag_failed = not rag_success
 
     food_type_str = f"\n\n## 식품유형 (담당자 입력)\n{food_type}" if food_type else ""
     draft_str = f"\n\n## 한글 가안 (담당자 입력)\n{draft_label}" if draft_label else ""
@@ -143,13 +146,15 @@ def generate_label(
         "\n\n위 서류와 법령을 대조하여 12개 필수 표시항목 검토 결과를 JSON으로 작성하세요."
     )
 
-    p1_response = client.messages.create(
+    p1_response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=3000,
-        system=PHASE1_SYSTEM,
-        messages=[{"role": "user", "content": p1_user}],
+        max_completion_tokens=3000,
+        messages=[
+            {"role": "system", "content": PHASE1_SYSTEM},
+            {"role": "user", "content": p1_user},
+        ],
     )
-    phase1 = _parse_json(p1_response.content[0].text)
+    phase1 = _parse_json(p1_response.choices[0].message.content)
 
     # ── Phase 2: AI 교차검증 + 시안 생성 ────────────────────────────────────
     p2_user = (
@@ -160,17 +165,20 @@ def generate_label(
         "\n\n1차 결과를 교차검증하고, 최종 한글표시사항 시안을 JSON으로 작성하세요."
     )
 
-    p2_response = client.messages.create(
+    p2_response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=4000,
-        system=PHASE2_SYSTEM,
-        messages=[{"role": "user", "content": p2_user}],
+        max_completion_tokens=4000,
+        messages=[
+            {"role": "system", "content": PHASE2_SYSTEM},
+            {"role": "user", "content": p2_user},
+        ],
     )
-    phase2 = _parse_json(p2_response.content[0].text)
+    phase2 = _parse_json(p2_response.choices[0].message.content)
 
     return {
         "phase1": phase1,
         "phase2": phase2,
+        "rag_failed": rag_failed,
     }
 
 
@@ -183,11 +191,16 @@ def generate_label_stream(
     """SSE 스트리밍 — Phase 1 완료 후 Phase 2 스트리밍"""
     from db.supabase_client import get_supabase as get_client
 
-    client = anthropic.Anthropic(api_key=os.getenv("F5_ANTHROPIC_API_KEY"))
+    client = OpenAI(api_key=os.getenv("F5_OPENAI_API_KEY"))
     docs = _docs_text(documents)
-    law_context = search_and_format(
-        query="한글표시사항 원재료명 알레르기 GMO 소비기한 영양성분 표시기준 수입자 원산지"
-    )
+
+    # 법령 컨텍스트 (Pinecone RAG) - 실패 여부 체크
+    law_context, rag_success = search_and_format_with_status(query=LAW_QUERY)
+    rag_failed = not rag_success
+
+    # RAG 실패 시 즉시 클라이언트에 알림 (UI 경고 표시용)
+    if rag_failed:
+        yield f"data: {json.dumps({'step': 'rag_warning', 'message': '법령 DB 조회에 실패했습니다. 시안은 생성되지만 법령 근거 없이 일반 지식만으로 판단됩니다.'}, ensure_ascii=False)}\n\n"
 
     food_type_str = f"\n\n## 식품유형 (담당자 입력)\n{food_type}" if food_type else ""
     draft_str = f"\n\n## 한글 가안 (담당자 입력)\n{draft_label}" if draft_label else ""
@@ -203,12 +216,14 @@ def generate_label_stream(
     )
 
     try:
-        p1_response = client.messages.create(
-            model=MODEL, max_tokens=3000,
-            system=PHASE1_SYSTEM,
-            messages=[{"role": "user", "content": p1_user}],
+        p1_response = client.chat.completions.create(
+            model=MODEL, max_completion_tokens=3000,
+            messages=[
+                {"role": "system", "content": PHASE1_SYSTEM},
+                {"role": "user", "content": p1_user},
+            ],
         )
-        phase1 = _parse_json(p1_response.content[0].text)
+        phase1 = _parse_json(p1_response.choices[0].message.content)
         yield f"data: {json.dumps({'step': 'phase1_done', 'phase1': phase1}, ensure_ascii=False)}\n\n"
     except Exception as e:
         yield f"data: {json.dumps({'error': f'Phase 1 실패: {str(e)}'}, ensure_ascii=False)}\n\n"
@@ -226,23 +241,32 @@ def generate_label_stream(
     )
 
     full_text = ""
-    with client.messages.stream(
-        model=MODEL, max_tokens=4000,
-        system=PHASE2_SYSTEM,
-        messages=[{"role": "user", "content": p2_user}],
-    ) as stream:
-        for chunk in stream.text_stream:
-            full_text += chunk
-            yield f"data: {json.dumps({'step': 'phase2_chunk', 'chunk': chunk}, ensure_ascii=False)}\n\n"
+    stream = client.chat.completions.create(
+        model=MODEL, max_completion_tokens=4000,
+        messages=[
+            {"role": "system", "content": PHASE2_SYSTEM},
+            {"role": "user", "content": p2_user},
+        ],
+        stream=True,
+    )
+    for chunk in stream:
+        delta = chunk.choices[0].delta.content
+        if delta:
+            full_text += delta
+            yield f"data: {json.dumps({'step': 'phase2_chunk', 'chunk': delta}, ensure_ascii=False)}\n\n"
 
     try:
         phase2 = _parse_json(full_text)
-        result = {"phase1": phase1, "phase2": phase2}
+        result = {
+            "phase1": phase1,
+            "phase2": phase2,
+            "rag_failed": rag_failed,
+        }
 
         get_client().table("pipeline_steps").upsert(
             {
                 "case_id": case_id,
-                "step_key": "6",
+                "step_key": "5",
                 "step_name": "한글표시사항",
                 "status": "waiting_review",
                 "ai_result": result,

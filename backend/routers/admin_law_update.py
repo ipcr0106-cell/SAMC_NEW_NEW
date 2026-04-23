@@ -38,15 +38,14 @@ router = APIRouter(prefix="/admin/law-update", tags=["admin-law-update"])
 LAW_FEATURE_MAP = {
     # ── F1 전용 ──
     "식품공전": {
-        "features": ["F1", "F2"],
+        "features": ["F1", "F2", "F3"],  # F3: 별표1 원료목록 + 제5장 식품유형 사용
         "tier": "고시",
         "description": "식품의 기준 및 규격 (별표1~3 포함)",
     },
     "식품첨가물공전": {
-        "features": ["F1", "F2"],
+        "features": ["F1", "F2", "F3"],  # F3: 착향료 목록을 plant_based_patterns 에 사용
         "tier": "고시",
         "description": "식품첨가물의 기준 및 규격",
-        # F3 병합 시 → ["F1", "F2", "F3"]
     },
     "건강기능식품공전": {
         "features": ["F1"],
@@ -92,41 +91,52 @@ LAW_FEATURE_MAP = {
         "description": "한·미, 한·EU, 한·캐나다 유기가공식품 동등성인정 협정문",
     },
 
-    # ── F1 + F4 공통 ──
+    # ── F3 식품공전 연동 (별표1 + 제5장 원료/식품유형) ──
+    # NOTE: "식품공전" / "식품첨가물공전" 키는 아래 F1/F2 전용 섹션에서 이미 정의됨.
+    #       LAW_FEATURE_MAP 은 dict 라 나중 정의가 먼저 정의를 덮어쓰므로,
+    #       같은 키를 여기서 중복 선언하지 않고 F1/F2 섹션 features 리스트에 "F3" 를 추가함.
+
+    # ── F1 공통 ──
     "식품등의 한시적 기준 및 규격 인정 기준": {
-        "features": ["F1", "F4", "F5"],
+        "features": ["F1", "F5"],
         "tier": "고시",
         "description": "한시적 기준 및 규격 인정 기준",
+        # F4는 API 자동 동기화로 분리됨 (backend/services/law_api_client.py)
     },
 
-    # ── F4 + F5 ──
+    # ── F4 법령은 API 자동 동기화로 분리 ──
+    # F4 법령 7개는 국가법령정보센터 API에서 자동으로 가져옴
+    # 동기화 스크립트: python -m backend.scripts.f4_sync_laws
+    # 상세: backend/services/law_api_client.py
+
+    # ── F5 (F4와 공유하던 법령 — F5용 파일 업로드는 유지) ──
     "식품 등의 표시·광고에 관한 법률": {
-        "features": ["F4"],
+        "features": ["F5"],
         "tier": "법률",
         "description": "표시·광고에 관한 법률",
     },
     "식품 등의 표시·광고에 관한 법률 시행령": {
-        "features": ["F4"],
+        "features": ["F5"],
         "tier": "시행령",
         "description": "표시·광고법 시행령",
     },
     "식품 등의 표시·광고에 관한 법률 시행규칙": {
-        "features": ["F4"],
+        "features": ["F5"],
         "tier": "시행규칙",
         "description": "표시·광고법 시행규칙",
     },
     "식품등의 표시기준": {
-        "features": ["F4", "F5"],
+        "features": ["F5"],
         "tier": "고시",
         "description": "식품등의 표시기준 고시",
     },
     "식품등의 부당한 표시 또는 광고의 내용 기준": {
-        "features": ["F4", "F5"],
+        "features": ["F5"],
         "tier": "고시",
         "description": "부당한 표시·광고 내용 기준",
     },
     "부당한 표시 또는 광고로 보지 아니하는 식품등의 기능성 표시 또는 광고에 관한 규정": {
-        "features": ["F4", "F5"],
+        "features": ["F5"],
         "tier": "고시",
         "description": "기능성 표시·광고 허용 규정",
     },
@@ -168,18 +178,58 @@ def _get_f4_clients() -> dict:
 
 
 def _get_f1_clients() -> dict:
-    """F1 전처리용 클라이언트 (Anthropic만 필요)."""
+    """F1 전처리용 클라이언트 — RAG 임베딩 (OpenAI + Pinecone + Supabase).
+
+    Phase 4-B 전환: 기존 Claude 기준치 추출 → OpenAI/Pinecone RAG 임베딩.
+    """
     if "F1" in _feature_clients:
         return _feature_clients["F1"]
 
-    # F1 law_extractor는 내부에서 F1_ANTHROPIC_API_KEY를 직접 참조하므로
-    # 여기서는 환경변수 존재 확인만 수행
-    api_key = os.getenv("F1_ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("F1_ANTHROPIC_API_KEY 미설정")
+    from openai import OpenAI
+    from pinecone import Pinecone
+    from supabase import create_client
 
-    _feature_clients["F1"] = {"anthropic_key": api_key}
-    return _feature_clients["F1"]
+    api_key = os.getenv("F1_OPENAI_API_KEY")
+    pinecone_key = os.getenv("F1_PINECONE_API_KEY")
+    sb_url = os.getenv("SUPABASE_URL")
+    sb_key = os.getenv("SUPABASE_SERVICE_KEY")
+    if not all([api_key, pinecone_key, sb_url, sb_key]):
+        raise RuntimeError(
+            "F1 환경변수 누락: F1_OPENAI_API_KEY / F1_PINECONE_API_KEY / "
+            "SUPABASE_URL / SUPABASE_SERVICE_KEY 모두 필요"
+        )
+
+    clients = {
+        "openai": OpenAI(api_key=api_key),
+        "index": Pinecone(api_key=pinecone_key).Index(
+            os.getenv("F1_PINECONE_INDEX", "samc-law-f1")
+        ),
+        "supabase": create_client(sb_url, sb_key),
+    }
+    _feature_clients["F1"] = clients
+    return clients
+
+
+def _get_f2_clients() -> dict:
+    """F2 전처리용 클라이언트 (Pinecone + Supabase + OpenAI)."""
+    if "F2" in _feature_clients:
+        return _feature_clients["F2"]
+
+    from openai import OpenAI
+    from pinecone import Pinecone
+    from supabase import create_client
+
+    clients = {
+        "index": Pinecone(api_key=os.getenv("F2_PINECONE_API_KEY")).Index(
+            os.getenv("F2_PINECONE_INDEX", "samc-a")
+        ),
+        "supabase": create_client(
+            os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_SERVICE_KEY")
+        ),
+        "openai": OpenAI(api_key=os.getenv("F2_OPENAI_API_KEY")),
+    }
+    _feature_clients["F2"] = clients
+    return clients
 
 
 async def _run_f4_preprocess(
@@ -269,28 +319,134 @@ async def _run_f4_preprocess(
     }
 
 
+# F1 법령 → Pinecone namespace 매핑
+# LAW_FEATURE_MAP의 F1 법령과 일치해야 함.
+_F1_LAW_NAME_TO_NAMESPACE = {
+    "식품공전": "food_code_text",
+    "식품첨가물공전": "additive_code_text",
+    "건강기능식품공전": "health_food_text",
+    "식품등의 한시적 기준 및 규격 인정 기준": "temporary_standard",
+    # W2-D: 14번 §11-3 결정 10 A' — functional_labeling 쿼리 유지 + 재인덱싱 경로 확보
+    "부당한 표시 또는 광고로 보지 아니하는 식품등의 기능성 표시 또는 광고에 관한 규정": "functional_labeling",
+}
+
+# namespace별 ASCII-only vector_id prefix (Pinecone 제약)
+_F1_NAMESPACE_TO_ID_PREFIX = {
+    "food_code_text": "food_code",
+    "additive_code_text": "additive_code",
+    "health_food_text": "health_food",
+    "temporary_standard": "temporary_std",
+}
+
+_F1_EMBED_BATCH = 100
+_F1_UPSERT_BATCH = 100
+
+
+def _law_name_to_namespace(law_name: str) -> str:
+    """LAW_FEATURE_MAP F1 법령명 → Pinecone namespace."""
+    if law_name not in _F1_LAW_NAME_TO_NAMESPACE:
+        raise RuntimeError(f"F1 namespace 매핑 없음: {law_name}")
+    return _F1_LAW_NAME_TO_NAMESPACE[law_name]
+
+
+def _f1_pdf_to_text(pdf_path: Path) -> str:
+    """PyMuPDF로 PDF → 단순 텍스트 추출.
+
+    f1_chunking.chunk_markdown()은 `### 제N조` 헤딩 미존재 시 빈 줄 분할 폴백을
+    지원하므로, 여기서는 페이지별 텍스트를 두 번 개행(\\n\\n)으로 이어 붙여 반환.
+    """
+    import fitz  # PyMuPDF
+
+    doc = fitz.open(pdf_path)
+    try:
+        pages = [p.get_text("text") for p in doc]
+    finally:
+        doc.close()
+    return "\n\n".join(pages)
+
+
 async def _run_f1_preprocess(
     tmp_path: Path,
     law_name: str,
     progress_callback=None,
 ) -> dict:
-    """F1 전처리: PDF → 마크다운 청킹 → Claude 기준치 추출 → 미리보기 반환."""
-    _get_f1_clients()  # 환경변수 확인
+    """F1 전처리: PDF → 텍스트 → 청킹 → OpenAI 임베딩 → Pinecone + Supabase 미러.
+
+    Phase 4-B 전환: 기존 Claude 기준치 추출 → RAG 임베딩.
+    계획: f1_RAG도입계획_백엔드.md §4.3
+    """
+    import time
+    from services import f1_chunking, f1_openai_client
+
+    clients = _get_f1_clients()
+    namespace = _law_name_to_namespace(law_name)
+    id_prefix_base = _F1_NAMESPACE_TO_ID_PREFIX.get(namespace, "f1_law")
 
     if progress_callback:
         await progress_callback("F1", law_name, "chunking", 10)
 
-    # 청커로 마크다운 변환 + 청킹
-    from utils.chunker import chunk_law_markdown, pdf_to_markdown
-    md_text = pdf_to_markdown(str(tmp_path))
-    chunks = chunk_law_markdown(md_text)
+    md_text = _f1_pdf_to_text(tmp_path)
+    regulation_id = f"{law_name}_{int(time.time())}"
+    # ASCII prefix + 타임스탬프 (중복 방지 + Pinecone ID 안전)
+    id_prefix = f"{id_prefix_base}_{int(time.time())}"
+    chunks = f1_chunking.chunk_markdown(
+        md_text, regulation_id, namespace, id_prefix=id_prefix,
+    )
+
+    if not chunks:
+        return {
+            "feature": "F1",
+            "law_name": law_name,
+            "status": "success",
+            "embedded_count": 0,
+            "namespace": namespace,
+            "message": "청크 생성 0 — PDF 추출 결과가 비어 있을 수 있음",
+        }
 
     if progress_callback:
-        await progress_callback("F1", law_name, "extracting", 30)
+        await progress_callback("F1", law_name, "embedding", 30)
 
-    # Claude로 기준치 추출
-    from services.law_extractor import extract_thresholds_bulk
-    result = await extract_thresholds_bulk(chunks)
+    # 배치 임베딩
+    vectors: list[dict] = []
+    for i in range(0, len(chunks), _F1_EMBED_BATCH):
+        batch = chunks[i : i + _F1_EMBED_BATCH]
+        embeds = f1_openai_client.embed([c["text"] for c in batch])
+        for c, e in zip(batch, embeds):
+            vectors.append({
+                "id": c["vector_id"],
+                "values": e,
+                "metadata": {**c["metadata"], "text": c["text"][:4000]},
+            })
+        if progress_callback:
+            pct = 30 + int(50 * (i + len(batch)) / len(chunks))
+            await progress_callback("F1", law_name, "embedding", pct)
+
+    # Pinecone upsert
+    for i in range(0, len(vectors), _F1_UPSERT_BATCH):
+        clients["index"].upsert(
+            vectors=vectors[i : i + _F1_UPSERT_BATCH],
+            namespace=namespace,
+        )
+
+    if progress_callback:
+        await progress_callback("F1", law_name, "mirroring", 85)
+
+    # Supabase 미러 upsert
+    mirror_rows = [{
+        "vector_id": v["id"],
+        "regulation_id": v["metadata"]["regulation_id"],
+        "pinecone_namespace": namespace,
+        "section_path": v["metadata"].get("section_path"),
+        "text": (v["metadata"].get("text", "") or "")[:16000],
+        "token_count": v["metadata"].get("token_count"),
+        "chunk_index": v["metadata"].get("chunk_index"),
+        "total_chunks": v["metadata"].get("total_chunks"),
+    } for v in vectors]
+    for i in range(0, len(mirror_rows), _F1_UPSERT_BATCH):
+        clients["supabase"].table("f1_law_chunks").upsert(
+            mirror_rows[i : i + _F1_UPSERT_BATCH],
+            on_conflict="vector_id",
+        ).execute()
 
     if progress_callback:
         await progress_callback("F1", law_name, "done", 100)
@@ -299,19 +455,51 @@ async def _run_f1_preprocess(
         "feature": "F1",
         "law_name": law_name,
         "status": "success",
-        "extracted_count": len(result.extracted),
-        "needs_review_count": len(result.needs_review),
-        "needs_admin_review": True,
+        "embedded_count": len(vectors),
+        "namespace": namespace,
+        "regulation_id": regulation_id,
     }
+
+
+async def _run_f2_preprocess(
+    tmp_path: Path,
+    law_name: str,
+    progress_callback=None,
+) -> dict:
+    """F2 전처리: 단일 법령 PDF/HWPX → 청킹 → Pinecone + Supabase 업로드.
+
+    Phase 3 Sprint 1(2026-04-17) 스켈레톤 상태. 실제 구현은 Sprint 2.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent.parent / "db" / "feature2"))
+
+    clients = _get_f2_clients()
+
+    from preprocess_f2 import run_f2_preprocess  # noqa: PLC0415
+
+    return await run_f2_preprocess(
+        file_path=tmp_path,
+        law_name=law_name,
+        index=clients["index"],
+        supabase_client=clients["supabase"],
+        openai_client=clients["openai"],
+        progress_callback=progress_callback,
+    )
+
+
+# F3 전처리 프록시 (실체는 services/f3_preprocess/dispatcher.py 에 격리)
+# F3 는 업로드 즉시 교체 대신 미리보기 → 검역관 확정 플로우라,
+# 여기서는 "미리보기 페이지로 이동" 안내만 수행함.
+from services.f3_preprocess.dispatcher import run_f3_preprocess as _run_f3_preprocess
 
 
 # 기능별 전처리 함수 레지스트리
 # 기능 병합 시 여기에 항목 추가
 FEATURE_PROCESSORS = {
     "F1": _run_f1_preprocess,
+    "F2": _run_f2_preprocess,
+    "F3": _run_f3_preprocess,
     "F4": _run_f4_preprocess,
-    # F2 병합 시 → "F2": _run_f2_preprocess,
-    # F3 병합 시 → "F3": _run_f3_preprocess,
     # F5 병합 시 → "F5": _run_f5_preprocess,
 }
 
@@ -434,7 +622,7 @@ async def upload_and_update(
                             progress_callback=progress_callback,
                         )
                     )
-                elif feature == "F1":
+                elif feature in ("F1", "F2", "F3"):
                     tasks.append(
                         processor(
                             tmp_path=tmp_paths[i],
@@ -452,6 +640,7 @@ async def upload_and_update(
                 await progress_queue.put({
                     "type": "error",
                     "message": str(r),
+                    "recovery": "Processing failed midway. Please re-upload the file to retry. The system will rebuild from scratch.",
                     "traceback": traceback.format_exception(r),
                 })
             else:

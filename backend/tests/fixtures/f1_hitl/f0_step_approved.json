@@ -1,0 +1,17 @@
+{
+  "id": 2,
+  "case_id": "00000000-0000-0000-0000-000000000002",
+  "step_key": "0",
+  "status": "approved",
+  "ai_result": {
+    "basic_info": {"product_name": "승인완료제품", "export_country": "독일"},
+    "ingredients": [
+      {"name": "구연산", "ratio": "0.10", "ins_number": "330", "cas_number": null}
+    ],
+    "process_info": {"process_codes": []}
+  },
+  "final_result": null,
+  "edit_reason": null,
+  "created_at": "2026-04-20T00:00:00+00:00",
+  "updated_at": "2026-04-20T00:00:00+00:00"
+}

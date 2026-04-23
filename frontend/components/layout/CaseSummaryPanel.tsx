@@ -146,29 +146,29 @@ export default function CaseSummaryPanel({ caseId }: CaseSummaryPanelProps) {
   return (
     <div className="space-y-4">
       {/* OCR 파싱 요약 */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+      <div className="ds-surface-card p-4">
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-7 h-7 bg-emerald-50 rounded-lg flex items-center justify-center">
-            <FileText size={13} className="text-emerald-600" />
+          <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--ds-color-success-soft)" }}>
+            <FileText size={13} style={{ color: "var(--ds-color-success-text)" }} />
           </div>
-          <h3 className="text-sm font-bold text-slate-900">OCR 분석 요약</h3>
+          <h3 className="text-sm font-bold" style={{ color: "var(--ds-color-text-heading)" }}>OCR 분석 요약</h3>
         </div>
 
         {loading ? (
-          <div className="flex items-center gap-2 py-2 text-slate-400">
+          <div className="flex items-center gap-2 py-2" style={{ color: "var(--ds-color-text-tertiary)" }}>
             <Loader2 size={13} className="animate-spin" />
             <span className="text-xs">불러오는 중...</span>
           </div>
         ) : !summary ? (
-          <p className="text-xs text-slate-400">파싱 데이터가 없습니다.</p>
+          <p className="text-xs" style={{ color: "var(--ds-color-text-tertiary)" }}>파싱 데이터가 없습니다.</p>
         ) : (
           <div className="space-y-2">
             {summary.product_name && (
               <div className="flex items-start gap-2">
                 <Package size={13} className="text-slate-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] text-slate-400">제품명</p>
-                  <p className="text-xs font-semibold text-slate-800 leading-tight">{summary.product_name}</p>
+                  <p className="text-[10px]" style={{ color: "var(--ds-color-text-tertiary)" }}>제품명</p>
+                  <p className="text-xs font-semibold leading-tight" style={{ color: "var(--ds-color-text-primary)" }}>{summary.product_name}</p>
                 </div>
               </div>
             )}
@@ -176,8 +176,8 @@ export default function CaseSummaryPanel({ caseId }: CaseSummaryPanelProps) {
               <div className="flex items-start gap-2">
                 <Globe2 size={13} className="text-slate-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] text-slate-400">수출국</p>
-                  <p className="text-xs font-semibold text-slate-800">{summary.export_country}</p>
+                  <p className="text-[10px]" style={{ color: "var(--ds-color-text-tertiary)" }}>수출국</p>
+                  <p className="text-xs font-semibold" style={{ color: "var(--ds-color-text-primary)" }}>{summary.export_country}</p>
                 </div>
               </div>
             )}
@@ -185,8 +185,8 @@ export default function CaseSummaryPanel({ caseId }: CaseSummaryPanelProps) {
               <div className="flex items-start gap-2">
                 <FlaskConical size={13} className="text-slate-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] text-slate-400">원재료</p>
-                  <p className="text-xs font-semibold text-slate-800">{summary.ingredient_count}개 항목</p>
+                  <p className="text-[10px]" style={{ color: "var(--ds-color-text-tertiary)" }}>원재료</p>
+                  <p className="text-xs font-semibold" style={{ color: "var(--ds-color-text-primary)" }}>{summary.ingredient_count}개 항목</p>
                 </div>
               </div>
             )}
@@ -194,10 +194,10 @@ export default function CaseSummaryPanel({ caseId }: CaseSummaryPanelProps) {
               <div className="flex items-start gap-2">
                 <Cog size={13} className="text-slate-400 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] text-slate-400">공정 코드</p>
+                  <p className="text-[10px]" style={{ color: "var(--ds-color-text-tertiary)" }}>공정 코드</p>
                   <div className="flex flex-wrap gap-1 mt-0.5">
-                    {summary.process_codes.map((c) => (
-                      <span key={c} className="text-[10px] font-mono bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded">
+                    {summary.process_codes.map((c, i) => (
+                      <span key={`${c}-${i}`} className="text-[10px] font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--ds-color-primary-soft)", color: "var(--ds-color-primary-text)" }}>
                         {c}
                       </span>
                     ))}
@@ -211,19 +211,19 @@ export default function CaseSummaryPanel({ caseId }: CaseSummaryPanelProps) {
 
       {/* 라벨 이미지 */}
       {!loading && labelImages.length > 0 && (
-        <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="ds-surface-card p-4">
           <div className="flex items-center gap-2 mb-3">
-            <div className="w-7 h-7 bg-violet-50 rounded-lg flex items-center justify-center">
-              <ImageIcon size={13} className="text-violet-500" />
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "var(--ds-color-primary-soft)" }}>
+              <ImageIcon size={13} style={{ color: "var(--ds-color-primary-text)" }} />
             </div>
-            <h3 className="text-sm font-bold text-slate-900">라벨 이미지</h3>
-            <span className="ml-auto text-[10px] bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-semibold">
+            <h3 className="text-sm font-bold" style={{ color: "var(--ds-color-text-heading)" }}>라벨 이미지</h3>
+            <span className="ml-auto text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "var(--ds-color-primary-soft)", color: "var(--ds-color-primary-text)" }}>
               {labelImages.length}개
             </span>
           </div>
           <div className="space-y-2">
-            {labelImages.map((img) => (
-              <LabelImageThumb key={img.id} img={img} />
+            {labelImages.map((img, idx) => (
+              <LabelImageThumb key={img.id != null ? `img-${img.id}` : `img-${idx}`} img={img} />
             ))}
           </div>
         </div>

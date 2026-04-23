@@ -1,0 +1,23 @@
+{
+  "response": {
+    "header": {
+      "resultCode": "00",
+      "resultMsg": "NORMAL SERVICE."
+    },
+    "body": {
+      "pageNo": 1,
+      "numOfRows": 10,
+      "totalCount": 1,
+      "items": [
+        {
+          "CPNT_CD": "A2000049070045",
+          "KOR_NM": " 닭고기단백분말",
+          "ENG_NM": "CHICKEN PROTEIN POWDER",
+          "NKNM_INFO_CONT": "닭고기, 계육 / Chicken, Fowl",
+          "CPNT_LCLS_CD_NM": "식품원료",
+          "USE_DIVS_CD_NM": "사용가능"
+        }
+      ]
+    }
+  }
+}

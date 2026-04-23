@@ -11,7 +11,7 @@
     4. 청크 메타데이터:
          - type: "text" | "table"
          - article: 가장 가까운 상위 조문명
-         - has_numbers: 숫자 포함 여부 (law_extractor 우선순위용)
+         - has_numbers: 숫자 포함 여부 (자료 탐색·필터링용)
 """
 
 from __future__ import annotations

@@ -6,14 +6,14 @@
  */
 
 import { apiClient } from "@/services/apiClient";
-import type { Feature4Result, ImageIssue, LabelIssue, ValidationResult } from "@/types/pipeline";
+import type { Feature4Result, LabelIssue, ImageIssue, ValidationResult } from "@/types/pipeline";
 import { API_PATHS } from "../constants";
 
-// 라벨 분석 실행 (POST /analyze)
+// 라벨 분석 실행 (POST /analyze) — 백엔드가 F0/F1/F2에서 자동 조회
 export const analyzeForeignLabel = async (
   caseId: string,
   payload: {
-    label_text: string;
+    label_text?: string;
     food_type?: string;
     ingredients?: string[];
     label_image_url?: string;
@@ -24,7 +24,9 @@ export const analyzeForeignLabel = async (
     doc_ingredients?: string;
   }
 ): Promise<{ case_id: string; ai_result: Feature4Result }> => {
-  const res = await apiClient.post(API_PATHS.analyze(caseId), payload);
+  const res = await apiClient.post(API_PATHS.analyze(caseId), payload, {
+    timeout: 300000,  // F4 분석은 PDF추출+OCR+RAG+AI 포함 최대 5분
+  });
   return res.data;
 };
 
@@ -37,20 +39,6 @@ export const validateSelection = async (
   }
 ): Promise<ValidationResult> => {
   const res = await apiClient.post(API_PATHS.validate(caseId), payload);
-  return res.data;
-};
-
-// 라벨 이미지 업로드
-export const uploadLabelImage = async (
-  caseId: string,
-  file: File
-): Promise<{ uploaded_path: string; file_name: string }> => {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const res = await apiClient.post(API_PATHS.uploadLabel(caseId), formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
   return res.data;
 };
 

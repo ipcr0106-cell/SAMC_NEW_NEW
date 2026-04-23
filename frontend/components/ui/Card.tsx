@@ -19,7 +19,7 @@ export default function Card({
 }: CardProps) {
   return (
     <div
-      className={`bg-white rounded-2xl shadow-sm border border-slate-100/50 ${paddingMap[padding]} ${className}`}
+      className={`ds-card ${paddingMap[padding]} ${className}`}
     >
       {children}
     </div>

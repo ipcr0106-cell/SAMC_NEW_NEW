@@ -1,0 +1,85 @@
+/* Auto-generated file. Do not edit directly. */
+/* Source: design-tokens/tokens.json */
+
+:root {
+  --ds-font-family: "Inter", "Pretendard", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ds-font-weight-body: 400;
+  --ds-font-weight-input: 500;
+  --ds-font-weight-heading: 600;
+  --ds-font-size-xs: 13px;
+  --ds-font-size-s: 14px;
+  --ds-font-size-m: 16px;
+  --ds-line-height-heading: 1.25;
+  --ds-line-height-body: 1.61;
+  --ds-line-height-xs: 1.25;
+  --ds-space-field-label-gap: 6px;
+  --ds-space-button-x: 14px;
+  --ds-space-button-tertiary-x: 6px;
+  --ds-size-field-height: 36px;
+  --ds-size-button-height: 36px;
+  --ds-size-icon-m: 24px;
+  --ds-radius-s: 4px;
+  --ds-radius-m: 4px;
+  --ds-radius-l: 8px;
+  --ds-border-width-overlay: 1px;
+  --ds-border-width-field: 1px;
+  --ds-color-bg: #FFFFFF;
+  --ds-color-surface: #F4F5F7;
+  --ds-color-text-heading: #192434;
+  --ds-color-text-primary: #192739F0;
+  --ds-color-text-secondary: #1B2B41B0;
+  --ds-color-text-tertiary: #1C304A85;
+  --ds-color-border-subtle: #1A38601A;
+  --ds-color-border: #1C375A29;
+  --ds-color-border-strong: #1C345442;
+  --ds-color-primary: #006AF5;
+  --ds-color-primary-text: #005FDB;
+  --ds-color-primary-contrast: #FFFFFF;
+  --ds-color-primary-soft: #338CFF21;
+  --ds-color-success: #158444;
+  --ds-color-success-text: #0A7637;
+  --ds-color-success-soft: #1688461A;
+  --ds-color-warning: #FFCC00;
+  --ds-color-warning-text: #985211;
+  --ds-color-warning-soft: #FFCC0040;
+  --ds-color-error: #E21D12;
+  --ds-color-error-text: #CA150C;
+  --ds-color-error-soft: #E71D131A;
+}
+
+:root[data-theme="dark"] {
+  --ds-color-bg: #223348;
+  --ds-color-surface: #202F43;
+  --ds-color-text-heading: #F5F9FF;
+  --ds-color-text-primary: #EBF4FFE5;
+  --ds-color-text-secondary: #D9E8FCB0;
+  --ds-color-text-tertiary: #C9DDF880;
+  --ds-color-border-subtle: #ADC8EB24;
+  --ds-color-border: #B4CDEE3B;
+  --ds-color-border-strong: #BAD2F252;
+  --ds-color-primary: #0C6CE9;
+  --ds-color-primary-text: #90BDF9;
+  --ds-color-primary-contrast: #FFFFFF;
+  --ds-color-primary-soft: #338CFF21;
+  --ds-color-success: #158444;
+  --ds-color-success-text: #12D965;
+  --ds-color-success-soft: #0FF56F1A;
+  --ds-color-warning: #F5AF00;
+  --ds-color-warning-text: #FECB45;
+  --ds-color-warning-soft: #FFAA0033;
+  --ds-color-error: #E0241A;
+  --ds-color-error-text: #FF9E99;
+  --ds-color-error-soft: #E75D5524;
+}
+
+:root[data-size="small"] {
+  --ds-font-size-xs: 12px;
+  --ds-font-size-s: 13px;
+  --ds-font-size-m: 14px;
+  --ds-space-field-label-gap: 5px;
+  --ds-space-button-x: 8px;
+  --ds-space-button-tertiary-x: 5px;
+  --ds-size-field-height: 30px;
+  --ds-size-button-height: 30px;
+  --ds-size-icon-m: 20px;
+}

@@ -1,0 +1,17 @@
+{
+  "id": 1,
+  "case_id": "00000000-0000-0000-0000-000000000001",
+  "step_key": "0",
+  "status": "completed",
+  "ai_result": {
+    "basic_info": {"product_name": "테스트제품", "export_country": "미국"},
+    "ingredients": [
+      {"name": "소르빈산", "ratio": "0.05", "ins_number": null, "cas_number": null}
+    ],
+    "process_info": {"process_codes": ["01"]}
+  },
+  "final_result": null,
+  "edit_reason": null,
+  "created_at": "2026-04-20T00:00:00+00:00",
+  "updated_at": "2026-04-20T00:00:00+00:00"
+}

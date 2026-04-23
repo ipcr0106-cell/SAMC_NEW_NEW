@@ -6,7 +6,7 @@
  */
 
 import { apiClient } from "@/services/apiClient";
-import type { Feature1Result } from "@/types/pipeline";
+import type { Feature1Result, HITL1DecisionsRequest, HITL2ConfirmRequest } from "@/types/pipeline";
 import type { Feature1Response } from "../types";
 import { API_PATHS } from "../constants";
 
@@ -59,4 +59,52 @@ export const confirmImportCheckResult = async (
   caseId: string
 ): Promise<void> => {
   await apiClient.post(API_PATHS.confirm(caseId));
+};
+
+// 레포트 PDF 다운로드
+export const downloadReport = async (caseId: string): Promise<void> => {
+  const res = await apiClient.get(API_PATHS.report(caseId), {
+    responseType: "blob",
+  });
+  const blob = new Blob([res.data], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `F1_report_${caseId}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+// ── HITL-0: F0 파싱 결과 편집 (PATCH /pipeline/feature/0) ──
+export const editF0Result = async (
+  caseId: string,
+  payload: { final_result: Record<string, unknown>; edit_reason: string }
+): Promise<void> => {
+  await apiClient.patch(API_PATHS.f0Edit(caseId), payload);
+};
+
+// ── HITL-0: F0 결과 승인 (POST /pipeline/feature/0/approve) ──
+export const approveF0Result = async (
+  caseId: string,
+  payload: { approver_id: string; approved_at: string; signature?: string }
+): Promise<void> => {
+  await apiClient.post(API_PATHS.f0Approve(caseId), payload);
+};
+
+// ── HITL-1: 불확실 원재료 결정 제출 (POST /hitl1-decisions) ──
+export const submitHitl1Decisions = async (
+  caseId: string,
+  payload: HITL1DecisionsRequest
+): Promise<void> => {
+  await apiClient.post(API_PATHS.hitl1Decisions(caseId), payload);
+};
+
+// ── HITL-2: 최종 판정 확정 (POST /confirm with body) ──
+export const confirmHitl2 = async (
+  caseId: string,
+  payload: HITL2ConfirmRequest
+): Promise<void> => {
+  await apiClient.post(API_PATHS.confirm(caseId), payload);
 };

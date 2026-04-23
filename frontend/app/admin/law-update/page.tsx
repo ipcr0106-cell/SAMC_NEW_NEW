@@ -12,6 +12,7 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
+import { F3UpdateFlow } from "@/features/feature3/admin/F3UpdateFlow";
 
 // ── 타입 ──
 
@@ -76,6 +77,9 @@ export default function LawUpdatePage() {
   const [laws, setLaws] = useState<LawInfo[]>([]);
   const [slots, setSlots] = useState<UploadSlot[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // 탭: "f3" (수입필요서류 안내 — preview/rollback 플로우) vs "bulk" (기존 일괄 업로드)
+  const [activeTab, setActiveTab] = useState<"f3" | "bulk">("f3");
 
   // 업데이트 진행 상태
   const [isUpdating, setIsUpdating] = useState(false);
@@ -181,7 +185,11 @@ export default function LawUpdatePage() {
               } else if (event.type === "result") {
                 setResults((prev) => [...prev, event]);
               } else if (event.type === "error") {
-                setErrors((prev) => [...prev, event.message || "알 수 없는 오류"]);
+                const msg = event.message || "알 수 없는 오류";
+                const recovery = event.recovery
+                  ? `\n${event.recovery}`
+                  : "";
+                setErrors((prev) => [...prev, msg + recovery]);
               } else if (event.type === "complete") {
                 setComplete(true);
               }
@@ -228,6 +236,35 @@ export default function LawUpdatePage() {
 
       {/* ── 본문 ── */}
       <div className="pt-[96px] pb-20 max-w-[1280px] mx-auto px-8">
+        {/* 탭 전환 */}
+        <div className="mb-6 flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+          <button
+            onClick={() => setActiveTab("f3")}
+            className={`px-5 py-2 text-[13.5px] font-semibold rounded-md transition-colors ${
+              activeTab === "f3"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            수입필요서류 안내 (미리보기 · 롤백)
+          </button>
+          <button
+            onClick={() => setActiveTab("bulk")}
+            className={`px-5 py-2 text-[13.5px] font-semibold rounded-md transition-colors ${
+              activeTab === "bulk"
+                ? "bg-white text-slate-900 shadow-sm"
+                : "text-slate-600 hover:text-slate-800"
+            }`}
+          >
+            기타 법령 일괄 업데이트 (F1/F2/F4)
+          </button>
+        </div>
+
+        {/* F3 탭 — 미리보기/편집/롤백 플로우 */}
+        {activeTab === "f3" && <F3UpdateFlow />}
+
+        {/* bulk 탭 — 기존 일괄 업로드 UI */}
+        {activeTab === "bulk" && (<>
         {/* 설명 */}
         <div className="mb-8">
           <h2 className="text-[28px] font-extrabold text-slate-900">
@@ -273,6 +310,7 @@ export default function LawUpdatePage() {
             {isUpdating ? "업데이트 진행 중..." : "선택한 법령 업데이트"}
           </button>
         </div>
+        </>)}
       </div>
 
       {/* ── 진행도 모달 ── */}
@@ -512,15 +550,26 @@ function ProgressModal({
           {/* 에러 */}
           {errors.length > 0 && (
             <div className="mt-4 space-y-2">
-              {errors.map((err, i) => (
-                <div
-                  key={i}
-                  className="flex items-start gap-2 bg-red-50 rounded-lg px-3 py-2"
-                >
-                  <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
-                  <p className="text-[12px] text-red-700">{err}</p>
-                </div>
-              ))}
+              {errors.map((err, i) => {
+                const [msg, ...rest] = err.split("\n");
+                const recovery = rest.join("\n").trim();
+                return (
+                  <div
+                    key={i}
+                    className="bg-red-50 rounded-lg px-3 py-2 space-y-1"
+                  >
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={14} className="text-red-500 mt-0.5 shrink-0" />
+                      <p className="text-[12px] text-red-700">{msg}</p>
+                    </div>
+                    {recovery && (
+                      <p className="text-[11px] text-red-600 ml-[22px]">
+                        파일을 다시 업로드하여 재시도해주세요. 기존 데이터가 초기화된 상태이므로 재업로드가 필요합니다.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -530,6 +579,14 @@ function ProgressModal({
               <Check size={16} className="text-emerald-500" />
               <p className="text-[13px] text-emerald-700 font-medium">
                 모든 법령 업데이트가 완료되었습니다.
+              </p>
+            </div>
+          )}
+          {complete && errors.length > 0 && (
+            <div className="flex items-center gap-2 bg-amber-50 rounded-lg px-4 py-3 mt-4">
+              <AlertCircle size={16} className="text-amber-500" />
+              <p className="text-[13px] text-amber-700 font-medium">
+                일부 법령 업데이트에 실패했습니다. 실패한 법령을 다시 업로드해주세요.
               </p>
             </div>
           )}

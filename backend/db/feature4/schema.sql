@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS f4_law_documents (
     법령_tier                    INTEGER NOT NULL DEFAULT 4,           -- 1=법률 2=시행령 3=시행규칙 4=고시
     total_chunks                 INTEGER DEFAULT 0,                    -- Pinecone에 적재된 청크 수
     prohibition_hint_patterns    TEXT[] DEFAULT '{}',                  -- 법령 고유 금지 마커 어구 (Claude 자동 추출)
+    is_updating                  BOOLEAN NOT NULL DEFAULT FALSE,      -- 법령 업데이트 진행 중 플래그 (TRUE이면 F4 분석 차단)
     created_at                   TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -20,6 +21,10 @@ CREATE TABLE IF NOT EXISTS f4_law_documents (
 -- schema.sql 최초 실행이 아닌 경우 아래 ALTER TABLE을 SQL Editor에서 실행
 ALTER TABLE f4_law_documents
     ADD COLUMN IF NOT EXISTS prohibition_hint_patterns TEXT[] DEFAULT '{}';
+
+-- [마이그레이션] 기존 테이블에 is_updating 컬럼 추가
+ALTER TABLE f4_law_documents
+    ADD COLUMN IF NOT EXISTS is_updating BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- 명시적 금지 표현 목록 (키워드 기반 1차 빠른 필터용)
 -- Claude 분석 전에 Supabase에서 먼저 매칭해 명백한 위반을 잡아냄
@@ -63,3 +68,17 @@ CREATE INDEX IF NOT EXISTS idx_image_violation_is_active   ON f4_image_violation
 -- schema.sql 최초 실행이 아닌 경우 아래 ALTER TABLE을 SQL Editor에서 실행
 ALTER TABLE f4_image_violation_types
     ADD COLUMN IF NOT EXISTS source_law_name TEXT;
+
+-- F4 분석 결과 저장 (케이스별 1건)
+CREATE TABLE IF NOT EXISTS f4_results (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    case_id             TEXT NOT NULL,                             -- 케이스 UUID
+    status              TEXT NOT NULL DEFAULT 'pending',           -- pending | waiting_review | completed
+    ai_result           JSONB,                                    -- AI 분석 결과 (overall, issues, image_issues, cross_check)
+    final_result        JSONB,                                    -- 담당자가 선택한 최종 결과
+    validation_result   JSONB,                                    -- 법령 정합성 검증 결과 (임시)
+    edit_reason         TEXT DEFAULT '',                           -- 수정 사유 (식약처 소명용)
+    created_at          TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_f4_results_case_id ON f4_results(case_id);

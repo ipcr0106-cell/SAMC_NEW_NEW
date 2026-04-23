@@ -87,15 +87,6 @@ export default function CaseLayout({
               <ChevronLeft size={16} />
               <span className="font-medium">대시보드</span>
             </button>
-            <div className="w-px h-5 bg-slate-200" />
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 bg-blue-600 rounded-lg flex items-center justify-center">
-                <Shield size={13} className="text-white" />
-              </div>
-              <span className="text-sm font-semibold text-slate-800">
-                검역 건 {caseId}
-              </span>
-            </div>
           </div>
 
           <div className="flex items-center gap-3">

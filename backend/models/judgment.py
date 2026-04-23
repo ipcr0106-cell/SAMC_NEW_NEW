@@ -40,6 +40,12 @@ LimitCheckStatus = Literal["pass", "fail", "warning", "no_data"]
 LimitCategory = Literal[
     "additive", "heavy_metal", "microbe", "pesticide", "alcohol", "contaminant"
 ]
+# F1 재설계 allow_verdict 값 집합 (07번 §2-1, W1-B 추가).
+# 주의: 기존 IngredientVerdict ("permitted"|"restricted"|"prohibited"|"unidentified") 와
+#        allow_verdict ("allowed"|"restricted"|"prohibited"|"unidentified") 는 의미상 동일하나
+#        네이밍이 다르다. "permitted" ↔ "allowed" 매핑이 필요한 경우
+#        Step B(W2-B)에서 변환하여 채운다. 이 파일에서는 07번 사양 그대로 snake_case 유지.
+AllowVerdict = Literal["allowed", "restricted", "prohibited", "unidentified"]
 
 
 # ============================================================
@@ -48,20 +54,68 @@ LimitCategory = Literal[
 
 
 class Ingredient(BaseModel):
-    """원재료 입력 단위."""
+    """원재료 입력 단위 — W1-B 신규 필드 6종 추가 (07번 §2-1)."""
 
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(..., description="원재료명(한국어 또는 학명/영문)")
-    name_original: Optional[str] = Field(None, description="원문 원재료명 (번역 전)")
+    name_original: Optional[str] = Field(None, description="원문 원재료명 (번역 전) — 현재 미사용, LLM 정규화 원본 추적용으로 예약")
     percentage: Optional[float] = Field(None, description="함량 비율 (%)")
     ins: Optional[str] = Field(None, description="INS 번호")
     cas: Optional[str] = Field(None, description="CAS 번호")
-    chemical_name: Optional[str] = Field(None, description="화학성분명")
+    chemical_name: Optional[str] = Field(None, description="화학성분명 — 현재 미사용, DB 매칭 실패 시 화학명 재검색용으로 예약")
     part: Optional[str] = Field(None, description="사용 부위 (잎, 뿌리 등)")
-    is_allergen: Optional[bool] = Field(None, description="라벨상 알레르겐 표시 여부")
+    is_allergen: Optional[bool] = Field(None, description="라벨상 알레르겐 표시 여부 — 현재 미사용, F3 연동용으로 예약")
     sub_ingredients: Optional[list["Ingredient"]] = Field(
         None, description="복합원재료 하위 성분"
+    )
+
+    # ── W1-B 신규 필드 (07번 §2-1) ──────────────────────────────
+    component_code: Optional[str] = Field(
+        None,
+        description="15094202 성분코드 CPNT_CD (UI 표시·감사 추적용)",
+    )
+    allow_verdict: Optional[AllowVerdict] = Field(
+        None,
+        description=(
+            "Step B 매칭 결과 판정값. "
+            "매핑: 'allowed'=허용, 'restricted'=조건부, 'prohibited'=금지, 'unidentified'=미확인. "
+            "기존 IngredientVerdict의 'permitted'는 'allowed'에 대응 (Step B에서 변환)."
+        ),
+    )
+    restriction_condition: Optional[str] = Field(
+        None,
+        description="조건부 허용 조건 텍스트 (CHRTR_INFO_CONT, HITL-1 표시용)",
+    )
+    edible_parts: Optional[str] = Field(
+        None,
+        description="식용 가능 부위 (EDIBLE_USE_CONT)",
+    )
+    is_gmo: Optional[bool] = Field(
+        None,
+        description="GMO 여부 (15111913 GMO_YN 조회 결과, True=GMO, False=non-GMO, None=미조회)",
+    )
+    source_api: Optional[str] = Field(
+        None,
+        description="매칭된 API endpoint_id (감사 추적, DataGoKrEndpoint 값 또는 'db')",
+    )
+
+    # ── P6 추가 (2026-04-20) — 원재료 매칭 상세 컬럼 채움용 ───────────
+    matched_name_ko: Optional[str] = Field(
+        None,
+        description="F0 성분코드 조회로 도출된 한글 표준명 (IngredientItem.ingredient_code_name)",
+    )
+    ingredient_code_f0: Optional[str] = Field(
+        None,
+        description="F0 식약처 성분코드 (IngredientItem.ingredient_code, 예: A1000911320001)",
+    )
+    match_method: Optional[str] = Field(
+        None,
+        description="F0 매칭 방법 추론: 'exact_name' | 'code_normalize' | None(=미매칭)",
+    )
+    law_source: Optional[str] = Field(
+        None,
+        description="Step B verdict 도출 근거 법령 (예: '식품의 기준 및 규격 [별표 3]')",
     )
 
 
@@ -71,10 +125,10 @@ class ProcessConditions(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     is_heated: Optional[bool] = None
-    is_fermented: Optional[bool] = None
+    is_fermented: Optional[bool] = None  # 현재 미사용 — 발효식품 전용 기준치 분기 예약
     is_distilled: Optional[bool] = None
     alcohol_percentage: Optional[float] = None
-    ph_value: Optional[float] = None
+    ph_value: Optional[float] = None  # 현재 미사용 — pH 기반 기준치 분기 예약 (예: 산성식품 pH 4.6 이하)
 
 
 class Feature1Input(BaseModel):
@@ -196,8 +250,8 @@ class Feature1Output(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    import_possible: bool
-    verdict: str = Field(..., description="수입가능/수입불가 + 한국어 사유")
+    import_possible: Optional[bool] = None
+    verdict: str = Field(..., description="수입가능/수입불가/검토필요 + 한국어 사유")
     aggregation: Optional[AggregationResult] = None
     conditional_evaluations: list[ConditionalEvaluation] = Field(default_factory=list)
     standards_check: Optional[StandardsCheckResult] = None

@@ -17,17 +17,39 @@
 
 from __future__ import annotations
 
-import json
+import asyncio
+import io
+from datetime import datetime
 from typing import Any, Optional
 
-import asyncpg
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from fpdf import FPDF
 from pydantic import BaseModel
 
-from db.connection import get_conn_dep
+from config.feature_flags import F1_REQUIRE_HITL0_APPROVAL, should_use_new_pipeline
+from db.supabase_client import get_supabase
+from models.f1_hitl import (
+    F0ApproveRequest,
+    F0ApproveResponse,
+    F0EditRequest,
+    F0EditResponse,
+    HITL1DecisionsRequest,
+    HITL1DecisionsResponse,
+    HITL2ConfirmRequest,
+    HITL2ConfirmResponse,
+)
+from models.f1_law_citation import RagJudgement
+from models.f1_types import F1Output
 from models.judgment import (Feature1Input, Feature1Output, Ingredient,
                                      ProcessConditions)
-from services.feature1 import run_feature1
+from services.feature1 import run_feature1, run_feature1_with_rag, run_feature1_v2
+from services.f1_hitl_service import (
+    apply_f0_edit,
+    approve_f0,
+    confirm_hitl2,
+    submit_hitl1_decisions,
+)
 
 router = APIRouter(
     prefix="/api/v1/cases",
@@ -40,50 +62,55 @@ router = APIRouter(
 # ============================================================
 
 
-async def _fetch_pipeline_step(
-    db: asyncpg.Connection, case_id: str, step_key: str = "1"
-) -> Optional[asyncpg.Record]:
-    return await db.fetchrow(
-        """
-        SELECT id, case_id, step_key, step_name, status,
-               ai_result, final_result, edit_reason,
-               law_references, created_at, updated_at
-          FROM pipeline_steps
-         WHERE case_id = $1 AND step_key = $2
-         LIMIT 1
-        """,
-        case_id,
-        step_key,
-    )
+def _fetch_pipeline_step(
+    case_id: str, step_key: str = "1"
+) -> Optional[dict]:
+    supabase = get_supabase()
+    result = supabase.table("pipeline_steps") \
+        .select(
+            "id, case_id, step_key, step_name, status, "
+            "ai_result, final_result, edit_reason, "
+            "law_references, created_at, updated_at"
+        ) \
+        .eq("case_id", case_id) \
+        .eq("step_key", step_key) \
+        .limit(1) \
+        .execute()
+    return result.data[0] if result.data else None
 
 
-async def _upsert_pipeline_step(
-    db: asyncpg.Connection,
+def _upsert_pipeline_step(
     case_id: str,
     status: str,
     ai_result: dict,
 ) -> None:
-    await db.execute(
-        """
-        INSERT INTO pipeline_steps (case_id, step_key, step_name, status, ai_result)
-        VALUES ($1, '1', 'import_check', $2, $3::jsonb)
-        ON CONFLICT (case_id, step_key) DO UPDATE
-          SET status = EXCLUDED.status,
-              ai_result = EXCLUDED.ai_result,
-              updated_at = NOW()
-        """,
-        case_id,
-        status,
-        json.dumps(ai_result, ensure_ascii=False),
-    )
+    supabase = get_supabase()
+    supabase.table("pipeline_steps").upsert(
+        {
+            "case_id": case_id,
+            "step_key": "1",
+            "step_name": "import_check",
+            "status": status,
+            "ai_result": ai_result,  # supabase-py가 dict를 JSONB로 자동 직렬화
+            "final_result": None,    # 재실행 시 이전 수정본 초기화
+        },
+        on_conflict="case_id,step_key"
+    ).execute()
 
 
-def _to_pipeline_result(out: Feature1Output) -> dict:
+def _to_pipeline_result(
+    out: Feature1Output,
+    rag: Optional[RagJudgement] = None,
+    conflict_status: str = "rag_skipped",
+) -> dict:
     """백엔드 Feature1Output 을 팀 약속 Feature1Result (types/pipeline.ts) 형식으로 변환.
 
     약속 필드:
         ingredients[], verdict, import_possible, fail_reasons[], standards_check[]
     추가로 _internal 키에 상세 결과 포함 (프론트에서 선택 활용).
+
+    Phase 4-B (RAG + HITL):
+        rag, conflict_status default 유지로 기존 호출자(`run_feature1` 단독)는 후방 호환.
     """
     verdict_to_status = {
         "permitted": "allowed",
@@ -191,21 +218,300 @@ def _to_pipeline_result(out: Feature1Output) -> dict:
             "forbidden_hits": [h.model_dump() for h in out.forbidden_hits],
             "escalations": out.escalations,
             "law_refs": [r.model_dump() for r in out.law_refs],
+            # ── Phase 4-B: RAG + HITL ──
+            "rag_verdict": rag.rag_verdict if rag else None,
+            "rag_reasoning": rag.rag_reasoning if rag else None,
+            "law_citations": (
+                [c.model_dump() for c in rag.law_citations] if rag else []
+            ),
+            "conflict_status": conflict_status,
         },
     }
 
 
-def _record_to_json(row: asyncpg.Record, field: str) -> Any:
-    """asyncpg Record 의 jsonb 컬럼 값 파싱."""
-    raw = row[field]
-    if raw is None:
-        return None
-    if isinstance(raw, (dict, list)):
-        return raw
-    try:
-        return json.loads(raw)
-    except (TypeError, ValueError):
-        return None
+def _f1output_to_pipeline_result(out: F1Output) -> dict:
+    """F1Output (신규 v2 파이프라인) → 팀 약속 Feature1Result (types/pipeline.ts) 형식 변환.
+
+    verdict 한글 변환:
+        permitted  → 수입가능
+        restricted → 수입가능 (조건부)
+        prohibited → 수입불가
+        needs_review, 기타 → 검토 필요
+
+    import_possible: verdict in ("permitted", "restricted") → True, 나머지 False.
+
+    ingredients[]: evidence_external_data step=B enriched_summary 에서 추출.
+    fail_reasons[]: warnings + step=A forbidden_hits.
+    standards_check[]: evidence_external_data step=C checks.
+    _internal: v2 전용 필드 + pipeline_version="v2".
+    """
+    _VERDICT_KO = {
+        "permitted": "수입가능",
+        "restricted": "수입가능 (조건부)",
+        "prohibited": "수입불가",
+        "needs_review": "검토 필요",
+    }
+    verdict_ko = _VERDICT_KO.get(out.verdict, "검토 필요")
+    import_possible = out.verdict in ("permitted", "restricted")
+
+    # ── ingredients: step=B enriched_summary ──────────────────
+    ingredients_slim: list[dict] = []
+    step_b_data: Optional[dict] = None
+    step_a_data: Optional[dict] = None
+    step_c_data: Optional[dict] = None
+    for ev in out.evidence_external_data:
+        if ev.get("step") == "B":
+            step_b_data = ev
+        elif ev.get("step") == "A":
+            step_a_data = ev
+        elif ev.get("step") == "C":
+            step_c_data = ev
+
+    if step_b_data:
+        for item in step_b_data.get("enriched_summary", []):
+            allow_v = item.get("allow_verdict", "unidentified")
+            # allow_verdict: "allowed"→"허용", "restricted"→"조건부", "prohibited"→"금지", "unidentified"→"미확인"
+            status_map = {
+                "allowed": "allowed",
+                "restricted": "allowed",
+                "prohibited": "not_found",
+                "unidentified": "not_found",
+            }
+            ingredients_slim.append(
+                {
+                    "name": item.get("name", ""),
+                    "percentage": None,
+                    "status": status_map.get(allow_v, "not_found"),
+                    "law_ref": None,
+                }
+            )
+
+    # ── pipeline_status: warnings 에서 내부 신호 추출 ─────────
+    pipeline_status = "ok"
+    user_warnings: list[str] = []
+    # 내부 코드 접두사 — 사용자에게 노출하지 않음
+    _INTERNAL_PREFIXES = ("pipeline_status:", "step_c_review:", "step_b_unidentified:", "step_a_api_error:")
+    for w in out.warnings:
+        if w.startswith("pipeline_status:"):
+            pipeline_status = w.split(":", 1)[1]
+        elif any(w.startswith(p) for p in _INTERNAL_PREFIXES):
+            continue  # 내부 코드 스킵
+        else:
+            user_warnings.append(w)
+
+    # ── fail_reasons: LLM 법령 요약이 있으면 그걸 사용, 없으면 경고 표시 ──
+    fail_reasons: list[str] = []
+    # LLM 요약이 있으면 그것을 판정 근거로 사용
+    llm_summary = ""
+    for law in out.evidence_laws:
+        if law.get("namespace") == "llm_summary":
+            llm_summary = law.get("text", "")
+            break
+    if llm_summary:
+        # LLM 요약을 줄 단위로 분리하여 fail_reasons에 추가
+        for line in llm_summary.strip().splitlines():
+            line = line.strip()
+            if line and len(line) > 5:
+                fail_reasons.append(line)
+    else:
+        for w in user_warnings:
+            fail_reasons.append(w)
+    if step_a_data:
+        for h in step_a_data.get("forbidden_hits", []):
+            reason = h.get("reason") or h.get("matched_name", "")
+            if reason:
+                fail_reasons.append(f"금지원료: {h.get('ingredient_name', '')} — {reason}")
+
+    # ── standards_check: step=C checks ────────────────────────
+    standards_slim: list[dict] = []
+    if step_c_data:
+        for ch in step_c_data.get("checks", []):
+            actual: Optional[float] = None
+            actual_raw = ch.get("actual_value")
+            if actual_raw:
+                try:
+                    actual = float(str(actual_raw).split()[0])
+                except (ValueError, IndexError):
+                    actual = None
+
+            threshold: Optional[float] = ch.get("threshold_value")
+            # P6 (2026-04-20): 식품공전 원본 단위(%, g/100g 등) 가 사용자에게
+            # 더 자연스러우므로 unit_original 우선. 정규화 단위(mg/kg) 는 fallback.
+            unit = ch.get("unit_original") or ch.get("unit_normalized") or ""
+            spec_raw = ch.get("spec_summary") or ch.get("spec_raw") or ""
+
+            status_raw = ch.get("status", "no_data")
+            status_map_c = {
+                "pass": "pass",
+                "fail": "fail",
+                "review_needed": "no_threshold",
+                "no_data": "no_threshold",
+            }
+            standards_slim.append(
+                {
+                    "ingredient_name": ch.get("ingredient_name", ""),
+                    "test_category": ch.get("test_category"),
+                    "actual_value": actual,
+                    "unit": unit,
+                    "threshold_value": threshold,
+                    "threshold_text": spec_raw,
+                    "status": status_map_c.get(status_raw, "no_threshold"),
+                    "law_ref": ch.get("law_ref"),
+                }
+            )
+
+    # ── 레거시 FE 컴포넌트 재사용을 위한 _internal 매핑 ────────
+    # ImportCheckPage 의 기존 ForbiddenAlert / AggregationSummary / LawCitationList /
+    # EscalationAckList 는 _internal.forbidden_hits / aggregation / law_citations /
+    # escalations 를 기준으로 조건부 렌더한다. v2 path 에서도 이 필드들을 채워
+    # 별도 Step 패널 없이 기존 UI 자연 재사용.
+
+    # forbidden_hits: step_a.forbidden_hits → ForbiddenHitDetail
+    internal_forbidden: list[dict] = []
+    if step_a_data:
+        for h in step_a_data.get("forbidden_hits", []):
+            internal_forbidden.append(
+                {
+                    "name_ko": h.get("ingredient_name", ""),
+                    "category": "other",
+                    "law_source": h.get("law_ref"),
+                    "reason": h.get("reason"),
+                }
+            )
+
+    # aggregation: step_b.enriched_summary 집계
+    # v2 allow_verdict(allowed/restricted/prohibited/unidentified) →
+    # legacy verdict(permitted/restricted/prohibited/unidentified) 매핑
+    _VERDICT_LEGACY = {
+        "allowed": "permitted",
+        "restricted": "restricted",
+        "prohibited": "prohibited",
+        "unidentified": "unidentified",
+    }
+    internal_aggregation: Optional[dict] = None
+    if step_b_data:
+        enriched = step_b_data.get("enriched_summary", [])
+        counts = {"permitted": 0, "restricted": 0, "prohibited": 0, "unidentified": 0}
+        results_detail: list[dict] = []
+        for item in enriched:
+            v_legacy = _VERDICT_LEGACY.get(
+                item.get("allow_verdict") or "unidentified", "unidentified"
+            )
+            counts[v_legacy] = counts.get(v_legacy, 0) + 1
+            mm = item.get("match_method")  # P6: step_b enriched_summary 에서 패스스루
+            results_detail.append(
+                {
+                    "ingredient": {
+                        "name": item.get("name", ""),
+                        "percentage": item.get("percentage"),
+                        "ins": None,
+                        "cas": None,
+                        "part": None,
+                    },
+                    "verdict": v_legacy,
+                    "match_method": mm,
+                    "matched_db_id": item.get("ingredient_code_f0"),
+                    # 매칭 방법이 있을 때만 신뢰도 의미. 없으면 None (UI는 "-")
+                    "confidence": 1.0 if mm else 0.0,
+                    "matched_name_ko": item.get("matched_name_ko"),
+                    "law_source": item.get("law_source"),
+                }
+            )
+        # step_b.unidentified (이름 목록) 도 별도 항목으로 추가 (enriched 에서 누락된 경우)
+        known_names = {item.get("name") for item in enriched}
+        for uname in step_b_data.get("unidentified", []):
+            if uname not in known_names:
+                counts["unidentified"] += 1
+                results_detail.append(
+                    {
+                        "ingredient": {"name": uname, "percentage": None},
+                        "verdict": "unidentified",
+                        "match_method": None,
+                        "matched_db_id": None,
+                        "confidence": 0.0,
+                        "matched_name_ko": None,
+                        "law_source": None,
+                    }
+                )
+        internal_aggregation = {
+            "total": sum(counts.values()),
+            **counts,
+            "results": results_detail,
+        }
+
+    # law_citations: F1Output.evidence_laws → LawCitation (FE 기대 shape)
+    internal_law_citations: list[dict] = []
+    for c in out.evidence_laws:
+        internal_law_citations.append(
+            {
+                "chunk_id": c.get("chunk_id", ""),
+                "namespace": c.get("namespace", ""),
+                "regulation_id": None,
+                "section_path": c.get("article_no"),
+                "text": c.get("text", ""),
+                "score": c.get("score", 0.0),
+            }
+        )
+
+    # P6 (2026-04-20): LawRefCheckbox (판정 근거 법령) 채움.
+    # law_source 는 React key + selectedLawRefs Set 식별자이므로 unique 필수 →
+    # "법령명 — 조항" 합쳐 unique. label 합성은 컴포넌트가 law_source 만 표시.
+    internal_law_refs: list[dict] = []
+    seen_refs: set[str] = set()
+    for c in out.evidence_laws:
+        ln = (c.get("law_name") or "").strip()
+        an = (c.get("article_no") or "").strip()
+        src = f"{ln} — {an}".strip(" —") if (ln or an) else ""
+        if not src or src in seen_refs:
+            continue
+        seen_refs.add(src)
+        internal_law_refs.append({"law_source": src, "law_article": None})
+
+    # escalations: user_warnings 를 EscalationDetail 형태로 파싱
+    # 예: "step_a_api_error:대두:TIMEOUT" → module_id="step_a_api_error", reason=전체 문자열
+    # pipeline_status:* 내부 신호는 user_warnings 에서 이미 제거됨
+    internal_escalations: list[dict] = []
+    for w in user_warnings:
+        module_id = w.split(":")[0] if ":" in w else w
+        internal_escalations.append(
+            {
+                "module_id": module_id,
+                "trigger_type": "warning",
+                "confidence_score": 0.0,
+                "reason": w,
+            }
+        )
+
+    return {
+        "ingredients": ingredients_slim,
+        "verdict": verdict_ko,
+        "import_possible": import_possible,
+        "fail_reasons": fail_reasons,
+        "standards_check": standards_slim,
+        "pipeline_status": pipeline_status,
+        "_internal": {
+            "evidence_laws": out.evidence_laws,
+            "gmo_ingredients": out.gmo_ingredients,
+            "api_call_stats": out.api_call_stats,
+            "unit_conversions": out.unit_conversions,
+            "pipeline_version": "v2",
+            # ── 레거시 FE 컴포넌트 재사용용 매핑 ──
+            "forbidden_hits": internal_forbidden,
+            "aggregation": internal_aggregation,
+            "law_citations": internal_law_citations,
+            "escalations": internal_escalations,
+            "conditional_evaluations": [],
+            "law_refs": internal_law_refs,
+            "rag_verdict": None,
+            "rag_reasoning": None,
+            "conflict_status": "rag_skipped",
+        },
+    }
+
+
+def _record_to_json(row: dict, field: str) -> Any:
+    """supabase-py는 JSONB를 dict로 자동 반환."""
+    return row.get(field)
 
 
 # ============================================================
@@ -224,10 +530,8 @@ class Feature1GetResponse(BaseModel):
 
 
 @router.get("/{case_id}/pipeline/feature/1", response_model=Feature1GetResponse)
-async def get_feature1(
-    case_id: str, db: asyncpg.Connection = Depends(get_conn_dep)
-) -> Feature1GetResponse:
-    row = await _fetch_pipeline_step(db, case_id, "1")
+def get_feature1(case_id: str) -> Feature1GetResponse:
+    row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
             status_code=404,
@@ -242,9 +546,10 @@ async def get_feature1(
         status=row["status"],
         ai_result=_record_to_json(row, "ai_result"),
         final_result=_record_to_json(row, "final_result"),
-        edit_reason=row["edit_reason"],
+        edit_reason=row.get("edit_reason"),
         law_references=_record_to_json(row, "law_references"),
-        updated_at=row["updated_at"].isoformat() if row["updated_at"] else None,
+        # supabase-py는 timestamp를 str로 반환 → .isoformat() 불필요
+        updated_at=row.get("updated_at"),
     )
 
 
@@ -260,28 +565,53 @@ _DISTILL_CODES = {"35", "41", "42"}
 _FERMENT_CODES = {"10", "16", "17", "18"}
 
 
-async def _fetch_f0_parsed_result(
-    db: asyncpg.Connection, case_id: str,
-) -> Optional[dict]:
+def _fetch_f2_food_type(case_id: str) -> tuple[Optional[str], Optional[dict]]:
+    """F2(step_key='2')의 확정 식품유형과 계층 데이터를 가져온다.
+
+    final_result 우선 (담당자 수정 반영), 없으면 ai_result 사용.
+    F2 미실행이면 (None, None) 반환.
+
+    Returns:
+        (food_type, food_type_hierarchy)
+    """
+    supabase = get_supabase()
+    result = supabase.table("pipeline_steps") \
+        .select("ai_result, final_result") \
+        .eq("case_id", case_id) \
+        .eq("step_key", "2") \
+        .limit(1) \
+        .execute()
+    if not result.data:
+        return None, None
+    row = result.data[0]
+    data = row.get("final_result") or row.get("ai_result")
+    if not data or not isinstance(data, dict):
+        return None, None
+    return data.get("food_type"), data
+
+
+def _fetch_f0_parsed_result(case_id: str) -> Optional[dict]:
     """f0(step_key='0')의 ai_result에서 ParsedResult를 가져온다."""
-    row = await db.fetchrow(
-        """
-        SELECT ai_result FROM pipeline_steps
-        WHERE case_id = $1 AND step_key = '0' AND status = 'completed'
-        LIMIT 1
-        """,
-        case_id,
-    )
-    if not row or not row["ai_result"]:
+    supabase = get_supabase()
+    result = supabase.table("pipeline_steps") \
+        .select("ai_result") \
+        .eq("case_id", case_id) \
+        .eq("step_key", "0") \
+        .eq("status", "completed") \
+        .limit(1) \
+        .execute()
+    if not result.data:
         return None
-    raw = row["ai_result"]
-    if isinstance(raw, str):
-        return json.loads(raw)
-    return raw
+    # supabase-py가 JSONB를 dict로 자동 파싱
+    return result.data[0].get("ai_result")
 
 
 def _convert_f0_to_f1_ingredients(parsed: dict) -> list[Ingredient]:
-    """f0 ParsedResult.ingredients → F1 Ingredient 리스트 변환."""
+    """f0 ParsedResult.ingredients → F1 Ingredient 리스트 변환.
+
+    P6 (2026-04-20): F0 매칭 메타(ingredient_code_name, ingredient_code) 패스스루.
+    매칭 방법은 코드/명칭 일치 유무로 추론.
+    """
     f0_ingredients = parsed.get("ingredients") or []
     result = []
     for item in f0_ingredients:
@@ -294,11 +624,27 @@ def _convert_f0_to_f1_ingredients(parsed: dict) -> list[Ingredient]:
             except (ValueError, TypeError):
                 pass
 
+        raw_name = item.get("name", "")
+        matched_ko = item.get("ingredient_code_name") or None
+        code_f0 = item.get("ingredient_code") or None
+        # 매칭 방법 추론 (F0 가 raw method 미저장 → 결과 기반 추론)
+        if not code_f0:
+            match_method = None  # 미매칭
+        elif matched_ko and matched_ko == raw_name:
+            match_method = "exact_name"
+        else:
+            match_method = "code_normalize"
+
         result.append(Ingredient(
-            name=item.get("name", ""),
+            name=raw_name,
+            matched_name_ko=matched_ko,
+            ingredient_code_f0=code_f0,
+            match_method=match_method,
             percentage=pct,
             ins=item.get("ins_number") or None,
             cas=item.get("cas_number") or None,
+            # P6 (2026-04-20): 사용 부위 패스스루 — Step B 가 edible_parts 와 비교 검증
+            part=item.get("part") or None,
         ))
     return result
 
@@ -333,17 +679,42 @@ class Feature1RunRequest(BaseModel):
 
 
 @router.post("/{case_id}/pipeline/feature/1/run")
-async def run_feature1_endpoint(
+def run_feature1_endpoint(
     case_id: str,
     body: Feature1RunRequest,
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
     ingredients = body.ingredients
     process_conditions = body.process_conditions
 
+    # HITL-0 게이트: F1_REQUIRE_HITL0_APPROVAL=true 시 F0 approved 상태 필수
+    if F1_REQUIRE_HITL0_APPROVAL:
+        supabase = get_supabase()
+        f0_row = (
+            supabase.table("pipeline_steps")
+            .select("status")
+            .eq("case_id", case_id)
+            .eq("step_key", "0")
+            .limit(1)
+            .execute()
+        )
+        f0_status = f0_row.data[0]["status"] if f0_row.data else None
+        if f0_status != "approved":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "F0_NOT_APPROVED",
+                    "message": (
+                        "F0 파싱 결과가 담당자 승인을 받지 않았습니다. "
+                        "먼저 /pipeline/feature/0/approve 를 호출하세요."
+                    ),
+                    "feature": 1,
+                    "f0_status": f0_status,
+                },
+            )
+
     # ingredients가 없으면 f0 파싱 결과에서 자동 추출
     if not ingredients:
-        parsed = await _fetch_f0_parsed_result(db, case_id)
+        parsed = _fetch_f0_parsed_result(case_id)
         if not parsed:
             raise HTTPException(
                 status_code=400,
@@ -367,13 +738,94 @@ async def run_feature1_endpoint(
         if not process_conditions:
             process_conditions = _convert_f0_to_process_conditions(parsed)
 
+    # ── 2-pass 로직: food_type 자동 조회 ──────────────────────
+    # 1st pass: F2 미실행 → food_type=None → Step A+B만 유의미 (보수적 판정)
+    # 2nd pass: F2 완료 → food_type 자동 획득 → Step C+D 정밀 판정
+    resolved_food_type = body.food_type
+    resolved_food_type_hierarchy = None
+    if not resolved_food_type:
+        resolved_food_type, resolved_food_type_hierarchy = _fetch_f2_food_type(case_id)
+
     try:
-        out = await run_feature1(
-            db=db,
-            ingredients=ingredients,
-            food_type=body.food_type,
-            process_conditions=process_conditions or ProcessConditions(),
-        )
+        # 옵션 B: f1_수정_요청_사항 §7 "async def 엔드포인트 금지" 룰 준수.
+        # 엔드포인트는 sync 로 유지하고, async 서비스는 asyncio.run() 으로 호출.
+        if should_use_new_pipeline(case_id):
+            # ── measured_values 생성 (F0 내용량 × 배합비율) ────────
+            measured_values = None
+            try:
+                f0_parsed = _fetch_f0_parsed_result(case_id)
+                if f0_parsed:
+                    content_vol = f0_parsed.get("basic_info", {}).get("content_volume", "")
+                    # "330mL" → 330.0 (mL 단위)
+                    import re as _re
+                    vol_match = _re.search(r"([\d.]+)\s*(ml|mL|g|kg|L)", content_vol or "")
+                    if vol_match:
+                        from models.f1_types import MeasuredValue
+                        vol_value = float(vol_match.group(1))
+                        vol_unit = vol_match.group(2).lower()
+                        # g/kg 단위로 변환
+                        if vol_unit in ("ml", "l"):
+                            vol_unit = "ml" if vol_unit == "ml" else "ml"
+                            if vol_unit == "l":
+                                vol_value *= 1000
+                        measured_values = {}
+                        for ing in ingredients:
+                            pct = getattr(ing, "percentage", None)
+                            if pct is not None and pct > 0:
+                                # 배합비율(%) × 내용량 → mg/kg 환산
+                                actual_mg_per_kg = pct * 10000 / 100  # pct% of 1kg = pct*10000 mg/kg...
+                                # 간단히: pct% → g/kg = pct * 10
+                                actual_g_per_kg = pct / 100  # 비율을 분율로
+                                name_key = (getattr(ing, "matched_name_ko", "") or "").strip() or ing.name
+                                measured_values[name_key] = MeasuredValue(
+                                    value=round(pct / 100 * vol_value, 4),
+                                    unit=vol_unit,
+                                )
+            except Exception:
+                measured_values = None
+
+            # ── 신규 v2 파이프라인 경로 ──────────────────────────────
+            v2_out: F1Output = asyncio.run(
+                run_feature1_v2(
+                    ingredients=ingredients,
+                    food_type=resolved_food_type,
+                    food_type_hierarchy=resolved_food_type_hierarchy,
+                    process_conditions=process_conditions or ProcessConditions(),
+                    measured_values=measured_values,
+                )
+            )
+            ai_result = _f1output_to_pipeline_result(v2_out)
+            # v2 verdict 기반 HITL status 결정
+            new_status = (
+                "needs_review"
+                if v2_out.verdict in ("needs_review", "prohibited")
+                else "waiting_review"
+            )
+        else:
+            # ── 레거시 RAG 경로 (기본) ────────────────────────────────
+            out, rag, conflict_status = asyncio.run(
+                run_feature1_with_rag(
+                    ingredients=ingredients,
+                    food_type=resolved_food_type,
+                    process_conditions=process_conditions or ProcessConditions(),
+                    payload_for_rag={
+                        "ingredients": [i.name for i in ingredients],
+                        "food_type": resolved_food_type,
+                    },
+                )
+            )
+            ai_result = _to_pipeline_result(out, rag, conflict_status)
+            # HITL status 결정 (총괄 §2.7 엄격)
+            #   - conflict / rag_supplemented → needs_review (사람 결정 필요)
+            #   - agreed / rag_unavailable / rag_skipped → waiting_review (기존 흐름)
+            new_status = (
+                "needs_review"
+                if conflict_status in ("conflict", "rag_supplemented")
+                else "waiting_review"
+            )
+    except HTTPException:
+        # code-review MEDIUM-1: HITL-0 400 등 의미 있는 HTTPException 은 원본 그대로 전파.
+        raise
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(
             status_code=500,
@@ -384,12 +836,11 @@ async def run_feature1_endpoint(
             },
         )
 
-    ai_result = _to_pipeline_result(out)
-    await _upsert_pipeline_step(db, case_id, "waiting_review", ai_result)
+    _upsert_pipeline_step(case_id, new_status, ai_result)
 
     return {
         "case_id": case_id,
-        "status": "waiting_review",
+        "status": new_status,
         "ai_result": ai_result,
     }
 
@@ -405,12 +856,11 @@ class Feature1UpdateRequest(BaseModel):
 
 
 @router.patch("/{case_id}/pipeline/feature/1")
-async def update_feature1(
+def update_feature1(
     case_id: str,
     body: Feature1UpdateRequest,
-    db: asyncpg.Connection = Depends(get_conn_dep),
 ) -> dict:
-    row = await _fetch_pipeline_step(db, case_id, "1")
+    row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
             status_code=404,
@@ -420,31 +870,47 @@ async def update_feature1(
                 "feature": 1,
             },
         )
-    await db.execute(
-        """
-        UPDATE pipeline_steps
-           SET final_result = $2::jsonb,
-               edit_reason  = $3,
-               updated_at   = NOW()
-         WHERE case_id = $1 AND step_key = '1'
-        """,
-        case_id,
-        json.dumps(body.final_result, ensure_ascii=False),
-        body.edit_reason,
-    )
+    supabase = get_supabase()
+    supabase.table("pipeline_steps").update({
+        "final_result": body.final_result,   # dict → JSONB 자동 처리
+        "edit_reason": body.edit_reason,
+    }).eq("case_id", case_id).eq("step_key", "1").execute()
     return {"case_id": case_id, "updated": True}
 
 
 # ============================================================
-# POST /feature/1/confirm — 담당자 확인 완료
+# POST /feature/1/confirm — 담당자 확인 완료 (레거시 + HITL-2 통합)
+#
+# Wave 3 W3-BE: HITL2ConfirmRequest Body가 있으면 HITL-2 서비스로 위임.
+# Body 없는 레거시 호출(Body=None)은 기존 동작(status='completed') 유지.
 # ============================================================
 
 
-@router.post("/{case_id}/pipeline/feature/1/confirm")
-async def confirm_feature1(
-    case_id: str, db: asyncpg.Connection = Depends(get_conn_dep)
+@router.post("/{case_id}/pipeline/feature/1/confirm", response_model=None)
+def confirm_feature1(
+    case_id: str,
+    body: Optional[HITL2ConfirmRequest] = None,
 ) -> dict:
-    row = await _fetch_pipeline_step(db, case_id, "1")
+    # HITL-2 Body 있으면 Wave 3 서비스로 위임
+    # code-review CRITICAL-1 fix: HITL2ConfirmResponse(BaseModel) 를 dict 로
+    # 직렬화하여 legacy dict 분기와 응답 shape 일관성 확보.
+    if body is not None:
+        try:
+            return confirm_hitl2(case_id, body).model_dump(mode="json")
+        except ValueError as exc:
+            error_msg = str(exc)
+            if "존재하지 않습니다" in error_msg:
+                raise HTTPException(
+                    status_code=404,
+                    detail={"error": "F1_STEP_NOT_FOUND", "message": error_msg},
+                )
+            raise HTTPException(
+                status_code=400,
+                detail={"error": "HITL2_CONFIRM_FAILED", "message": error_msg},
+            )
+
+    # 레거시: Body 없는 단순 확인 완료
+    row = _fetch_pipeline_step(case_id, "1")
     if not row:
         raise HTTPException(
             status_code=404,
@@ -455,15 +921,388 @@ async def confirm_feature1(
             },
         )
 
-    # final_result 가 없으면 ai_result 를 final_result 로 복사
-    await db.execute(
-        """
-        UPDATE pipeline_steps
-           SET status = 'completed',
-               final_result = COALESCE(final_result, ai_result),
-               updated_at = NOW()
-         WHERE case_id = $1 AND step_key = '1'
-        """,
-        case_id,
-    )
+    # COALESCE 대체: Python에서 처리 (final_result 없으면 ai_result 사용)
+    final = row.get("final_result") or row.get("ai_result")
+
+    supabase = get_supabase()
+    supabase.table("pipeline_steps").update({
+        "status": "completed",
+        "final_result": final,
+    }).eq("case_id", case_id).eq("step_key", "1").execute()
+
     return {"case_id": case_id, "status": "completed"}
+
+
+# ============================================================
+# GET /feature/1/report — PDF report download
+# ============================================================
+
+_FONT_PATH = "C:/Windows/Fonts/malgun.ttf"
+_FONT_BOLD_PATH = "C:/Windows/Fonts/malgunbd.ttf"
+
+_VERDICT_LABEL_KO = {
+    "permitted": "허용",
+    "restricted": "조건부",
+    "prohibited": "금지",
+    "unidentified": "미확인",
+}
+
+_STATUS_LABEL_KO = {
+    "allowed": "허용",
+    "not_found": "미확인/금지",
+    "synthetic_flavor_warning": "합성향료",
+}
+
+_STD_STATUS_LABEL = {
+    "pass": "적합",
+    "fail": "부적합",
+    "no_threshold": "기준 없음",
+}
+
+
+class _F1ReportPDF(FPDF):
+    """F1 import check report PDF — mirrors F4 _ReportPDF pattern."""
+
+    def __init__(self):
+        super().__init__()
+        self.add_font("malgun", "", _FONT_PATH, uni=True)
+        self.add_font("malgun", "B", _FONT_BOLD_PATH, uni=True)
+        self.set_auto_page_break(auto=True, margin=20)
+
+    def header(self):
+        self.set_font("malgun", "B", 10)
+        self.set_text_color(100, 100, 100)
+        self.cell(0, 8, "SAMC AI — F1 수입 가능 판정 레포트", align="C")
+        self.ln(4)
+        self.set_draw_color(200, 200, 200)
+        self.line(10, self.get_y(), 200, self.get_y())
+        self.ln(6)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("malgun", "", 8)
+        self.set_text_color(150, 150, 150)
+        self.cell(0, 10, f"- {self.page_no()} -", align="C")
+
+    def section_title(self, title: str):
+        self.set_font("malgun", "B", 13)
+        self.set_text_color(30, 40, 80)
+        self.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
+        self.set_draw_color(30, 40, 80)
+        self.line(10, self.get_y(), 200, self.get_y())
+        self.ln(4)
+
+    def sub_title(self, title: str):
+        self.set_font("malgun", "B", 11)
+        self.set_text_color(50, 50, 50)
+        self.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+        self.ln(2)
+
+    def body_text(self, text: str):
+        self.set_font("malgun", "", 10)
+        self.set_text_color(30, 30, 30)
+        self.multi_cell(0, 6, str(text))
+        self.ln(2)
+
+    def badge(self, label: str, color: tuple):
+        self.set_font("malgun", "B", 10)
+        self.set_fill_color(*color)
+        self.set_text_color(255, 255, 255)
+        w = self.get_string_width(label) + 10
+        self.cell(w, 8, label, fill=True, align="C")
+        self.set_text_color(30, 30, 30)
+        self.ln(10)
+
+    def kv_row(self, key: str, value):
+        self.set_font("malgun", "B", 10)
+        self.cell(40, 7, key)
+        self.set_font("malgun", "", 10)
+        self.multi_cell(0, 7, str(value or "-"))
+        self.ln(1)
+
+
+def _build_report_pdf(case_id: str, result: dict, row: dict) -> bytes:
+    """Build F1 report PDF bytes from pipeline_steps row."""
+    status = row.get("status", "pending")
+    ingredients = result.get("ingredients", [])
+    verdict = result.get("verdict", "-")
+    import_possible = result.get("import_possible")
+    fail_reasons = result.get("fail_reasons", [])
+    standards = result.get("standards_check", [])
+    internal = result.get("_internal", {})
+    law_refs = internal.get("law_refs", [])
+    escalations = internal.get("escalations", [])
+    forbidden = internal.get("forbidden_hits", [])
+
+    pdf = _F1ReportPDF()
+    pdf.add_page()
+
+    # ── 1. Overview ──
+    pdf.section_title("1. 판정 개요")
+    pdf.kv_row("케이스 ID", case_id)
+    pdf.kv_row("검토 상태", {"pending": "대기", "waiting_review": "검토 대기",
+                          "completed": "완료"}.get(status, status))
+    pdf.kv_row("레포트 생성", datetime.now().strftime("%Y-%m-%d %H:%M"))
+    pdf.ln(2)
+
+    pdf.sub_title("종합 판정")
+    if import_possible is True:
+        pdf.badge("수입 가능", (34, 139, 34))
+    elif import_possible is False:
+        pdf.badge("수입 불가", (200, 30, 30))
+    else:
+        pdf.badge("검토 필요", (210, 150, 0))
+
+    pdf.kv_row("판정 사유", verdict)
+    if row.get("edit_reason"):
+        pdf.kv_row("수정 사유", row["edit_reason"])
+    if fail_reasons:
+        pdf.kv_row("불가 사유", "; ".join(fail_reasons))
+    pdf.ln(2)
+
+    # ── 2. Forbidden hits ──
+    if forbidden:
+        pdf.section_title("2. 절대 금지 원료")
+        for i, h in enumerate(forbidden, 1):
+            pdf.sub_title(f"  {i}. {h.get('name_ko', '-')}")
+            pdf.kv_row("분류", h.get("category", "-"))
+            pdf.kv_row("법령", h.get("law_source", "-"))
+            pdf.kv_row("사유", h.get("reason", "-"))
+            pdf.ln(2)
+
+    # ── 3. Ingredients ──
+    section_num = 3 if forbidden else 2
+    pdf.section_title(f"{section_num}. 원재료 판정")
+    if not ingredients:
+        pdf.body_text("원재료 데이터가 없습니다.")
+    else:
+        for ing in ingredients:
+            name = ing.get("name", "-")
+            pct = ing.get("percentage")
+            pct_str = f"{pct}%" if pct is not None else "-"
+            status_label = _STATUS_LABEL_KO.get(ing.get("status", ""), ing.get("status", ""))
+            law = ing.get("law_ref") or "-"
+            pdf.kv_row(f"{name} ({pct_str})", f"{status_label} | {law}")
+        pdf.ln(2)
+
+    # ── 4. Standards check ──
+    section_num += 1
+    pdf.section_title(f"{section_num}. 기준치 검사")
+    if not standards:
+        pdf.body_text("기준치 검사 데이터가 없습니다.")
+    else:
+        for s in standards:
+            name = s.get("ingredient_name", "-")
+            actual = s.get("actual_value")
+            threshold = s.get("threshold_text") or s.get("threshold_value") or "-"
+            unit = s.get("unit", "")
+            std_status = _STD_STATUS_LABEL.get(s.get("status", ""), s.get("status", ""))
+            actual_str = f"{actual} {unit}".strip() if actual is not None else "미제공"
+            pdf.kv_row(name, f"{actual_str} / 기준 {threshold} [{std_status}]")
+        pdf.ln(2)
+
+    # ── 5. Law references ──
+    section_num += 1
+    pdf.section_title(f"{section_num}. 적용 법령")
+    if not law_refs:
+        pdf.body_text("적용 법령이 없습니다.")
+    else:
+        for ref in law_refs:
+            source = ref.get("law_source", "-")
+            article = ref.get("law_article") or ""
+            pdf.body_text(f"  - {source} {article}".strip())
+    pdf.ln(2)
+
+    # ── 6. RAG 법령 인용 (Phase 4-B) ──
+    # rag_verdict 또는 law_citations 가 있으면 렌더 (rag_skipped 는 생략).
+    rag_verdict = internal.get("rag_verdict")
+    rag_reasoning = internal.get("rag_reasoning")
+    law_citations = internal.get("law_citations", [])
+    conflict_status = internal.get("conflict_status", "rag_skipped")
+
+    _CONFLICT_LABEL = {
+        "agreed": "DB·RAG 일치",
+        "conflict": "DB·RAG 충돌 (담당자 결정)",
+        "rag_supplemented": "RAG 보완 판정",
+        "rag_unavailable": "RAG 호출 실패",
+        "rag_skipped": "RAG 미호출",
+    }
+    _RAG_VERDICT_LABEL = {
+        "permitted": "허용",
+        "restricted": "조건부 허용",
+        "prohibited": "금지",
+        "unidentified": "불명확",
+        "error": "판정 오류",
+    }
+    _NS_LABEL = {
+        "additive_code_text": "식품첨가물공전",
+        "food_code_text": "식품공전",
+        "health_food_text": "건강기능식품공전",
+        "temporary_standard": "한시적 기준·규격",
+        "functional_labeling": "기능성표시 고시",
+    }
+
+    if rag_verdict or law_citations:
+        section_num += 1
+        pdf.section_title(f"{section_num}. RAG 법령 인용 (AI 판정 근거)")
+        pdf.kv_row(
+            "충돌 상태",
+            _CONFLICT_LABEL.get(conflict_status, conflict_status),
+        )
+        if rag_verdict:
+            pdf.kv_row(
+                "RAG 판정",
+                _RAG_VERDICT_LABEL.get(rag_verdict, rag_verdict),
+            )
+        if rag_reasoning:
+            pdf.kv_row("RAG 근거", rag_reasoning)
+
+        if law_citations:
+            pdf.ln(1)
+            pdf.sub_title(f"인용 청크 ({len(law_citations)}건)")
+            for i, c in enumerate(law_citations, 1):
+                ns = _NS_LABEL.get(c.get("namespace", ""), c.get("namespace", ""))
+                reg = c.get("regulation_id") or ""
+                sec = c.get("section_path") or ""
+                header = f"  [{i}] {ns}"
+                if reg:
+                    header += f" {reg}"
+                if sec:
+                    header += f" · {sec}"
+                pdf.body_text(header)
+                text = c.get("text", "")
+                # PDF 내 과도한 길이 방지 — 400자 이후 truncate
+                if len(text) > 400:
+                    text = text[:400] + "..."
+                pdf.body_text(f"     {text}")
+                score = c.get("score")
+                if isinstance(score, (int, float)):
+                    pdf.body_text(f"     (score: {score:.3f})")
+                pdf.ln(1)
+        pdf.ln(2)
+
+    # ── 7. Escalations ──
+    if escalations:
+        section_num += 1
+        pdf.section_title(f"{section_num}. 에스컬레이션")
+        for esc in escalations:
+            pdf.kv_row(esc.get("trigger_type", "-"), esc.get("reason", "-"))
+        pdf.ln(2)
+
+    return pdf.output()
+
+
+@router.get("/{case_id}/pipeline/feature/1/report")
+def download_feature1_report(case_id: str):
+    """F1 판정 결과를 PDF 레포트로 다운로드."""
+    row = _fetch_pipeline_step(case_id, "1")
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "FEATURE1_NOT_RUN",
+                "message": "기능1이 아직 실행되지 않았습니다.",
+                "feature": 1,
+            },
+        )
+    result = _record_to_json(row, "final_result") or _record_to_json(row, "ai_result") or {}
+    pdf_bytes = _build_report_pdf(case_id, result, row)
+    filename = f"F1_report_{case_id}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ============================================================
+# HITL 엔드포인트 (Wave 3 W3-BE 추가)
+# 05_HITL_플로우_설계.md §3-3, §4-3, §5-3
+# 기존 F1 엔드포인트는 건드리지 않음.
+# ============================================================
+
+
+@router.patch(
+    "/{case_id}/pipeline/feature/0",
+    response_model=F0EditResponse,
+    summary="HITL-0: F0 파싱 결과 편집",
+)
+def patch_f0_edit(case_id: str, body: F0EditRequest) -> F0EditResponse:
+    """F0 파싱 결과를 담당자가 편집한다.
+
+    - final_result 를 갱신하고 status 를 'completed' 로 강등한다.
+    - 편집 후에는 /approve 를 다시 호출해야 F1 실행 가능(flag on 기준).
+    - status='locked' 또는 'confirmed' 에서는 403 반환.
+    """
+    try:
+        return apply_f0_edit(case_id, body)
+    except PermissionError as exc:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "F0_LOCKED",
+                "message": str(exc),
+            },
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "F0_STEP_NOT_FOUND",
+                "message": str(exc),
+            },
+        )
+
+
+@router.post(
+    "/{case_id}/pipeline/feature/0/approve",
+    response_model=F0ApproveResponse,
+    summary="HITL-0: F0 파싱 결과 승인",
+)
+def post_f0_approve(case_id: str, body: F0ApproveRequest) -> F0ApproveResponse:
+    """F0 파싱 결과를 담당자가 승인한다.
+
+    - pipeline_steps(step_key='0').status = 'approved' 로 전이.
+    - 이후 F1/F2/F3 실행 가능(F1_REQUIRE_HITL0_APPROVAL=true 기준).
+    """
+    try:
+        return approve_f0(case_id, body)
+    except ValueError as exc:
+        status_code = 404 if "존재하지 않습니다" in str(exc) else 400
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": "F0_APPROVE_FAILED",
+                "message": str(exc),
+            },
+        )
+
+
+@router.post(
+    "/{case_id}/pipeline/feature/1/hitl1-decisions",
+    response_model=HITL1DecisionsResponse,
+    summary="HITL-1: 불확실 원재료 / 자동 판정 불가 처리",
+)
+def post_hitl1_decisions(
+    case_id: str, body: HITL1DecisionsRequest
+) -> HITL1DecisionsResponse:
+    """HITL-1 담당자 결정을 제출한다.
+
+    - 모든 에스컬레이션에 ack 하면 status='waiting_review'.
+    - 일부만 ack 하면 status='needs_review' 유지.
+    - 모든 에스컬레이션 ack 후에만 HITL-2 confirm 가능.
+    """
+    try:
+        return submit_hitl1_decisions(case_id, body)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "error": "F1_STEP_NOT_FOUND",
+                "message": str(exc),
+            },
+        )
+
+
+# NOTE: HITL-2 POST /feature/1/confirm 은 위 confirm_feature1 내부에서 처리됨.
+# (HITL2ConfirmRequest Body 존재 여부로 레거시/HITL-2 분기)

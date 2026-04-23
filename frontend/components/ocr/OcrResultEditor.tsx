@@ -1,17 +1,17 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ScanSearch, FileText, FileDown, Loader2, AlertTriangle } from "lucide-react";
+import { ScanSearch, FileText, FileDown, Loader2, AlertTriangle, RefreshCw } from "lucide-react";
 import BasicInfoCard from "./BasicInfoCard";
 import IngredientTable, { Ingredient } from "./IngredientTable";
-import ProcessCodeCard, { type ProcessCodeCandidate } from "./ProcessCodeCard";
+import ProcessCodeCard, { type ProcessCodeCandidate, type ProcessStep } from "./ProcessCodeCard";
 import LabelInfoCard from "./LabelInfoCard";
 import LabelImageCard from "@/components/upload/LabelImageCard";
-import Badge from "@/components/ui/Badge";
 import { downloadParsedResultFile, getLabelImages, type LabelImageData } from "@/lib/api";
 
 interface ProcessCodeReason {
   code: string;
+  name?: string;
   reason: string;
 }
 
@@ -22,6 +22,8 @@ interface ParsedData {
     is_first_import: boolean;
     is_organic: boolean;
     is_oem: boolean;
+    /** 일본산일 때 F3 전달용 도·현 코드 ("후쿠시마" 또는 "일본34개도부현") */
+    japan_prefecture_code?: string;
   };
   ingredients: Array<{
     id: string;
@@ -30,12 +32,24 @@ interface ParsedData {
     origin: string;
     ins_number: string;
     cas_number: string;
+    ingredient_code?: string;
+    ingredient_code_name?: string;
+    ingredient_code_candidates?: Array<{
+      code: string;
+      name_ko: string;
+      name_en: string;
+      score: number;
+      match_type: string;
+    }>;
   }>;
   process_info: {
     process_codes: string[];
     process_code_reasons?: ProcessCodeReason[];
     process_code_candidates?: ProcessCodeCandidate[];
+    process_steps?: ProcessStep[];
     raw_process_text: string;
+    is_incomplete?: boolean;
+    incomplete_reason?: string;
   };
   label_info?: {
     export_country: string;
@@ -60,6 +74,10 @@ interface OcrResultEditorProps {
    *  제공 시 내부 fetch를 생략하고 이 값을 그대로 사용. */
   externalLabelImages?: LabelImageData[];
   externalLabelImagesLoading?: boolean;
+  /** OCR 분석 시작 콜백 */
+  onParse?: () => void;
+  /** OCR 분석 중 여부 */
+  isParsing?: boolean;
 }
 
 export default function OcrResultEditor({
@@ -70,6 +88,8 @@ export default function OcrResultEditor({
   extractionErrors,
   externalLabelImages,
   externalLabelImagesLoading,
+  onParse,
+  isParsing,
 }: OcrResultEditorProps) {
   const [exporting, setExporting] = useState<"docx" | "pdf" | null>(null);
 
@@ -167,11 +187,15 @@ export default function OcrResultEditor({
   const [processCodes, setProcessCodes] = useState<string[]>([]);
   const [processCodeReasons, setProcessCodeReasons] = useState<ProcessCodeReason[]>([]);
   const [processCodeCandidates, setProcessCodeCandidates] = useState<ProcessCodeCandidate[]>([]);
+  const [processSteps, setProcessSteps] = useState<ProcessStep[]>([]);
   const [rawProcessText, setRawProcessText] = useState("");
 
   // 수출국/OEM
   const [exportCountry, setExportCountry] = useState("");
   const [isOem, setIsOem] = useState(false);
+
+  // 일본 도·현 코드 (일본산일 때만 사용)
+  const [japanPrefectureCode, setJapanPrefectureCode] = useState("");
 
   // 라벨 정보
   const [labelTexts, setLabelTexts] = useState<string[]>([]);
@@ -205,18 +229,29 @@ export default function OcrResultEditor({
         origin: ing.origin,
         insNumber: ing.ins_number,
         casNumber: ing.cas_number,
+        ingredientCode: ing.ingredient_code || "",
+        ingredientCodeName: ing.ingredient_code_name || "",
+        ingredientCodeCandidates: (ing.ingredient_code_candidates || []).map((c) => ({
+          code: c.code,
+          name_ko: c.name_ko,
+          name_en: c.name_en,
+          score: c.score,
+          match_type: c.match_type,
+        })),
       }))
     );
 
     setProcessCodes(parsedData.process_info.process_codes || []);
     setProcessCodeReasons(parsedData.process_info.process_code_reasons || []);
     setProcessCodeCandidates(parsedData.process_info.process_code_candidates || []);
+    setProcessSteps(parsedData.process_info.process_steps || []);
     setRawProcessText(parsedData.process_info.raw_process_text || "");
 
     // label_info가 있으면 그쪽 값 사용, 없으면 basic_info에서 가져옴
     const li = parsedData.label_info;
     setExportCountry(li?.export_country || parsedData.basic_info.export_country || "");
     setIsOem(li?.is_oem ?? parsedData.basic_info.is_oem ?? false);
+    setJapanPrefectureCode(parsedData.basic_info.japan_prefecture_code ?? "");
     setLabelTexts(li?.label_texts || []);
     setDesignDescription(li?.design_description || "");
     setWarnings(li?.warnings || []);
@@ -233,6 +268,7 @@ export default function OcrResultEditor({
     processCodes?: string[];
     exportCountry?: string;
     isOem?: boolean;
+    japanPrefectureCode?: string;
     labelTexts?: string[];
     designDescription?: string;
     warnings?: string[];
@@ -244,6 +280,7 @@ export default function OcrResultEditor({
     const codes = overrides.processCodes ?? processCodes;
     const country = overrides.exportCountry ?? exportCountry;
     const oem = overrides.isOem ?? isOem;
+    const jpCode = overrides.japanPrefectureCode ?? japanPrefectureCode;
     const lt = overrides.labelTexts ?? labelTexts;
     const dd = overrides.designDescription ?? designDescription;
     const w = overrides.warnings ?? warnings;
@@ -257,6 +294,7 @@ export default function OcrResultEditor({
         is_first_import: bi.isFirstImport,
         is_organic: bi.isOrganic,
         is_oem: oem,
+        ...(jpCode ? { japan_prefecture_code: jpCode } : {}),
       },
       ingredients: ing.map((item) => ({
         id: item.id,
@@ -265,9 +303,21 @@ export default function OcrResultEditor({
         origin: item.origin,
         ins_number: item.insNumber || "",
         cas_number: item.casNumber || "",
+        ingredient_code: item.ingredientCode || "",
+        ingredient_code_name: item.ingredientCodeName || "",
+        ingredient_code_candidates: (item.ingredientCodeCandidates || []).map((c) => ({
+          code: c.code,
+          name_ko: c.name_ko,
+          name_en: c.name_en,
+          score: c.score,
+          match_type: c.match_type,
+        })),
       })),
       process_info: {
         process_codes: codes,
+        process_code_reasons: processCodeReasons,
+        process_code_candidates: processCodeCandidates,
+        process_steps: processSteps,
         raw_process_text: rawProcessText,
       },
       label_info: {
@@ -279,7 +329,7 @@ export default function OcrResultEditor({
       },
       selected_label_image_ids: selIds,
     });
-  }, [basicInfo, ingredients, processCodes, exportCountry, isOem, labelTexts, designDescription, warnings, rawProcessText, selectedLabelImageIds, onDataChange]);
+  }, [basicInfo, ingredients, processCodes, exportCountry, isOem, japanPrefectureCode, labelTexts, designDescription, warnings, rawProcessText, selectedLabelImageIds, onDataChange]);
 
   // 라벨 이미지 선택 핸들러
   const handleLabelImageSelectionChange = useCallback(
@@ -318,7 +368,21 @@ export default function OcrResultEditor({
   const handleExportCountryChange = useCallback(
     (country: string) => {
       setExportCountry(country);
-      notifyParent({ exportCountry: country });
+      // 수출국이 일본이 아니면 도·현 코드 초기화
+      if (country !== "일본") {
+        setJapanPrefectureCode("");
+        notifyParent({ exportCountry: country, japanPrefectureCode: "" });
+      } else {
+        notifyParent({ exportCountry: country });
+      }
+    },
+    [notifyParent]
+  );
+
+  const handleJapanPrefectureCodeChange = useCallback(
+    (code: string) => {
+      setJapanPrefectureCode(code);
+      notifyParent({ japanPrefectureCode: code });
     },
     [notifyParent]
   );
@@ -355,12 +419,6 @@ export default function OcrResultEditor({
     [notifyParent]
   );
 
-  const statusBadge = {
-    idle: { variant: "slate" as const, text: "분석 대기" },
-    parsing: { variant: "blue" as const, text: "분석 중..." },
-    done: { variant: "green" as const, text: "분석 완료" },
-    error: { variant: "red" as const, text: "분석 실패" },
-  }[parseStatus];
 
   return (
     <div className="flex flex-col h-full">
@@ -380,6 +438,18 @@ export default function OcrResultEditor({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {parseStatus === "done" && onParse && (
+            <button
+              type="button"
+              onClick={onParse}
+              disabled={isParsing}
+              className="inline-flex items-center gap-2 h-10 px-5 rounded-xl text-sm font-semibold text-white transition-all disabled:opacity-60"
+              style={{ background: "var(--ds-color-primary, #2563eb)" }}
+            >
+              {isParsing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+              <span>OCR 재분석</span>
+            </button>
+          )}
           {parseStatus === "done" && caseId && (
             <>
               <button
@@ -412,9 +482,6 @@ export default function OcrResultEditor({
               </button>
             </>
           )}
-          <Badge variant={statusBadge.variant} size="md">
-            {statusBadge.text}
-          </Badge>
         </div>
       </div>
 
@@ -429,15 +496,25 @@ export default function OcrResultEditor({
         </div>
       )}
 
-      {/* 대기 상태 */}
+      {/* 대기 상태 — 분석 시작 버튼 */}
       {parseStatus === "idle" && (
         <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <ScanSearch size={24} className="text-slate-400" />
+          <div className="text-center max-w-sm">
+            <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-5">
+              <ScanSearch size={28} className="text-blue-500" />
             </div>
-            <p className="text-sm font-medium text-slate-600">서류를 업로드한 후 OCR 분석을 시작하세요</p>
-            <p className="text-xs text-slate-400 mt-1">업로드된 서류에서 성분, 공정, 라벨 정보를 자동 추출합니다</p>
+            <p className="text-base font-semibold text-slate-700 mb-2">서류를 업로드한 후 OCR 분석을 시작하세요</p>
+            <p className="text-sm text-slate-400 mb-6">업로드된 서류에서 성분, 공정, 라벨 정보를 자동 추출합니다</p>
+            {onParse && (
+              <button
+                onClick={onParse}
+                disabled={isParsing}
+                className="w-full py-3.5 px-6 rounded-xl text-base font-semibold text-white transition-all disabled:opacity-60"
+                style={{ background: "var(--ds-color-primary, #2563eb)" }}
+              >
+                {isParsing ? "AI 분석 중..." : "OCR 분석 시작"}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -488,9 +565,12 @@ export default function OcrResultEditor({
             onExportCountryChange={handleExportCountryChange}
             isOem={isOem}
             onOemChange={handleOemChange}
+            japanPrefectureCode={japanPrefectureCode}
+            onJapanPrefectureCodeChange={handleJapanPrefectureCodeChange}
             rawProcessText={rawProcessText || undefined}
             processCodeReasons={processCodeReasons.length > 0 ? processCodeReasons : undefined}
             processCodeCandidates={processCodeCandidates.length > 0 ? processCodeCandidates : undefined}
+            processSteps={processSteps.length > 0 ? processSteps : undefined}
           />
 
           <LabelInfoCard
